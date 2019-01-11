@@ -197,30 +197,22 @@ sized_basic_type:
 
 top_var_decl_no_assign:
   | tvt=top_var_type id=identifier d=option(dims) SEMICOLON
-    {
-      grammar_logger "top_var_decl_no_assign" ;
-      let sizes = match d with None -> [] | Some l -> l in
-      {stmt_untyped=
-          VarDecl {sizedtype= reducearray (fst tvt, sizes);
-                   transformation=  snd tvt;
-                   identifier= id;
-                   initial_value= None;
-                   is_global= true};
-       stmt_untyped_loc= Location ($startpos, $endpos)}
-    }
+    {grammar_logger "top_var_decl_no_assign" ;
+     let sizes = match d with None -> [] | Some l -> l in
+     {tvtype= reducearray (fst tvt, sizes);
+      tvtrans=  snd tvt;
+      tvidentifier= id;
+      tvinit= None}}
 
 top_var_decl:
   | tvt=top_var_type id=identifier d=option(dims)
     ass=option(pair(ASSIGN, expression)) SEMICOLON
     { grammar_logger "top_var_decl" ;
       let sizes = match d with None -> [] | Some l -> l in
-      {stmt_untyped=
-              VarDecl {sizedtype= reducearray (fst tvt, sizes);
-                       transformation=  snd tvt;
-                       identifier= id;
-                       initial_value= Option.map ~f:snd ass;
-                       is_global= true};
-       stmt_untyped_loc= Location ($startpos, $endpos)}}
+      {tvtype= reducearray (fst tvt, sizes);
+       tvtrans=  snd tvt;
+       tvidentifier= id;
+       tvinit= Option.map ~f:snd ass}}
 
 top_var_type:
   | INT r=range_constraint

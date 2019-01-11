@@ -225,6 +225,14 @@ and pretty_print_array_dims = function
   | [] -> ""
   | es -> "[" ^ pretty_print_list_of_expression (List.rev es) ^ "]"
 
+and pretty_print_vardecl st trans id init =
+  let st2, es = unwind_sized_array_type st in
+  let open Core_kernel.Option in
+  value ~default:"" (trans >>| pretty_print_transformed_type st2)
+  ^ " " ^ pretty_print_identifier id ^ pretty_print_array_dims es
+  ^ value ~default:"" (init >>| (fun e -> " = " ^ pretty_print_expression e))
+  ^ ";"
+
 and pretty_print_statement {stmt_untyped= s_content; _} =
   match s_content with
   | Assignment
@@ -280,19 +288,9 @@ and pretty_print_statement {stmt_untyped= s_content; _} =
       s1 ^ s2 ^ s3
   | VarDecl
       { sizedtype= st
-      ; transformation= trans
       ; identifier= id
-      ; initial_value= init
-      ; is_global= _ } ->
-      let st2, es = unwind_sized_array_type st in
-      let init_string =
-        match init with
-        | None -> ""
-        | Some e -> " = " ^ pretty_print_expression e
-      in
-      pretty_print_transformed_type st2 trans
-      ^ " " ^ pretty_print_identifier id ^ pretty_print_array_dims es
-      ^ init_string ^ ";"
+      ; initial_value= init} ->
+    pretty_print_vardecl st None id init
   | FunDef {returntype= rt; funname= id; arguments= args; body= b} -> (
       pretty_print_returntype rt ^ " " ^ pretty_print_identifier id ^ "("
       ^ String.concat ", "
@@ -312,6 +310,12 @@ and pretty_print_list_of_statements l =
   String.concat "\n" (List.map (fun x -> tabs () ^ pretty_print_statement x) l)
   ^ "\n"
 
+and pretty_print_vardecls l =
+  let pp_tvdecl {tvidentifier; tvinit; tvtrans; tvtype} =
+    pretty_print_vardecl tvtype (Some tvtrans) tvidentifier tvinit in
+  String.concat "\n" (List.map pp_tvdecl l)
+  ^ "\n"
+
 and pretty_print_program = function
   | { functionblock= bf
     ; datablock= bd
@@ -326,7 +330,7 @@ and pretty_print_program = function
       )
       ^ ( match bd with
         | None -> ""
-        | Some x -> "data {\n" ^ pretty_print_list_of_statements x ^ "}\n" )
+        | Some x -> "data {\n" ^ pretty_print_vardecls x ^ "}\n" )
       ^ ( match btd with
         | None -> ""
         | Some x ->
@@ -335,7 +339,7 @@ and pretty_print_program = function
       ^ ( match bp with
         | None -> ""
         | Some x ->
-            "parameters {\n" ^ pretty_print_list_of_statements x ^ "}\n" )
+            "parameters {\n" ^ pretty_print_vardecls x ^ "}\n" )
       ^ ( match btp with
         | None -> ""
         | Some x ->

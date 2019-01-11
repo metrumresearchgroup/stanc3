@@ -195,10 +195,8 @@ and ('e, 's) statement =
   | Block of 's list
   | VarDecl of
       { sizedtype: 'e sizedtype
-      ; transformation: 'e transformation
       ; identifier: identifier
-      ; initial_value: 'e option
-      ; is_global: bool }
+      ; initial_value: 'e option}
   | FunDef of
       { returntype: returntype
       ; funname: identifier
@@ -232,22 +230,29 @@ and typed_statement =
   ; stmt_typed_returntype: statement_returntype }
 [@@deriving sexp, compare, map, hash]
 
+type 'e topvardecl = {tvtype: 'e sizedtype
+                     ; tvtrans: 'e transformation
+                     ; tvidentifier: identifier
+                     ; tvinit: 'e option}
+[@@deriving sexp, compare, map, hash]
+
 (** Program shapes, where we obtain types of programs if we substitute typed or untyped
     statements for 's *)
-type 's program =
+type ('e, 's) program =
   { functionblock: 's list option
-  ; datablock: 's list option
+  ; datablock: 'e topvardecl list option
   ; transformeddatablock: 's list option
-  ; parametersblock: 's list option
+  ; parametersblock: 'e topvardecl list option
   ; transformedparametersblock: 's list option
   ; modelblock: 's list option
   ; generatedquantitiesblock: 's list option }
 
 (** Untyped programs (before type checking) *)
-and untyped_program = untyped_statement program
+and untyped_program = (untyped_expression, untyped_statement )program
 
 (** Typed programs (after type checking) *)
-and typed_program = typed_statement program [@@deriving sexp, compare, map]
+and typed_program = (typed_expression, typed_statement) program
+[@@deriving sexp, compare, map]
 
 (** Forgetful function from typed to untyped expressions *)
 let rec untyped_expression_of_typed_expression {expr_typed; expr_typed_loc; _}
@@ -262,7 +267,3 @@ let rec untyped_statement_of_typed_statement {stmt_typed; stmt_typed_loc; _} =
       map_statement untyped_expression_of_typed_expression
         untyped_statement_of_typed_statement stmt_typed
   ; stmt_untyped_loc= stmt_typed_loc }
-
-(** Forgetful function from typed to untyped programs *)
-let untyped_program_of_typed_program =
-  map_program untyped_statement_of_typed_statement
