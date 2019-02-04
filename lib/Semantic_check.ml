@@ -16,23 +16,12 @@ open Pretty_printing
    the checking functions for its children left to right. *)
 
 (* Top level function semantic_check_program declares the AST while operating
-   on (1) a global symbol table vm, and (2) structure of type context_flags_record
-   to communicate information down the AST. *)
-
-(** Origin blocks, to keep track of where variables are declared *)
-type originblock =
-  | MathLibrary
-  | Functions
-  | Data
-  | TData
-  | Param
-  | TParam
-  | Model
-  | GQuant
+   on (1) a global symbol table (handled imperatively), and (2) structure of
+   type context_flags_record (handled functionally) to communicate information
+   down the AST. *)
 
 let check_that_all_functions_have_definition = ref true
 let model_name = ref ""
-let vm = Symbol_table.initialize ()
 
 (* Record structure holding flags and other markers about context to be
    used for error reporting. *)
@@ -223,7 +212,7 @@ let check_fresh_variable_basic id is_nullary_function =
       in
       semantic_error ~loc:id.id_loc error_msg
   in
-  match Symbol_table.look vm id.name with
+  match Symbol_table.look id.name with
   | Some _ ->
       let error_msg =
         String.concat ~sep:" "
@@ -248,7 +237,7 @@ let rec semantic_check_program
     ; generatedquantitiesblock= gb } =
   (* NB: We always want to make sure we start with an empty symbol table, in
      case we are processing multiple files in one run. *)
-  let _ = unsafe_clear_symbol_table vm in
+  let _ = unsafe_clear_symbol_table () in
   let semantic_check_ostatements_in_block cf b =
     Option.map
       ~f:(List.map ~f:(semantic_check_statement {cf with current_block= b}))
@@ -265,7 +254,7 @@ let rec semantic_check_program
   (* Check that all declared functions have a definition *)
   let _ =
     if
-      Symbol_table.check_some_id_is_unassigned vm
+      Symbol_table.check_some_id_is_unassigned ()
       && !check_that_all_functions_have_definition
     then
       semantic_error ~loc:(List.hd_exn (Option.value_exn ufb)).stmt_typed_loc
@@ -277,9 +266,9 @@ let rec semantic_check_program
   let upb = semantic_check_ostatements_in_block cf Param pb in
   let utpb = semantic_check_ostatements_in_block cf TParam tpb in
   (* Model top level variables only assigned and read in model  *)
-  let _ = Symbol_table.begin_scope vm in
+  let _ = Symbol_table.begin_scope () in
   let umb = semantic_check_ostatements_in_block cf Model mb in
-  let _ = Symbol_table.end_scope vm in
+  let _ = Symbol_table.end_scope () in
   let ugb = semantic_check_ostatements_in_block cf GQuant gb in
   { functionblock= ufb
   ; datablock= udb
@@ -515,7 +504,7 @@ and semantic_check_expression cf {expr_untyped_loc= loc; expr_untyped} =
             ^ "." ) )
   | Variable id ->
       let uid = semantic_check_identifier id in
-      let ut = Symbol_table.look vm id.name in
+      let ut = Symbol_table.look id.name in
       (* Check that variable in scope if used  *)
       let _ =
         if ut = None && not (is_stan_math_function_name uid.name) then
@@ -617,7 +606,7 @@ and semantic_check_expression cf {expr_untyped_loc= loc; expr_untyped} =
                     (List.map ~f:type_of_expr_typed ues)
                 ^ "." )
           in
-          match Symbol_table.look vm uid.name with
+          match Symbol_table.look uid.name with
           | Some (_, UFun (_, Void)) ->
               semantic_error ~loc
                 ( "A returning function was expected but a non-returning \
@@ -711,7 +700,7 @@ and semantic_check_expression cf {expr_untyped_loc= loc; expr_untyped} =
                     (List.map ~f:type_of_expr_typed ues)
                 ^ "." )
           in
-          match Symbol_table.look vm uid.name with
+          match Symbol_table.look uid.name with
           | Some (_, UFun (_, Void)) ->
               semantic_error ~loc
                 ( "A returning function was expected but a non-returning \
@@ -946,14 +935,14 @@ and semantic_check_statement cf s =
       let uassop = semantic_check_assignmentoperator assop in
       let ue = semantic_check_expression cf e in
       let uidoblock =
-        match Option.map ~f:fst (Symbol_table.look vm uid.name) with
+        match Option.map ~f:fst (Symbol_table.look uid.name) with
         | Some b -> b
         | None ->
             if is_stan_math_function_name uid.name then MathLibrary
             else fatal_error ()
       in
       let _ =
-        if Symbol_table.get_read_only vm uid.name then
+        if Symbol_table.get_read_only uid.name then
           semantic_error ~loc
             ( "Cannot assign to function argument or loop identifier "
             ^ ("'" ^ uid.name ^ "'")
@@ -962,7 +951,7 @@ and semantic_check_statement cf s =
       (* Variables from previous blocks are read-only. In particular, data and parameters never assigned to *)
       let _ =
         if
-          (not (Symbol_table.is_global vm uid.name))
+          (not (Symbol_table.is_global uid.name))
           || uidoblock = cf.current_block
         then ()
         else
@@ -1030,7 +1019,7 @@ and semantic_check_statement cf s =
                     pretty_print_unsizedtypes (List.map ~f: type_of_expr_typed ues)
                     "."  |}
           in
-          match Symbol_table.look vm uid.name with
+          match Symbol_table.look uid.name with
           | Some (_, UFun (listedtypes, Void)) ->
               let _ =
                 if
@@ -1151,18 +1140,18 @@ and semantic_check_statement cf s =
            = Some (ReturnType UReal)
            && name <> "binomial_coefficient"
            && name <> "multiply"
-        || ( match Symbol_table.look vm (name ^ "_lpdf") with
+        || ( match Symbol_table.look (name ^ "_lpdf") with
            | Some (Functions, UFun (listedtypes, ReturnType UReal)) ->
                check_compatible_arguments_mod_conv name listedtypes
                  argumenttypes
            | _ -> false )
-        || ( match Symbol_table.look vm (name ^ "_lpmf") with
+        || ( match Symbol_table.look (name ^ "_lpmf") with
            | Some (Functions, UFun (listedtypes, ReturnType UReal)) ->
                check_compatible_arguments_mod_conv name listedtypes
                  argumenttypes
            | _ -> false )
         ||
-        match Symbol_table.look vm (name ^ "_log") with
+        match Symbol_table.look (name ^ "_log") with
         | Some (Functions, UFun (listedtypes, ReturnType UReal)) ->
             check_compatible_arguments_mod_conv name listedtypes argumenttypes
         | _ -> false
@@ -1179,7 +1168,7 @@ and semantic_check_statement cf s =
         ( get_stan_math_function_return_type_opt (name ^ "_lcdf") argumenttypes
           = Some (ReturnType UReal)
         ||
-        match Symbol_table.look vm (name ^ "_lcdf") with
+        match Symbol_table.look (name ^ "_lcdf") with
         | Some (Functions, UFun (listedtypes, ReturnType UReal)) ->
             check_compatible_arguments_mod_conv name listedtypes argumenttypes
         | _ -> (
@@ -1188,7 +1177,7 @@ and semantic_check_statement cf s =
                  argumenttypes
                = Some (ReturnType UReal)
             ||
-            match Symbol_table.look vm (name ^ "_cdf_log") with
+            match Symbol_table.look (name ^ "_cdf_log") with
             | Some (Functions, UFun (listedtypes, ReturnType UReal)) ->
                 check_compatible_arguments_mod_conv name listedtypes
                   argumenttypes
@@ -1197,7 +1186,7 @@ and semantic_check_statement cf s =
                argumenttypes
              = Some (ReturnType UReal)
            ||
-           match Symbol_table.look vm (name ^ "_lccdf") with
+           match Symbol_table.look (name ^ "_lccdf") with
            | Some (Functions, UFun (listedtypes, ReturnType UReal)) ->
                check_compatible_arguments_mod_conv name listedtypes
                  argumenttypes
@@ -1207,7 +1196,7 @@ and semantic_check_statement cf s =
                     argumenttypes
                   = Some (ReturnType UReal)
                ||
-               match Symbol_table.look vm (name ^ "_ccdf_log") with
+               match Symbol_table.look (name ^ "_ccdf_log") with
                | Some (Functions, UFun (listedtypes, ReturnType UReal)) ->
                    check_compatible_arguments_mod_conv name listedtypes
                      argumenttypes
@@ -1328,16 +1317,16 @@ and semantic_check_statement cf s =
         semantic_check_expression_of_int_type cf e2 "Upper bound of for-loop"
       in
       (* For, while, for each, if constructs take expressions of valid type *)
-      let _ = Symbol_table.begin_scope vm in
+      let _ = Symbol_table.begin_scope () in
       let _ = check_fresh_variable uid false in
       let oindexblock = cf.current_block in
-      let _ = Symbol_table.enter vm uid.name (oindexblock, UInt) in
+      let _ = Symbol_table.enter uid.name (oindexblock, UInt) in
       (* Check that function args and loop identifiers are not modified in function. (passed by const ref)*)
-      let _ = Symbol_table.set_read_only vm uid.name in
+      let _ = Symbol_table.set_read_only uid.name in
       let us =
         semantic_check_statement {cf with loop_depth= cf.loop_depth + 1} s
       in
-      let _ = Symbol_table.end_scope vm in
+      let _ = Symbol_table.end_scope () in
       { stmt_typed=
           For
             { loop_variable= uid
@@ -1361,26 +1350,25 @@ and semantic_check_statement cf s =
               ^ pretty_print_unsizedtype ue.expr_typed_type
               ^ "." )
       in
-      let _ = Symbol_table.begin_scope vm in
+      let _ = Symbol_table.begin_scope () in
       let _ = check_fresh_variable uid false in
       let oindexblock = cf.current_block in
       let _ =
-        Symbol_table.enter vm uid.name
-          (oindexblock, loop_identifier_unsizedtype)
+        Symbol_table.enter uid.name (oindexblock, loop_identifier_unsizedtype)
       in
       (* Check that function args and loop identifiers are not modified in function. (passed by const ref)*)
-      let _ = Symbol_table.set_read_only vm uid.name in
+      let _ = Symbol_table.set_read_only uid.name in
       let us =
         semantic_check_statement {cf with loop_depth= cf.loop_depth + 1} s
       in
-      let _ = Symbol_table.end_scope vm in
+      let _ = Symbol_table.end_scope () in
       { stmt_typed= ForEach (uid, ue, us)
       ; stmt_typed_returntype= us.stmt_typed_returntype
       ; stmt_typed_loc= loc }
   | Block vdsl ->
-      let _ = Symbol_table.begin_scope vm in
+      let _ = Symbol_table.begin_scope () in
       let uvdsl = List.map ~f:(semantic_check_statement cf) vdsl in
-      let _ = Symbol_table.end_scope vm in
+      let _ = Symbol_table.end_scope () in
       (* Any statements after a break or continue or return or reject do not count for the return
       type. *)
       let rec list_until_escape = function
@@ -1431,7 +1419,7 @@ and semantic_check_statement cf s =
       let ut = unsizedtype_of_sizedtype ust in
       let _ = check_fresh_variable uid false in
       let ob = cf.current_block in
-      let _ = Symbol_table.enter vm id.name (ob, ut) in
+      let _ = Symbol_table.enter id.name (ob, ut) in
       let _ =
         if
           glob && ust = SInt
@@ -1507,9 +1495,9 @@ and semantic_check_statement cf s =
       let uarg_types = List.map ~f:(function w, y, _ -> (w, y)) uargs in
       (* User defined functions cannot be overloaded *)
       let _ =
-        if Symbol_table.check_is_unassigned vm uid.name then (
+        if Symbol_table.check_is_unassigned uid.name then (
           if
-            Symbol_table.look vm uid.name
+            Symbol_table.look uid.name
             <> Some (Functions, UFun (uarg_types, urt))
           then
             semantic_error ~loc
@@ -1518,27 +1506,27 @@ and semantic_check_statement cf s =
               ^ " has already been declared to have type "
               ^ Option.value_map ~default:"unknown"
                   ~f:(fun (_, t) -> pretty_print_unsizedtype t)
-                  (Symbol_table.look vm uid.name) ) )
+                  (Symbol_table.look uid.name) ) )
         else check_fresh_variable uid (List.length uarg_types = 0)
       in
       let _ =
         match b with
         | {stmt_untyped= Skip; _} ->
-            if Symbol_table.check_is_unassigned vm uid.name then
+            if Symbol_table.check_is_unassigned uid.name then
               semantic_error ~loc
                 ( "Function "
                 ^ ("'" ^ uid.name ^ "'")
                 ^ " has already been declared. A definition is expected." )
-            else Symbol_table.set_is_unassigned vm uid.name
-        | _ -> Symbol_table.set_is_assigned vm uid.name
+            else Symbol_table.set_is_unassigned uid.name
+        | _ -> Symbol_table.set_is_assigned uid.name
       in
       let _ =
-        Symbol_table.enter vm uid.name (Functions, UFun (uarg_types, urt))
+        Symbol_table.enter uid.name (Functions, UFun (uarg_types, urt))
       in
       let uarg_identifiers = List.map ~f:(function _, _, z -> z) uargs in
       let uarg_names = List.map ~f:(fun x -> x.name) uarg_identifiers in
       (* Check that function args and loop identifiers are not modified in function. (passed by const ref)*)
-      let _ = List.map ~f:(Symbol_table.set_read_only vm) uarg_names in
+      let _ = List.map ~f:Symbol_table.set_read_only uarg_names in
       let open String in
       let open Pervasives in
       let _ =
@@ -1588,7 +1576,7 @@ and semantic_check_statement cf s =
                 ( error_string ^ " Instead found type "
                 ^ pretty_print_unsizedtype x ^ "." )
       in
-      let _ = Symbol_table.begin_scope vm in
+      let _ = Symbol_table.begin_scope () in
       (* All function arguments are distinct *)
       let _ =
         if dup_exists uarg_names then
@@ -1602,7 +1590,7 @@ and semantic_check_statement cf s =
       (* We treat DataOnly arguments as if they are data and AutoDiffable arguments
          as if they are parameters, for the purposes of type checking. *)
       let _ =
-        List.map2 ~f:(Symbol_table.enter vm) uarg_names
+        List.map2 ~f:Symbol_table.enter uarg_names
           (List.map
              ~f:(function
                | DataOnly, ut -> (Data, ut) | AutoDiffable, ut -> (Param, ut))
@@ -1620,7 +1608,7 @@ and semantic_check_statement cf s =
       (* Check that every trace through function body contains return statement of right type *)
       let _ =
         if
-          Symbol_table.check_is_unassigned vm uid.name
+          Symbol_table.check_is_unassigned uid.name
           || check_of_compatible_return_type urt ub.stmt_typed_returntype
         then ()
         else
@@ -1628,7 +1616,7 @@ and semantic_check_statement cf s =
             "Function bodies must contain a return statement of correct type \
              in every branch."
       in
-      let _ = Symbol_table.end_scope vm in
+      let _ = Symbol_table.end_scope () in
       { stmt_typed=
           FunDef {returntype= urt; funname= uid; arguments= uargs; body= ub}
       ; stmt_typed_returntype= NoReturnType
