@@ -1,0 +1,2 @@
+(tests (names Stan_math_code_gen)
+(libraries alcotest))
