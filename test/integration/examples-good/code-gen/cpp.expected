@@ -81,9 +81,19 @@ class eight_schools_ncp_model : public prob_grad {
     T__ lp__(0.0);
     stan::math::accumulator<T__> lp_accum__;
     stan::io::reader<local_scalar_t__> in__(params_r__, params_i__);
-    //TODO: Unpack parameters with reader and constrain
+    Unpack parameters with reader and constrain
     
     try {
+      current_statement__ = "file eight_schools_ncp.stan, line 9, columns 2-20";
+      if (jacobian__) {
+        {
+          current_statement__ = "file eight_schools_ncp.stan, line 9, columns 2-20";
+          tau = in__.lb_constrain(0, lp__);
+        }
+      } else {
+        current_statement__ = "file eight_schools_ncp.stan, line 9, columns 2-20";
+        tau = in__.lb_constrain(0);
+      }
       current_statement__ = "file eight_schools_ncp.stan, line 15, column 2 to line 16, column 41";
       for (size_t j = 1; j < J; j++)
         current_statement__ = "file eight_schools_ncp.stan, line 16, columns 4-41";

@@ -224,7 +224,7 @@ let mkfor ut bodyfn iteratee sloc =
 
 (** [for_scalar unsizedtype...] generates a For statement that loops
     over the scalars in the underlying [unsizedtype] *)
-let rec for_scalar (ut : unsizedtype) bodyfn var sloc =
+let rec for_scalar ut bodyfn var sloc =
   match ut with
   | Ast.UInt | UReal -> bodyfn var
   | UVector | URowVector | UMatrix -> mkfor ut bodyfn var sloc

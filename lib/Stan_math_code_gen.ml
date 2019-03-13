@@ -509,6 +509,11 @@ let pp_transformed_params ppf tparams = ignore tparams ; string ppf "//TODO"
 let pp_transformed_param_checks ppf params =
   ignore params ; string ppf "//TODO"
 
+(* A Stan program's [transform_inits] method should accept parameters in their
+   constrained form (e.g. the form the user sees) and transform them to the
+   unconstrained space that we want to sample over. It does not interact with
+   transformed parameters at all.
+*)
 let pp_transform_inits ppf params =
   ignore params ;
   string ppf "//TODO transform_inits"
@@ -516,22 +521,50 @@ let pp_transform_inits ppf params =
 let pp_fndef_sig ppf (rt, fname, params) =
   pf ppf "%s %s(@[<hov>%a@])" rt fname (list ~sep:comma string) params
 
-(* constraining parameters for before log prob and write_array
-  match tvtrans with
-  | Ast.Identity -> None
-  | Lower lb -> constrain for_scalar "lb_constrain" [lb]
-  | Upper ub -> constrain for_scalar "ub_constrain" [ub]
-  | LowerUpper (lb, ub) -> constrain for_scalar "lub_constrain" [lb; ub]
-  | Offset o -> constrain for_scalar "offset_multiplier" [o; Lit (Int, "1")]
-  | Multiplier m -> constrain for_scalar "offset_multiplier" [Lit (Int, "0"); m]
-  | OffsetMultiplier (o, m) -> constrain for_scalar "offset_multiplier" [o; m]
-  | Ordered -> constrain for_eigen "ordered" []
-  | PositiveOrdered | Simplex | UnitVector -> constrain for_eigen "ordered" []
-  |CholeskyCorr -> constrain for_eigen "cholesky_factor_corr" []
-  | CholeskyCov | Correlation | Covariance ->
-      None
+let ifelse condid yes no sloc =
+  let with_loc stmt = {stmt; sloc} in
+  with_loc
+    (IfElse (Var condid, with_loc (Block [yes]), Some (with_loc (Block [no]))))
 
-*)
+(* When a Stan program reads in parameters from its [params_r] vector,
+   it gives the in__ reader just the size of the underlying data and calls a
+   reading and constraining function specific to the constraint/transform
+   on the parameter.*)
+let trans_read_and_constrain tvd =
+  let scalar = Ast_to_Mir.for_scalar and eigen = Ast_to_Mir.for_eigen in
+  let with_loc stmt = {stmt; sloc= tvd.tvloc} in
+  let ut = Ast.remove_size tvd.tvtype in
+  let fill_param cname id args =
+    let read = FunApp ("in__." ^ cname ^ "_constrain", args) in
+    let assign =
+      match ut with
+      | Ast.UArray _ -> NRFunApp (strf "%a.push_back" pp_expr id, [read])
+      | _ -> Assignment (id, read)
+    in
+    with_loc assign
+  in
+  let helper forl cname args =
+    let fill_jac id =
+      ifelse "jacobian__"
+        (fill_param cname id (args @ [Var "lp__"]))
+        (fill_param cname id args) tvd.tvloc
+    in
+    [forl ut fill_jac (Var tvd.tvident) tvd.tvloc]
+  in
+  match tvd.tvtrans with
+  | Ast.Identity -> []
+  | Lower lb -> helper scalar "lb" [lb]
+  | Upper ub -> helper scalar "ub" [ub]
+  | LowerUpper (lb, ub) -> helper scalar "lub" [lb; ub]
+  | Offset o -> helper scalar "offset_multiplier" [o; Lit (Int, "1")]
+  | Multiplier m -> helper scalar "offset_multiplier" [Lit (Int, "0"); m]
+  | OffsetMultiplier (o, m) -> helper scalar "offset_multiplier" [o; m]
+  | Ordered -> helper eigen "ordered" []
+  | PositiveOrdered | Simplex | UnitVector -> helper eigen "ordered" []
+  | CholeskyCorr -> helper eigen "cholesky_factor_corr" []
+  | CholeskyCov -> helper eigen "cholesky_factor_cov" []
+  | Correlation -> helper eigen "corr_matrix" []
+  | Covariance -> helper eigen "cov_matrix" []
 
 let pp_log_prob ppf p =
   let text = pf ppf "%s@," in
@@ -549,8 +582,7 @@ let pp_log_prob ppf p =
   text "T__ lp__(0.0);" ;
   text "stan::math::accumulator<T__> lp_accum__;" ;
   text "stan::io::reader<local_scalar_t__> in__(params_r__, params_i__);" ;
-  pf ppf "//TODO: Unpack parameters with reader and constrain@," ;
-  (* XXX Eventually we can create a separate prepare_params method? *)
+  pf ppf "Unpack parameters with reader and constrain@," ;
   pp_located_error ppf
     ( pp_statement
     , {stmt= Block p.prepare_params; sloc= ""}
@@ -590,7 +622,15 @@ using stan::math::lgamma;
 using stan::model::prob_grad;
 using namespace stan::math; |}
 
+let map_data f m = Map.Poly.data m |> List.map ~f |> List.concat
+
+(* XXX Translate locations to MIR Assignments here and then hopefully dead
+   code eliminate?*)
+
 let pp_prog ppf (p : stmt_loc prog) =
+  (* Augment MIR with Stan math specific statements *)
+  let prepare_params = map_data trans_read_and_constrain p.params in
+  let p = {p with prepare_params= prepare_params @ p.prepare_params} in
   pf ppf "@[<v>@ %s@ %s@ namespace %s_namespace {@ %s@ %s@ %a@ %a@ }@ @]"
     version includes p.prog_name usings globals
     (list ~sep:cut pp_statement)
