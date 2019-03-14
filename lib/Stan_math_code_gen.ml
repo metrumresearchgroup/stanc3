@@ -526,6 +526,24 @@ let ifelse condid yes no sloc =
   with_loc
     (IfElse (Var condid, with_loc (Block [yes]), Some (with_loc (Block [no]))))
 
+let is_scalar_constraint = function
+  | Ast.Identity | Ast.Lower _ | Ast.Upper _
+   |Ast.LowerUpper (_, _)
+   |Ast.Offset _ | Ast.Multiplier _
+   |Ast.OffsetMultiplier (_, _) ->
+      true
+  | Ast.Ordered | Ast.PositiveOrdered | Ast.Simplex | Ast.UnitVector
+   |Ast.CholeskyCorr | Ast.CholeskyCov | Ast.Correlation | Ast.Covariance ->
+      false
+
+let rec size_of tvtype tvtrans =
+  match tvtype with
+  | Ast.SInt | Ast.SReal -> [Lit (Int, "0")]
+  | Ast.SVector d | Ast.SRowVector d -> [d]
+  | Ast.SMatrix (d1, d2) ->
+      if is_scalar_constraint tvtrans then [d1] else [d1; d2]
+  | Ast.SArray (t, _) -> size_of t tvtrans
+
 (* When a Stan program reads in parameters from its [params_r] vector,
    it gives the in__ reader just the size of the underlying data and calls a
    reading and constraining function specific to the constraint/transform
@@ -535,7 +553,10 @@ let trans_read_and_constrain tvd =
   let with_loc stmt = {stmt; sloc= tvd.tvloc} in
   let ut = Ast.remove_size tvd.tvtype in
   let fill_param cname id args =
-    let read = FunApp ("in__." ^ cname ^ "_constrain", args) in
+    let read =
+      FunApp
+        ("in__." ^ cname ^ "_constrain", size_of tvd.tvtype tvd.tvtrans @ args)
+    in
     let assign =
       match ut with
       | Ast.UArray _ -> NRFunApp (strf "%a.push_back" pp_expr id, [read])
@@ -543,7 +564,8 @@ let trans_read_and_constrain tvd =
     in
     with_loc assign
   in
-  let helper forl cname args =
+  let helper cname args =
+    let forl = if is_scalar_constraint tvd.tvtrans then scalar else eigen in
     let fill_jac id =
       ifelse "jacobian__"
         (fill_param cname id (args @ [Var "lp__"]))
@@ -553,18 +575,20 @@ let trans_read_and_constrain tvd =
   in
   match tvd.tvtrans with
   | Ast.Identity -> []
-  | Lower lb -> helper scalar "lb" [lb]
-  | Upper ub -> helper scalar "ub" [ub]
-  | LowerUpper (lb, ub) -> helper scalar "lub" [lb; ub]
-  | Offset o -> helper scalar "offset_multiplier" [o; Lit (Int, "1")]
-  | Multiplier m -> helper scalar "offset_multiplier" [Lit (Int, "0"); m]
-  | OffsetMultiplier (o, m) -> helper scalar "offset_multiplier" [o; m]
-  | Ordered -> helper eigen "ordered" []
-  | PositiveOrdered | Simplex | UnitVector -> helper eigen "ordered" []
-  | CholeskyCorr -> helper eigen "cholesky_factor_corr" []
-  | CholeskyCov -> helper eigen "cholesky_factor_cov" []
-  | Correlation -> helper eigen "corr_matrix" []
-  | Covariance -> helper eigen "cov_matrix" []
+  | Lower lb -> helper "lb" [lb]
+  | Upper ub -> helper "ub" [ub]
+  | LowerUpper (lb, ub) -> helper "lub" [lb; ub]
+  | Offset o -> helper "offset_multiplier" [o; Lit (Int, "1")]
+  | Multiplier m -> helper "offset_multiplier" [Lit (Int, "0"); m]
+  | OffsetMultiplier (o, m) -> helper "offset_multiplier" [o; m]
+  | Ordered -> helper "ordered" []
+  | PositiveOrdered -> helper "positive_ordered" []
+  | Simplex -> helper "simplex" []
+  | UnitVector -> helper "unit_vector" []
+  | CholeskyCorr -> helper "cholesky_factor_corr" []
+  | CholeskyCov -> helper "cholesky_factor_cov" []
+  | Correlation -> helper "corr_matrix" []
+  | Covariance -> helper "cov_matrix" []
 
 let pp_log_prob ppf p =
   let text = pf ppf "%s@," in
