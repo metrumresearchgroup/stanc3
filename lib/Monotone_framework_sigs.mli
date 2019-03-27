@@ -3,6 +3,31 @@
     This gives a modular way of implementing many static analyses. *)
 open Core_kernel
 
+module type INITIALSET = sig
+  include Set_intf.S
+
+  val initial : t
+end
+
+module type TOTALSET = sig
+  include Set_intf.S
+
+  val total : t
+end
+
+module type INITIALTOTALSET = sig
+  include INITIALSET
+
+  val total : t
+end
+
+module type TOTALMAP = sig
+  module Map : Map_intf.S
+  module KeySet : Set_intf.S with type Elt.t = Map.Key.t
+
+  val total : KeySet.t
+end
+
 (** The API for a flowgraph, needed for the mfp algorithm
     in the monotone framework.
     Assumed invariants: successors contains all graph nodes as keys
@@ -18,7 +43,7 @@ end
 
 (** The minimal data we need to use a type in forming a lattice of various kinds *)
 module type TYPE = sig
-  type vals
+  type vals [@@deriving sexp, compare, hash]
 end
 
 (** The data we need to form a powerset lattice *)

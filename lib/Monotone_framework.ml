@@ -63,139 +63,85 @@ let forward_flowgraph_of_stmt stmt =
 
 (**  The lattice of sets of some values, with the inclusion order, set union
      and the empty set *)
-let powerset_lattice (type v) (module S : INITIALTYPE with type vals = v) =
-  ( module struct
-    type properties = S.vals Set.Poly.t
+module Powerset_Lattice (S : INITIALSET) : LATTICE with type properties = S.t =
+struct
+  type properties = S.t
 
-    let bottom = Set.Poly.empty
-    let lub s1 s2 = Set.Poly.union s1 s2
-    let leq s1 s2 = Set.Poly.is_subset s1 ~of_:s2
-    let initial = S.initial
-  end
-  : LATTICE
-    with type properties = v Set.Poly.t )
+  let bottom = S.empty
+  let lub s1 s2 = S.union s1 s2
+  let leq s1 s2 = S.is_subset s1 ~of_:s2
+  let initial = S.initial
+end
 
 (**  The lattice of subsets of some set, with the inverse inclusion order,
      set intersection and the total set *)
-let dual_powerset_lattice (type v)
-    (module S : INITIALTOTALTYPE with type vals = v) =
-  ( module struct
-    type properties = S.vals Set.Poly.t
+module Dual_Powerset_Lattice (S : INITIALTOTALSET) :
+  LATTICE with type properties = S.t = struct
+  type properties = S.t
 
-    let bottom = S.total
-    let lub s1 s2 = Set.Poly.inter s1 s2
-    let leq s1 s2 = Set.Poly.is_subset s2 ~of_:s1
-    let initial = S.initial
-  end
-  : LATTICE
-    with type properties = v Set.Poly.t )
-
-let powerset_lattice_expressions (initial : Mir.ExprSet.t) =
-  ( module struct
-    type properties = Mir.ExprSet.t
-
-    let bottom = Mir.ExprSet.empty
-    let lub s1 s2 = Mir.ExprSet.inter s1 s2
-    let leq s1 s2 = Mir.ExprSet.is_subset s2 ~of_:s1
-    let initial = initial
-  end
-  : LATTICE
-    with type properties = Mir.ExprSet.t )
-
-let dual_powerset_lattice_expressions (initial : Mir.ExprSet.t)
-    (total : Mir.ExprSet.t) =
-  ( module struct
-    type properties = Mir.ExprSet.t
-
-    let bottom = total
-    let lub s1 s2 = Mir.ExprSet.inter s1 s2
-    let leq s1 s2 = Mir.ExprSet.is_subset s2 ~of_:s1
-    let initial = initial
-  end
-  : LATTICE
-    with type properties = Mir.ExprSet.t )
+  let bottom = S.total
+  let lub s1 s2 = S.inter s1 s2
+  let leq s1 s2 = S.is_subset s2 ~of_:s1
+  let initial = S.initial
+end
 
 (**  Add a fresh bottom element to a lattice (possibly without bottom) *)
-let new_bot (type p) (module L : LATTICE_NO_BOT with type properties = p) =
-  ( module struct
-    type properties = L.properties option
+module New_Bot (L : LATTICE_NO_BOT) :
+  LATTICE with type properties = L.properties option = struct
+  type properties = L.properties option
 
-    let bottom = None
+  let bottom = None
 
-    let lub = function
-      | Some s1 -> (
-          function Some s2 -> Some (L.lub s1 s2) | None -> Some s1 )
-      | None -> fun x -> x
+  let lub = function
+    | Some s1 -> ( function Some s2 -> Some (L.lub s1 s2) | None -> Some s1 )
+    | None -> fun x -> x
 
-    let leq = function
-      | Some s1 -> ( function Some s2 -> L.leq s1 s2 | None -> false )
-      | None -> fun _ -> true
+  let leq = function
+    | Some s1 -> ( function Some s2 -> L.leq s1 s2 | None -> false )
+    | None -> fun _ -> true
 
-    let initial = Some L.initial
-  end
-  : LATTICE
-    with type properties = p option )
+  let initial = Some L.initial
+end
 
 (** The lattice (without bottom) of partial functions, ordered under
     inverse graph inclusion, with intersection *)
-let dual_partial_function_lattice (type dv cv)
-    (module Dom : TOTALTYPE with type vals = dv)
-    (module Codom : TYPE with type vals = cv) =
-  ( module struct
-    type properties = (Dom.vals, Codom.vals) Map.Poly.t
+module Dual_Partial_Function_Lattice (Dom : TOTALMAP) (Codom : TYPE) :
+  LATTICE_NO_BOT with type properties = Codom.vals Dom.Map.t = struct
+  type properties = Codom.vals Dom.Map.t
 
-    let lub s1 s2 =
-      let f ~key ~data = Map.find s2 key = Some data in
-      Map.filteri ~f s1
+  let lub s1 s2 =
+    let f ~key ~data = Dom.Map.find s2 key = Some data in
+    Dom.Map.filteri ~f s1
 
-    let leq s1 s2 =
-      Set.for_all Dom.total ~f:(fun k ->
-          match (Map.find s1 k, Map.find s2 k) with
-          | Some x, Some y -> x = y
-          | Some _, None | None, None -> true
-          | None, Some _ -> false )
+  let leq s1 s2 =
+    Dom.KeySet.for_all Dom.total ~f:(fun k ->
+        match (Dom.Map.find s1 k, Dom.Map.find s2 k) with
+        | Some x, Some y -> x = y
+        | Some _, None | None, None -> true
+        | None, Some _ -> false )
 
-    let initial = Map.Poly.empty
-  end
-  : LATTICE_NO_BOT
-    with type properties = (dv, cv) Map.Poly.t )
+  let initial = Dom.Map.empty
+end
 
 (* The lattice of partial functions, where we add a fresh bottom element,
    to represent an inconsistent combination of functions *)
-let dual_partial_function_lattice_with_bot (type dv cv)
-    (module Dom : TOTALTYPE with type vals = dv)
-    (module Codom : TYPE with type vals = cv) =
-  new_bot (dual_partial_function_lattice (module Dom) (module Codom))
+module Dual_Partial_Function_Lattice_With_Bot (Dom : TOTALMAP) (Codom : TYPE) :
+  LATTICE with type properties = Codom.vals Dom.Map.t option =
+  New_Bot (Dual_Partial_Function_Lattice (Dom) (Codom))
 
-(* A dual powerset lattice, where we set the initial set to be empty *)
-let dual_powerset_lattice_empty_initial (type v)
-    (module T : TOTALTYPE with type vals = v) =
-  dual_powerset_lattice
-    ( module struct
-      type vals = T.vals
-
-      let initial = Set.Poly.empty
-      let total = T.total
-    end )
-
-(* A powerset lattice, where we set the initial set to be empty *)
-let powerset_lattice_empty_initial (type v)
-    (module T : TYPE with type vals = v) =
-  powerset_lattice
-    (module struct type vals = T.vals
-
-                   let initial = Set.Poly.empty end)
+module Reaching_Definition_Set =
+ Set.Make(struct
+  type t = string * int option [@@deriving sexp, compare, hash]
+end)
 
 (* The specific powerset lattice we use for reaching definitions analysis *)
-let reaching_definitions_lattice (type v l)
-    (module Variables : INITIALTYPE with type vals = v)
-    (module Labels : TYPE with type vals = l) =
-  powerset_lattice
-    ( module struct
-      type vals = Variables.vals * Labels.vals option
-
-      let initial = Set.Poly.map ~f:(fun x -> (x, None)) Variables.initial
-    end )
+module Reaching_Definitions_Lattice  ( Variables : INITIALSET with type Elt.t = string) =
+Powerset_Lattice ( 
+struct
+include Reaching_Definition_Set
+let initial = Reaching_Definition_Set.map ~f:(fun x -> (x, None)) Variables.initial
+end
+    )
 
 (* The transfer function for a constant propagation analysis *)
 let constant_propagation_transfer
@@ -788,7 +734,7 @@ let propagation_mfp (prog : Mir.typed_prog)
   let mir = Map.find_exn flowgraph_to_mir 1 in
   let domain =
     ( module struct
-      type vals = string
+      type vals = string [@@deriving sexp, hash, compare]
 
       let total =
         Set.Poly.union_list
@@ -803,14 +749,16 @@ let propagation_mfp (prog : Mir.typed_prog)
     : TOTALTYPE
       with type vals = string )
   in
+  let (module Domain) = domain in
   let codomain =
-    (module struct type vals = Mir.expr_typed_located
+    (module struct type vals = Mir.expr_typed_located [@@deriving sexp, hash, compare]
     end
     : TYPE
       with type vals = Mir.expr_typed_located )
   in
+  let (module Codomain) = codomain in
   let (module Lattice) =
-    dual_partial_function_lattice_with_bot domain codomain
+    Dual_Partial_Function_Lattice (Domain) (Codomain)
   in
   let (module Transfer) = propagation_transfer flowgraph_to_mir in
   let (module Mf) =
