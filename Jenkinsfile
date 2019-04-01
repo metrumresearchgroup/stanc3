@@ -33,7 +33,9 @@ pipeline {
                     eval \$(opam env)
                     dune runtest --verbose
                 """)
-                echo runShell("echo \"It took \$((\$(date +'%s') - \$(cat time.log))) seconds to run the tests\"")
+                elapsed = runShell("echo \"It took \$((\$(date +'%s') - \$(cat time.log))) seconds to run the tests\"")
+                runShell("echo \$elapsed >> debian_test_duration")
+                echo runShell("cat debian_test_duration")
 
                 echo "Runned tests list @all"
                 echo runShell("cd test && find -iname '*.stan' && cd ..")
@@ -62,7 +64,9 @@ pipeline {
                     eval \$(opam env)
                     dune runtest --profile static --verbose
                 """)
-                echo runShell("echo \"It took \$((\$(date +'%s') - \$(cat time.log))) seconds to run the tests\"")
+                elapsed = runShell("echo \"It took \$((\$(date +'%s') - \$(cat time.log))) seconds to run the tests\"")
+                runShell("echo \$elapsed >> alpine_test_duration")
+                echo runShell("cat alpine_test_duration")
 
                 echo "Runned tests list @all"
                 echo runShell("cd test && find -iname '*.stan' && cd ..")
