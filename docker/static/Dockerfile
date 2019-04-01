@@ -9,25 +9,17 @@ USER root
 LABEL distro_style="apk"
 
 #Install os dependencies
-RUN apk update && apk upgrade && \
-  apk add build-base bzip2 git tar curl ca-certificates openssl \
-  patch rsync bash libx11-dev nano bubblewrap coreutils xz ncurses-dev m4 pcre-dev
-
-#Init opam and disable sandboxing for docker compatibility
-RUN opam init --disable-sandboxing -y
+RUN apk update && apk add build-base bzip2 git tar curl ca-certificates openssl m4 bash
 
 #Switch back to the normal user
 USER opam
 
-#Switch to 4.07
-#RUN opam switch 4.07
-
-#Update the current shell environment
-#RUN eval $(opam env)
-
 #Copy script & Install build dependencies
 COPY ./scripts/install_build_deps.sh ./
 RUN bash -x install_build_deps.sh
+
+#Update the current shell environment
+RUN eval $(opam env)
 
 #Specify our entrypoint
 ENTRYPOINT [ "opam", "config", "exec", "--" ]
