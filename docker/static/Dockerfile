@@ -16,8 +16,14 @@ RUN apk update && apk upgrade && \
 #Switch back to the normal user
 USER opam
 
+#Init opam and disable sandboxing for docker compatibility
 RUN opam init --disable-sandboxing -y
+
+#Switch to 4.07
 RUN opam switch 4.07
+
+#Update the current shell environment
+RUN eval $(opam env)
 
 #Copy script & Install build dependencies
 COPY ./scripts/install_build_deps.sh ./
