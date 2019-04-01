@@ -12,29 +12,29 @@ def runShell(String command){
 pipeline {
     agent none
     stages {
-        stage("Build & Test") {
-            agent {
-                dockerfile {
-                    filename 'docker/dev-ubuntu/Dockerfile'
-                    //Forces image to ignore entrypoint
-                    args "--entrypoint=\'\'"
-                }
-            }
-            steps {
-                /* runs 'dune build @install' command and then outputs the stdout*/
-                echo runShell("""
-                    eval \$(opam env)
-                    dune build @install
-                """)
-
-                /* runs 'dune runtest' command and then outputs the stdout*/
-                echo runShell("""
-                    eval \$(opam env)
-                    dune runtest
-                """)
-
-            }
-        }
+//        stage("Build & Test") {
+//            agent {
+//                dockerfile {
+//                    filename 'docker/dev-ubuntu/Dockerfile'
+//                    //Forces image to ignore entrypoint
+//                    args "--entrypoint=\'\'"
+//                }
+//            }
+//            steps {
+//                /* runs 'dune build @install' command and then outputs the stdout*/
+//                echo runShell("""
+//                    eval \$(opam env)
+//                    dune build @install
+//                """)
+//
+//                /* runs 'dune runtest' command and then outputs the stdout*/
+//                echo runShell("""
+//                    eval \$(opam env)
+//                    dune runtest
+//                """)
+//
+//            }
+//        }
         stage("Build & Test static linux binary") {
             agent {
                 dockerfile {
@@ -60,10 +60,9 @@ pipeline {
             }
         }
     }
-    post {
-        always {
-            script {utils.mailBuildResults()}
-        }
-    }
-
+    //post {
+    //    always {
+    //        script {utils.mailBuildResults()}
+    //    }
+    //}
 }
