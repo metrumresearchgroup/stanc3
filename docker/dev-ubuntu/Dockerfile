@@ -6,7 +6,7 @@ RUN apt-get update -qq && apt-get install -y --no-install-recommends \
   curl ca-certificates \
   rsync git build-essential m4 unzip pkg-config libpcre3-dev
 
-USER solr
+USER opam
 
 #COPY ./scripts/install_ocaml.sh ./
 #RUN printf "\n" | bash -x install_ocaml.sh "--disable-sandboxing"
