@@ -22,7 +22,7 @@ pipeline {
             }
             steps {
                 /* runs 'dune build @install' command and then outputs the stdout*/
-                echo runShell("""
+                runShell("""
                     eval \$(opam env)
                     dune build @install
                 """)
@@ -30,8 +30,11 @@ pipeline {
                 /* runs 'dune runtest' command and then outputs the stdout*/
                 echo runShell("""
                     eval \$(opam env)
-                    dune runtest
+                    dune runtest --verbose
                 """)
+
+                echo "Runned tests list @all"
+                echo runShell("cd test && find -iname '*.stan' && cd ..")
 
             }
         }
@@ -46,7 +49,7 @@ pipeline {
             steps {
 
                 /* runs 'dune build @install' command and then outputs the stdout*/
-                echo runShell("""
+                runShell("""
                     eval \$(opam env)
                     dune build @install --profile static
                 """)
@@ -54,8 +57,11 @@ pipeline {
                 /* runs 'dune runtest' command and then outputs the stdout*/
                 echo runShell("""
                     eval \$(opam env)
-                    dune runtest --profile static
+                    dune runtest --profile static --verbose
                 """)
+
+                echo "Runned tests list @all"
+                echo runShell("cd test && find -iname '*.stan' && cd ..")
 
             }
         }
