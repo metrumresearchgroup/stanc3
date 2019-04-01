@@ -16,6 +16,8 @@ RUN apk update && apk upgrade && \
 #Switch back to the normal user
 USER opam
 
+RUN eval $(opam env --root=/opam --set-root)
+
 #Copy script & Install build dependencies
 COPY ./scripts/install_build_deps.sh ./
 RUN bash -x install_build_deps.sh
