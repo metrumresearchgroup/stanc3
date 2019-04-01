@@ -27,13 +27,13 @@ pipeline {
                     dune build @install
                 """)
 
-                runShell("start=$(date +'%s')")
+                runShell("start=\$(date +'%s')")
                 /* runs 'dune runtest' command and then outputs the stdout*/
                 echo runShell("""
                     eval \$(opam env)
                     dune runtest --verbose
                 """)
-                echo runShell("echo \"It took $(($(date +'%s') - $start)) seconds to run the tests\"")
+                echo runShell("echo \"It took \$((\$(date +'%s') - \$start)) seconds to run the tests\"")
 
                 echo "Runned tests list @all"
                 echo runShell("cd test && find -iname '*.stan' && cd ..")
@@ -56,13 +56,13 @@ pipeline {
                     dune build @install --profile static
                 """)
 
-                runShell("start=$(date +'%s')")
+                runShell("start=\$(date +'%s')")
                 /* runs 'dune runtest' command and then outputs the stdout*/
                 echo runShell("""
                     eval \$(opam env)
                     dune runtest --profile static --verbose
                 """)
-                echo runShell("echo \"It took $(($(date +'%s') - $start)) seconds to run the tests\"")
+                echo runShell("echo \"It took \$((\$(date +'%s') - \$start)) seconds to run the tests\"")
 
                 echo "Runned tests list @all"
                 echo runShell("cd test && find -iname '*.stan' && cd ..")
