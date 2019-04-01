@@ -18,13 +18,13 @@ pipeline {
                 echo sh(returnStdout: true, script: '''
                     eval \$(opam env)
                     dune build @install
-                ''').result
+                ''').trim()
 
                 /* runs dune runtest command and then outputs the stdout*/
                 echo sh(returnStdout: true, script: '''
                     eval \$(opam env)
                     dune runtest
-                ''').result
+                ''').trim()
 
                 // No idea how the build files from this docker image end
                 // up transmitting to the next docker images, so clean here
@@ -46,13 +46,13 @@ pipeline {
                 echo sh(returnStdout: true, script: '''
                     eval \$(opam env)
                     dune build @install --profile static
-                ''').result
+                ''').trim()
 
                 /* runs dune runtest command and then outputs the stdout*/
                 echo sh(returnStdout: true, script: '''
                     eval \$(opam env)
                     dune runtest --profile static
-                ''').result
+                ''').trim()
 
             }
         }
