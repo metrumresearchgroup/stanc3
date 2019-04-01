@@ -20,16 +20,16 @@ pipeline {
             }
             steps {
                 /* runs 'dune build @install' command and then outputs the stdout*/
-                echo runShell('''
+                echo runShell("""
                     eval \$(opam env)
                     dune build @install
-                ''')
+                """)
 
                 /* runs 'dune runtest' command and then outputs the stdout*/
-                echo runShell('''
+                echo runShell("""
                     eval \$(opam env)
                     dune runtest
-                ''')
+                """)
 
             }
         }
@@ -42,16 +42,16 @@ pipeline {
             steps {
 
                 /* runs 'dune build @install' command and then outputs the stdout*/
-                echo runShell('''
+                echo runShell("""
                     eval \$(opam env)
                     dune build @install --profile static
-                ''')
+                """)
 
                 /* runs 'dune runtest' command and then outputs the stdout*/
-                echo runShell('''
+                echo runShell("""
                     eval \$(opam env)
                     dune runtest --profile static
-                ''')
+                """)
 
             }
         }
