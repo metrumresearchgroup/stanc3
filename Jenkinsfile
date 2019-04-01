@@ -16,6 +16,8 @@ pipeline {
             agent {
                 dockerfile {
                     filename 'docker/dev-ubuntu/Dockerfile'
+                    //Force image to ignore entrypoint
+                    args "--entrypoint=\'\'"
                 }
             }
             steps {
