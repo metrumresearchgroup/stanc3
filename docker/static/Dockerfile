@@ -16,7 +16,7 @@ RUN apk update && apk upgrade && \
 #Switch back to the normal user
 USER opam
 
-RUN opam init -y --disable-sandboxing -y
+RUN opam init --disable-sandboxing -y
 RUN opam switch create 4.07 ocaml-base-compiler.4.07.1 && \
   opam switch 4.07
 
