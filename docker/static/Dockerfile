@@ -17,8 +17,7 @@ RUN apk update && apk upgrade && \
 USER opam
 
 RUN opam init --disable-sandboxing -y
-RUN opam switch create 4.07 ocaml-base-compiler.4.07.1 && \
-  opam switch 4.07
+RUN opam switch 4.07
 
 #Copy script & Install build dependencies
 COPY ./scripts/install_build_deps.sh ./
