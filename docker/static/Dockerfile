@@ -2,13 +2,18 @@
 #https://github.com/ocaml/infrastructure/wiki/Containers
 FROM ocaml/opam2:alpine
 
+#Switch to root user so we can install apk packages
 USER root
 
+#Set our distro_style
 LABEL distro_style="apk"
+
+#Install os dependencies
 RUN apk update && apk upgrade && \
   apk add build-base bzip2 git tar curl ca-certificates openssl \
   patch rsync bash libx11-dev nano bubblewrap coreutils xz ncurses-dev m4 pcre-dev
 
+#Switch back to the normal user
 USER opam
 
 #Copy script & Install build dependencies
