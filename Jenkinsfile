@@ -35,8 +35,12 @@ pipeline {
                 """)
                 echo runShell("echo \"It took \$((\$(date +'%s') - \$(cat time.log))) seconds to run the tests\"")
 
-                echo "Runned tests list @all"
-                echo runShell("cd test && find -iname '*.stan' && cd ..")
+                //Display and ordered list of all the files with the .stan extension
+                //echo "Runned tests list @all"
+                //echo runShell("cd test && find -iname '*.stan' && cd ..")
+
+                //Cleans the workspace
+                deleteDir()
 
             }
         }
@@ -64,8 +68,12 @@ pipeline {
                 """)
                 echo runShell("echo \"It took \$((\$(date +'%s') - \$(cat time.log))) seconds to run the tests\"")
 
-                echo "Runned tests list @all"
-                echo runShell("cd test && find -iname '*.stan' && cd ..")
+                //Display and ordered list of all the files with the .stan extension
+                //echo "Runned tests list @all"
+                //echo runShell("cd test && find -iname '*.stan' && cd ..")
+
+                //Cleans the workspace
+                deleteDir()
 
             }
         }
