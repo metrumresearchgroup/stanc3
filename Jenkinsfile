@@ -10,11 +10,10 @@ def runShell(String command){
 }
 
 pipeline {
-    agent none
+    agent {label 'ubuntu-docker-ec2'}
     stages {
         stage("Build & Test") {
-            agent {
-                label 'ubuntu-docker-ec2'
+            agent {            
                 dockerfile {
                     filename 'docker/dev-ubuntu/Dockerfile'
                     //Forces image to ignore entrypoint
@@ -47,7 +46,6 @@ pipeline {
         }
         stage("Build & Test static linux binary") {
             agent {
-                label 'ubuntu-docker-ec2'
                 dockerfile {
                     filename 'docker/static/Dockerfile'
                     //Forces image to ignore entrypoint
