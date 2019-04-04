@@ -10,7 +10,7 @@ def runShell(String command){
 }
 
 pipeline {
-    agent {label 'linux'}
+    agent none
     stages {
         stage("Build & Test") {
             agent {            
