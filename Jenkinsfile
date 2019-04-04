@@ -10,7 +10,7 @@ def runShell(String command){
 }
 
 pipeline {
-    agent {label 'ubuntu-docker-ec2'}
+    agent {label 'linux'}
     stages {
         stage("Build & Test") {
             agent {            
