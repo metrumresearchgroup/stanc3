@@ -18,6 +18,11 @@ RUN printf "\n" | bash -x install_ocaml.sh "--disable-sandboxing -y"
 
 USER opam
 
+RUN opam init --disable-sandboxing -y
+RUN opam switch create 4.07.0
+RUN opam switch 4.07.0
+RUN eval $(opam env)
+
 COPY ./scripts/install_build_deps.sh ./
 RUN bash -x install_build_deps.sh
 
