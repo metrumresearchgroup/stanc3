@@ -21,6 +21,11 @@ pipeline {
                 }
             }
             steps {
+                /* Sets the UID of opam user to the Jenkins Agent UID to avoid permission issues */
+                runShell("""
+                    usermod -u \$(id -u \${USER}) opam
+                """)
+
                 /* runs 'dune build @install' command and then outputs the stdout*/
                 runShell("""
                     eval \$(opam env)
@@ -52,11 +57,9 @@ pipeline {
 
             steps {
 
-                /* */
-                echo runShell("""
-                    echo \${UID}
-                    usermod -u \$(echo \${UID}) opam
-                    groupmod -g \$(echo \${GID}) opam
+                /* Sets the UID of opam user to the Jenkins Agent UID to avoid permission issues */
+                runShell("""
+                    usermod -u \$(id -u \${USER}) opam
                 """)
 
                 /* runs 'dune build @install' command and then outputs the stdout*/

@@ -7,12 +7,12 @@ LABEL distro_style="apk"
 
 RUN apk update && apk upgrade && \
   apk add shadow build-base bzip2 git tar curl ca-certificates openssl \
-  patch rsync bash libx11-dev nano bubblewrap coreutils xz ncurses-dev m4 pcre-dev
+  patch rsync bash libx11-dev nano bubblewrap coreutils xz ncurses-dev m4 pcre-dev sudo
 
 RUN useradd -m opam
-RUN groupadd opam-jenkins
-RUN groupmod -g 1004 opam-jenkins
-RUN usermod -aG opam,opam-jenkins opam
+RUN usermod -aG sudo opam
+
+RUN echo "opam ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
 
 USER opam
 
