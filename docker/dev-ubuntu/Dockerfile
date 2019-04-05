@@ -13,10 +13,10 @@ RUN groupadd opam-jenkins
 RUN groupmod -g 1004 opam-jenkins
 RUN usermod -aG opam,opam-jenkins opam
 
-USER opam
-
 COPY ./scripts/install_ocaml.sh ./
 RUN printf "\n" | bash -x install_ocaml.sh "--disable-sandboxing -y"
+
+USER opam
 
 COPY ./scripts/install_build_deps.sh ./
 RUN bash -x install_build_deps.sh
