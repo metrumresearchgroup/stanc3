@@ -54,8 +54,8 @@ pipeline {
 
                 /* */
                 runShell("""
-                    usermod -u \${UID} opam
-                    groupmod -g \${UID} opam
+                    usermod -u \$(echo \${UID}) opam
+                    groupmod -g \$(echo \${GID}) opam
                 """)
 
                 /* runs 'dune build @install' command and then outputs the stdout*/
