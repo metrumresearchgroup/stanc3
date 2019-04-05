@@ -9,7 +9,7 @@ USER root
 LABEL distro_style="apk"
 
 #Install os dependencies
-RUN apk update && apk add build-base bzip2 git tar curl ca-certificates openssl m4 bash
+RUN apk update && apk add build-base bzip2 git tar curl ca-certificates openssl m4 bash shadow
 
 #Switch back to the normal user
 USER opam
