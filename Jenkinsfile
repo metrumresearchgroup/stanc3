@@ -42,10 +42,6 @@ pipeline {
         }
         stage("Build & Test static linux binary") {
 
-            environment {
-                userId = sh(script: "id -u ${USER}", returnStdout: true)
-            }
-
             agent {
                 dockerfile {
                     filename 'docker/static/Dockerfile'
@@ -58,8 +54,8 @@ pipeline {
 
                 /* */
                 runShell("""
-                    usermod -u $userId opam
-                    groupmod -g $userId opam
+                    usermod -u \${UID} opam
+                    groupmod -g \${UID} opam
                 """)
 
                 /* runs 'dune build @install' command and then outputs the stdout*/
