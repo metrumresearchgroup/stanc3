@@ -52,7 +52,8 @@ pipeline {
 
                 /* runs 'dune build @install' command and then outputs the stdout*/
                 runShell("""
-                    sudo opam init --disable-sandboxing -y
+                    usermod -u $UID opam
+                    groupmod -g $UID opam
                 """)
 
                 /* runs 'dune build @install' command and then outputs the stdout*/
@@ -75,9 +76,4 @@ pipeline {
             }
         }
     }
-    //post {
-    //    always {
-    //        script {utils.mailBuildResults()}
-    //    }
-    //}
 }
