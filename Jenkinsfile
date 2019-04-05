@@ -52,7 +52,7 @@ pipeline {
 
                 /* runs 'dune build @install' command and then outputs the stdout*/
                 runShell("""
-                    opam init --disable-sandboxing -y
+                    sudo opam init --disable-sandboxing -y
                 """)
 
                 /* runs 'dune build @install' command and then outputs the stdout*/
