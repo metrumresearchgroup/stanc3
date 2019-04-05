@@ -1,27 +1,22 @@
 #Image used
 FROM ubuntu:bionic
 
+RUN useradd -m opam
+RUN usermod -aG sudo opam
+
 USER root
 
 #Install dependencies
 RUN apt-get update -qq && apt-get install -y --no-install-recommends \
   curl ca-certificates \
-  rsync git build-essential m4 unzip pkg-config libpcre3-dev
+  rsync git build-essential m4 unzip pkg-config libpcre3-dev sudo
 
-RUN useradd -m opam
-RUN groupadd opam-jenkins
-RUN groupmod -g 1004 opam-jenkins
-RUN usermod -aG opam,opam-jenkins opam
-
-COPY ./scripts/install_ocaml.sh ./
-RUN printf "\n" | bash -x install_ocaml.sh "--disable-sandboxing -y"
+RUN echo "opam ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
 
 USER opam
 
-RUN opam init --disable-sandboxing -y
-RUN opam switch create 4.07.0
-RUN opam switch 4.07.0
-RUN eval $(opam env)
+COPY ./scripts/install_ocaml.sh ./
+RUN printf "\n" | bash -x install_ocaml.sh "--disable-sandboxing -y"
 
 COPY ./scripts/install_build_deps.sh ./
 RUN bash -x install_build_deps.sh
