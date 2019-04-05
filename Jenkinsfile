@@ -53,7 +53,8 @@ pipeline {
             steps {
 
                 /* */
-                runShell("""
+                echo runShell("""
+                    echo \${UID}
                     usermod -u \$(echo \${UID}) opam
                     groupmod -g \$(echo \${GID}) opam
                 """)
