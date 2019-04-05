@@ -1,10 +1,10 @@
 #Image used
 FROM ubuntu:bionic
 
+USER root
+
 RUN useradd -m opam
 RUN usermod -aG sudo opam
-
-USER root
 
 #Install dependencies
 RUN apt-get update -qq && apt-get install -y --no-install-recommends \
