@@ -9,12 +9,19 @@ RUN apk update && apk upgrade && \
   apk add shadow build-base bzip2 git tar curl ca-certificates openssl \
   patch rsync bash libx11-dev nano bubblewrap coreutils xz ncurses-dev m4 pcre-dev sudo
 
-RUN useradd -m opam
-RUN usermod -aG sudo opam
+RUN useradd -m opam_ec2
+RUN usermod -aG sudo opam_ec2
 
-RUN echo "opam ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
+RUN useradd -m opam_jenkins
+RUN usermod -aG sudo opam_jenkins
 
-USER opam
+RUN echo "opam_ec2 ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
+RUN echo "opam_jenkins ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
+
+RUN usermod -u 1000 opam_ec2
+RUN usermod -u 1004 opam_jenkins
+
+USER opam_jenkins
 
 # Build ocaml and then opam from scratch
 RUN git config --global user.email "docker@example.com" && \

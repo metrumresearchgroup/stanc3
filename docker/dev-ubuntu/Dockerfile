@@ -3,17 +3,24 @@ FROM ubuntu:bionic
 
 USER root
 
-RUN useradd -m opam
-RUN usermod -aG sudo opam
-
 #Install dependencies
 RUN apt-get update -qq && apt-get install -y --no-install-recommends \
   curl ca-certificates \
   rsync git build-essential m4 unzip pkg-config libpcre3-dev sudo
 
-RUN echo "opam ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
+RUN useradd -m opam_ec2
+RUN usermod -aG sudo opam_ec2
 
-USER opam
+RUN useradd -m opam_jenkins
+RUN usermod -aG sudo opam_jenkins
+
+RUN echo "opam_ec2 ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
+RUN echo "opam_jenkins ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
+
+RUN usermod -u 1000 opam_ec2
+RUN usermod -u 1004 opam_jenkins
+
+USER opam_jenkins
 
 COPY ./scripts/install_ocaml.sh ./
 RUN printf "\n" | bash -x install_ocaml.sh "--disable-sandboxing -y"
