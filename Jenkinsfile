@@ -35,10 +35,6 @@ pipeline {
                 """)
                 echo runShell("echo \"It took \$((\$(date +'%s') - \$(cat time.log))) seconds to run the tests\"")
 
-                //Display and ordered list of all the files with the .stan extension
-                //echo "Runned tests list @all"
-                //echo runShell("cd test && find -iname '*.stan' && cd ..")
-
                 //Cleans the workspace
                 deleteDir()
 
@@ -56,6 +52,11 @@ pipeline {
 
                 /* runs 'dune build @install' command and then outputs the stdout*/
                 runShell("""
+                    opam init --disable-sandboxing -y
+                """)
+
+                /* runs 'dune build @install' command and then outputs the stdout*/
+                runShell("""
                     eval \$(opam env)
                     dune build @install --profile static
                 """)
@@ -67,10 +68,6 @@ pipeline {
                     dune runtest --profile static --verbose
                 """)
                 echo runShell("echo \"It took \$((\$(date +'%s') - \$(cat time.log))) seconds to run the tests\"")
-
-                //Display and ordered list of all the files with the .stan extension
-                //echo "Runned tests list @all"
-                //echo runShell("cd test && find -iname '*.stan' && cd ..")
 
                 //Cleans the workspace
                 deleteDir()
