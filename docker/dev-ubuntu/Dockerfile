@@ -6,7 +6,7 @@ USER root
 #Install dependencies
 RUN apt-get update -qq && apt-get install -y --no-install-recommends \
   curl ca-certificates \
-  rsync git build-essential m4 unzip pkg-config libpcre3-dev sudo
+  rsync git build-essential m4 unzip pkg-config libpcre3-dev sudo python
 
 RUN useradd -m opam_ec2
 RUN usermod -aG sudo opam_ec2
