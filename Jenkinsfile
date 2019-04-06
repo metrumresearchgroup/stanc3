@@ -23,7 +23,7 @@ pipeline {
             steps {
                 /* Sets the UID of opam user to the Jenkins Agent UID to avoid permission issues */
                 runShell("""
-                    if [ \$(id -u \${USER}) -eq 1000 ]; then usermod -u \$(id -u \${USER}) opam_ec2; elif [ \$(id -u \${USER}) -eq 1004 ]; then usermod -u \$(id -u \${USER}) opam_jenkins; fi
+                    usermod -u \$(id -u \${USER}) opam_jenkins
                 """)
 
                 /* runs 'dune build @install' command and then outputs the stdout*/
