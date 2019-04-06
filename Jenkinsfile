@@ -12,7 +12,7 @@ def runShell(String command){
 pipeline {
     agent none
     environment {
-        userId = sh(script: "id -u ${USER}", returnStdout: true)
+        def userId = sh(script: "id -u ${USER}", returnStdout: true)
     }
     stages {
         stage("Build & Test") {
