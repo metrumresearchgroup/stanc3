@@ -10,18 +10,16 @@ RUN apk update && apk upgrade && \
   patch rsync bash libx11-dev nano bubblewrap coreutils xz ncurses-dev m4 pcre-dev sudo
 
 RUN useradd -m opam_ec2
-RUN usermod -aG sudo opam_ec2
+#RUN usermod -aG sudo opam_ec2
 
 RUN useradd -m opam_jenkins
-RUN usermod -aG sudo opam_jenkins
+#RUN usermod -aG sudo opam_jenkins
 
 RUN echo "opam_ec2 ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
 RUN echo "opam_jenkins ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
 
 RUN usermod -u 1000 opam_ec2
 RUN usermod -u 1004 opam_jenkins
-
-USER opam_jenkins
 
 # Build ocaml and then opam from scratch
 RUN git config --global user.email "docker@example.com" && \
@@ -30,7 +28,12 @@ RUN git config --global user.email "docker@example.com" && \
   sh -c "cd /tmp/opam && make cold && mkdir -p /usr/local/bin && cp /tmp/opam/opam /usr/local/bin/opam && cp /tmp/opam/opam-installer /usr/local/bin/opam-installer && chmod a+x /usr/local/bin/opam /usr/local/bin/opam-installer && rm -rf /tmp/opam" && \
   strip /usr/local/bin/opam*
 
+USER opam_jenkins
 RUN opam init -y --disable-sandboxing
+
+USER opam_ec2
+RUN opam init -y --disable-sandboxing
+
 RUN opam switch create 4.07 ocaml-base-compiler.4.07.1 && \
   opam switch 4.07
 
