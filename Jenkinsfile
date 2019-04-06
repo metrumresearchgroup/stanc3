@@ -26,6 +26,7 @@ pipeline {
                 /* if [ \$(id -u \${USER}) -eq 1000 ]; then echo "import pty; pty.spawn('/bin/bash')" > /tmp/asdf.py && python /tmp/asdf.py && su opam_jenkins; fi */
                 runShell("""
                     sudo -u opam_jenkins bash
+                    whoami
                 """)
 
                 /* runs 'dune build @install' command and then outputs the stdout*/
