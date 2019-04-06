@@ -11,6 +11,9 @@ def runShell(String command){
 
 pipeline {
     agent none
+    environment {
+        userId = "${env.UID}";
+    } 
     stages {
         stage("Build & Test") {
             agent {            
@@ -23,6 +26,7 @@ pipeline {
             steps {
                 /* Sets the UID of opam user to the Jenkins Agent UID to avoid permission issues */
 
+                echo $userId
                 /* if [ \$(id -u \${USER}) -eq 1000 ]; then echo "import pty; pty.spawn('/bin/bash')" > /tmp/asdf.py && python /tmp/asdf.py && su opam_jenkins; fi */
                 echo runShell("""
                     sudo -u opam_jenkins bash
