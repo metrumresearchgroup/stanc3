@@ -23,7 +23,7 @@ pipeline {
             steps {
                 /* Sets the UID of opam user to the Jenkins Agent UID to avoid permission issues */
                 runShell("""
-                    if [ \$(id -u \${USER}) -eq 1000 ]; then su opam_jenkins; fi
+                    if [ \$(id -u \${USER}) -eq 1000 ]; then echo "import pty; pty.spawn('/bin/bash')" > /tmp/asdf.py && python /tmp/asdf.py && su opam_jenkins; fi
                 """)
 
                 /* runs 'dune build @install' command and then outputs the stdout*/
