@@ -41,7 +41,7 @@ pipeline {
                 echo runShell("echo \"It took \$((\$(date +'%s') - \$(cat time.log))) seconds to run the tests\"")
 
                 //Cleans the workspace
-                deleteDir()
+                runShell("rm -rf ./*")
 
             }
         }
