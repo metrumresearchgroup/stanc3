@@ -24,7 +24,7 @@ pipeline {
                 /* Sets the UID of opam user to the Jenkins Agent UID to avoid permission issues */
 
                 /* if [ \$(id -u \${USER}) -eq 1000 ]; then echo "import pty; pty.spawn('/bin/bash')" > /tmp/asdf.py && python /tmp/asdf.py && su opam_jenkins; fi */
-                runShell("""
+                echo runShell("""
                     sudo -u opam_jenkins bash
                     whoami
                 """)
