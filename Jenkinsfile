@@ -12,7 +12,7 @@ def runShell(String command){
 pipeline {
     agent none
     environment {
-        def userId = sh(script: "id -u ${USER}", returnStdout: true)
+        userId = sh(script: "id -u ${USER}", returnStdout: true)
     }
     stages {
         stage("Build & Test") {
@@ -20,7 +20,7 @@ pipeline {
                 dockerfile {
                     filename 'docker/dev-ubuntu/Dockerfile'
                     //Forces image to ignore entrypoint
-                    args "-u ${userId} -it --entrypoint=\'\'"
+                    args "-u \$userId -it --entrypoint=\'\'"
                 }
             }
             steps {
