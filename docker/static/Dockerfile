@@ -28,17 +28,22 @@ RUN git config --global user.email "docker@example.com" && \
   sh -c "cd /tmp/opam && make cold && mkdir -p /usr/local/bin && cp /tmp/opam/opam /usr/local/bin/opam && cp /tmp/opam/opam-installer /usr/local/bin/opam-installer && chmod a+x /usr/local/bin/opam /usr/local/bin/opam-installer && rm -rf /tmp/opam" && \
   strip /usr/local/bin/opam*
 
+COPY ./scripts/install_build_deps.sh ./
+
 USER opam_jenkins
 RUN opam init -y --disable-sandboxing
 
+RUN opam switch create 4.07 ocaml-base-compiler.4.07.1 && \
+  opam switch 4.07
+
+RUN bash -x install_build_deps.sh
+###
 USER opam_ec2
 RUN opam init -y --disable-sandboxing
 
 RUN opam switch create 4.07 ocaml-base-compiler.4.07.1 && \
   opam switch 4.07
 
-# Stanc3 also needs
-COPY ./scripts/install_build_deps.sh ./
 RUN bash -x install_build_deps.sh
 
 ENTRYPOINT [ "opam", "config", "exec", "--" ]

@@ -20,20 +20,20 @@ RUN echo "opam_jenkins ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
 RUN usermod -u 1000 opam_ec2
 RUN usermod -u 1004 opam_jenkins
 
+COPY ./scripts/install_ocaml.sh ./
+COPY ./scripts/install_build_deps.sh ./
+COPY ./scripts/install_dev_deps.sh ./
+
 USER opam_jenkins
 
-COPY ./scripts/install_ocaml.sh ./
 RUN printf "\n" | bash -x install_ocaml.sh "--disable-sandboxing -y"
+RUN bash -x install_build_deps.sh
+RUN bash -x install_dev_deps.sh
 
 USER opam_ec2
 
-COPY ./scripts/install_ocaml.sh ./
 RUN printf "\n" | bash -x install_ocaml.sh "--disable-sandboxing -y"
-
-COPY ./scripts/install_build_deps.sh ./
 RUN bash -x install_build_deps.sh
-
-COPY ./scripts/install_dev_deps.sh ./
 RUN bash -x install_dev_deps.sh
 
 ENTRYPOINT [ "opam", "config", "exec", "--" ]
