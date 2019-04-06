@@ -25,6 +25,11 @@ USER opam_jenkins
 COPY ./scripts/install_ocaml.sh ./
 RUN printf "\n" | bash -x install_ocaml.sh "--disable-sandboxing -y"
 
+USER opam_ec2
+
+COPY ./scripts/install_ocaml.sh ./
+RUN printf "\n" | bash -x install_ocaml.sh "--disable-sandboxing -y"
+
 COPY ./scripts/install_build_deps.sh ./
 RUN bash -x install_build_deps.sh
 
