@@ -58,7 +58,7 @@ let pp_indexed_simple ppf (vident, idcs) =
     ; emeta= e.emeta }
   in
   let idx_minus_one = map_index minus_one in
-  (Middle.pp_indexed pp_expr) ppf (vident, List.map ~f:idx_minus_one idcs)
+  (Pretty.pp_indexed pp_expr) ppf (vident, List.map ~f:idx_minus_one idcs)
 
 (** [pp_for_loop ppf (loopvar, lower, upper, pp_body, body)] tries to
     pretty print a for-loop from lower to upper given some loopvar.*)

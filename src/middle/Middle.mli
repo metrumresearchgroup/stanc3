@@ -14,21 +14,15 @@ val merge_spans : location_span -> location_span -> location_span
 val internal_meta : mtype_loc_ad
 val loop_bottom : mtype_loc_ad with_expr
 val zero : mtype_loc_ad with_expr
-val pp_indexed : 'a Fmt.t -> Format.formatter -> string * 'a index list -> unit
-val pp_expr_typed_located : Format.formatter -> mtype_loc_ad with_expr -> unit
 val remove_size : 'a sizedtype -> unsizedtype
-
-val pp_typed_prog :
-  Format.formatter -> ('a with_expr, ('b, 'c) stmt_with) prog -> unit
-
 val sexp_of_expr_typed_located : 'a with_expr -> Sexp.t
 val gensym : unit -> string
 val gensym_enter : unit -> string * (unit -> unit)
 
 val check_compatible_arguments_mod_conv :
      string
-  -> (Mir.autodifftype * Mir.unsizedtype) list
-  -> (Mir.autodifftype * Mir.unsizedtype) list
+  -> (autodifftype * unsizedtype) list
+  -> (autodifftype * unsizedtype) list
   -> bool
 (** Check that the rhs list of function argument types can be converted to the
     lhs *)
@@ -49,4 +43,8 @@ val ternary_if : string
 
 module Stan_math_signatures : sig
   include module type of Stan_math_signatures
+end
+
+module Pretty : sig
+  include module type of Pretty
 end

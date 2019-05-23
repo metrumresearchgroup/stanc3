@@ -332,7 +332,7 @@ let rec check_decl decl_type decl_id decl_trans smeta adlevel =
   let chk fn args =
     let check_id id =
       let id_str =
-        { expr= Lit (Str, Fmt.strf "%a" pp_expr_typed_located id)
+        { expr= Lit (Str, Fmt.strf "%a" Pretty.pp_expr_typed_located id)
         ; emeta= internal_meta }
       in
       let fname = string_of_internal_fn FnCheck in
