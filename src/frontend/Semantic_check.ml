@@ -6,6 +6,7 @@
 open Core_kernel
 open Symbol_table
 open Middle
+open Middle.Stan_math_signatures
 open Ast
 open Errors
 open Pretty_printing

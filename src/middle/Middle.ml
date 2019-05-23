@@ -334,3 +334,5 @@ let operator_return_type_from_string op_name argtypes =
 
 let operator_return_type op =
   operator_return_type_from_string (string_of_operator op)
+
+module Stan_math_signatures = struct include Stan_math_signatures end
