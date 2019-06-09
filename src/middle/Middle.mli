@@ -2,6 +2,7 @@ open Core_kernel
 include module type of Mir
 module Pretty : module type of Mir_pretty_printer
 module Validation : module type of Validation
+module State : module type of State
 module Utils : module type of Utils
 
 val string_of_location : Mir.location -> string

@@ -2,6 +2,7 @@
     operate on *)
 
 open Core_kernel
+open State.Cps
 
 (** Source code locations *)
 type location =
@@ -159,32 +160,214 @@ type ('e, 's) prog =
   ; prog_path: string }
 [@@deriving sexp, map]
 
+
+
+(* == Traversals ===============================================================
+  A `traversal` is like a `map` except that it also allows for effects.
+
+  In the following functions the effect is always from `State` since this is
+  what we need in dataflow analysis.
+*)
+let traverse_index ~f = function
+  | Single e -> State.map (f e) ~f:(fun e' -> Single e')
+  | Upfrom e -> State.map (f e) ~f:(fun e' -> Upfrom e')
+  | Downfrom e -> State.map (f e) ~f:(fun e' -> Downfrom e')
+  | MultiIndex e -> State.map (f e) ~f:(fun e' -> Upfrom e')
+  | Between (lower_e, upper_e) ->
+      State.(
+        f lower_e
+        >>= fun lower_e' ->
+        f upper_e |> map ~f:(fun upper_e' -> Between (lower_e', upper_e')))
+  | All -> State.return All
+
+let traverse_expr ~f = function
+  | FunApp (fn_kind, name, exprs) ->
+      State.(
+        List.map ~f exprs |> all
+        |> map ~f:(fun exprs' -> FunApp (fn_kind, name, exprs')))
+  | EAnd (le, re) ->
+      State.(f le >>= fun le' -> f re |> map ~f:(fun re' -> EAnd (le', re')))
+  | EOr (le, re) ->
+      State.(f le >>= fun le' -> f re |> map ~f:(fun re' -> EOr (le', re')))
+  | Indexed (e, idxs) ->
+      State.(
+        f e
+        >>= fun e' ->
+        List.map ~f:(traverse_index ~f) idxs
+        |> all
+        |> map ~f:(fun idxs' -> Indexed (e', idxs')))
+  | TernaryIf (pred, te, fe) ->
+      State.(
+        f pred
+        >>= fun pred' ->
+        f te
+        >>= fun te' -> f fe |> map ~f:(fun fe' -> TernaryIf (pred', te', fe')))
+  | Var name -> State.return @@ Var name
+  | Lit (ty, name) -> State.return @@ Lit (ty, name)
+
+
+
+let traverse_lvalue ~f (name, idxs) =
+  idxs
+  |> List.map ~f:(traverse_index ~f)
+  |> State.all
+  |> State.map ~f:(fun idxs' -> (name, idxs'))
+
+let rec traverse_sizedtype ~f = function
+  | SVector e -> f e |> State.map ~f:(fun e' -> SVector e')
+  | SRowVector e -> f e |> State.map ~f:(fun e' -> SRowVector e')
+  | SArray (sized_ty, e) ->
+      State.(
+        traverse_sizedtype ~f sized_ty
+        >>= fun sized_ty' -> f e |> map ~f:(fun e' -> SArray (sized_ty', e')))
+  | SReal -> State.return SReal
+  | SInt -> State.return SInt
+  | SMatrix (e1, e2) ->
+      State.(
+        f e1 >>= fun e1' -> f e2 |> map ~f:(fun e2' -> SMatrix (e1', e2')))
+
+let traverse_possiblysizedtype ~f = function
+  | Sized sizedtype -> State.map ~f:(fun ty -> Sized ty) @@ f sizedtype
+  | Unsized unsizedtype -> State.return @@ Unsized unsizedtype
+
+(** Statement traveral with effects fixed at `State` *)
+let traverse_statement ~e ~f = function
+  | IfElse (pred, s_true, Some s_false) ->
+      State.(
+        e pred
+        >>= fun pred' ->
+        f s_true
+        >>= fun s_true' ->
+        f s_false
+        |> map ~f:(fun s_false' -> IfElse (pred', s_true', Some s_false')))
+  | IfElse (pred, s_true, None) ->
+      State.(
+        e pred
+        >>= fun pred' ->
+        f s_true |> map ~f:(fun s_true' -> IfElse (pred', s_true', None)))
+  | While (pred, body) ->
+      State.(
+        e pred
+        >>= fun pred' -> f body |> map ~f:(fun body' -> While (pred', body')))
+  | For {loopvar; lower; upper; body} ->
+      State.(
+        e lower
+        >>= fun lower' ->
+        e upper
+        >>= fun upper' ->
+        f body
+        |> map ~f:(fun body' ->
+               For {loopvar; lower= lower'; upper= upper'; body= body'} ))
+  | Block xs -> State.(List.map ~f xs |> all |> map ~f:(fun xs' -> Block xs'))
+  | SList xs -> State.(List.map ~f xs |> all |> map ~f:(fun xs' -> SList xs'))
+  | Assignment (lvalue, expr) ->
+      State.(
+        traverse_lvalue ~f:e lvalue
+        >>= fun lvalue' ->
+        e expr |> map ~f:(fun expr' -> Assignment (lvalue', expr')))
+  | TargetPE expr -> e expr |> State.map ~f:(fun expr' -> TargetPE expr')
+  | NRFunApp (fun_kind, name, exprs) ->
+      exprs |> List.map ~f:e |> State.all
+      |> State.map ~f:(fun exprs' -> NRFunApp (fun_kind, name, exprs'))
+  | Decl decl ->
+      decl.decl_type
+      |> traverse_possiblysizedtype ~f:(traverse_sizedtype ~f:e)
+      |> State.map ~f:(fun decl_type' -> Decl {decl with decl_type= decl_type'})
+  | Return (Some expr) ->
+      e expr |> State.map ~f:(fun expr' -> Return (Some expr'))
+  | Return None -> State.return @@ Return None
+  | Break -> State.return Break
+  | Continue -> State.return Continue
+  | Skip -> State.return Skip
+
+(* == Fixed types =========================================================== *)
+
+(* -- Expressions ----------------------------------------------------------- *)
+
+(** Fixed-point of expressions with meta-data *)
 type 'm with_expr = {expr: 'm with_expr expr; emeta: 'm}
 [@@deriving compare, sexp, hash]
 
+(** Map a `with_expr` changing the type of meta-data *)
+let rec map_expr_with ~f {expr; emeta} =
+  {expr= map_expr (map_expr_with ~f) expr; emeta= f emeta}
+
+let rec fold_expr_with ~f ~init {expr ; emeta } =
+  fold_expr (fun accu -> fold_expr_with ~f ~init:accu) (f init emeta) expr
+
+(** Traverse a `with_expr` mapping the type of meta-data with effects *)
+let rec traverse_expr_with ~f {expr; emeta} =
+  State.(
+    f emeta
+    >>= fun emeta' ->
+    traverse_expr ~f:(traverse_expr_with ~f) expr
+    >>= fun expr' -> return @@ {expr= expr'; emeta= emeta'})
+
+(* -- Statements ------------------------------------------------------------ *)
+
+(** Fixed-point of statements with meta-data *)
+type ('e, 'm) stmt_with =
+  {stmt: ('e with_expr, ('e, 'm) stmt_with) statement; smeta: 'm}
+[@@deriving sexp]
+
+(** Map a `stmt_with` changing the type of meta-data for the statments and 
+    expressions 
+*)
+let rec map_stmt_with ~e ~f {stmt; smeta} =
+  { stmt= map_statement (map_expr_with ~f:e) (map_stmt_with ~e ~f) stmt
+  ; smeta= f smeta }
+
+let rec fold_stmt_with ~e ~f ~init {stmt;smeta} =
+  fold_statement      
+    (fun accu -> fold_expr_with ~f:e ~init:accu)
+    (fun accu -> fold_stmt_with ~e ~f ~init:accu) 
+    (f init smeta)
+    stmt
+
+let rec traverse_stmt_with ~e ~f {stmt; smeta} =
+  State.(
+    f smeta
+    >>= fun smeta' ->
+    traverse_statement stmt ~e:(traverse_expr_with ~f:e)
+      ~f:(traverse_stmt_with ~e ~f)
+    |> map ~f:(fun stmt' -> {stmt= stmt'; smeta= smeta'}))
+
+type ('e, 'm) stmt_with_num = {stmtn: ('e with_expr, int) statement; smetan: 'm}
+[@@deriving sexp, hash]
+
+(* == Fixed types specialised with meta-data ================================ *)
+
+type expr_no_meta = unit with_expr
+type stmt_no_meta = (expr_no_meta, unit) stmt_with
+
+(** Type information added during semantic check 
+*)
 type mtype_loc_ad =
   { mtype: unsizedtype
   ; mloc: location_span sexp_opaque [@compare.ignore]
   ; madlevel: autodifftype }
 [@@deriving compare, sexp, hash]
 
-type ('e, 'm) stmt_with =
-  {stmt: ('e with_expr, ('e, 'm) stmt_with) statement; smeta: 'm}
-[@@deriving sexp]
-
-type ('e, 'm) stmt_with_num = {stmtn: ('e with_expr, int) statement; smetan: 'm}
-[@@deriving sexp, hash]
-
-type expr_no_meta = unit with_expr
-
+(** Typed expressions with location info 
+*)
 type expr_typed_located = mtype_loc_ad with_expr
 [@@deriving sexp, compare, hash]
 
-type stmt_no_meta = (expr_no_meta, unit) stmt_with
-
+(** Statements with typed expressions and location info 
+*)
 type stmt_loc =
   (mtype_loc_ad, (location_span sexp_opaque[@compare.ignore])) stmt_with
 [@@deriving sexp]
+
+(** Statements with typed expressions, location info and labels *)
+type 'lbl stmt_labelled = (mtype_loc_ad, 'lbl stmt_label) stmt_with
+[@@deriving sexp]
+
+and 'lbl stmt_label =
+  {location: location_span sexp_opaque [@compare.ignore]; label: 'lbl}
+[@@deriving sexp]
+
+
 
 type stmt_loc_num =
   (mtype_loc_ad, (location_span sexp_opaque[@compare.ignore])) stmt_with_num

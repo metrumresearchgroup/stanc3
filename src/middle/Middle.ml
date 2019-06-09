@@ -3,6 +3,7 @@ include Stan_math_signatures
 include Type_conversion
 open Core_kernel
 module Validation = Validation
+module State = State
 module Pretty = Mir_pretty_printer
 module Utils = Utils
 
