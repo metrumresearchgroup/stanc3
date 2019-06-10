@@ -55,7 +55,7 @@ class eight_schools_ncp_model : public prob_grad {
     for (size_t sym1__ = 1; sym1__ <= J; ++sym1__) {
       assign(y, cons_list(index_uni(sym1__), nil_index_list()), context__.vals_r("y")
                                                                 [(pos__ - 1)], "assigning variable y[(sym1__ - 1)]");
-      assign(pos__, nil_index_list(), (stan::model::deep_copy(pos__) + 1), "assigning variable pos__");
+      assign(pos__, nil_index_list(), (pos__ + 1), "assigning variable pos__");
     }
     sigma = std::vector<double>(J, 0);
     
@@ -63,7 +63,7 @@ class eight_schools_ncp_model : public prob_grad {
     for (size_t sym1__ = 1; sym1__ <= J; ++sym1__) {
       assign(sigma, cons_list(index_uni(sym1__), nil_index_list()), context__.vals_r("sigma")
                                                                     [(pos__ - 1)], "assigning variable sigma[(sym1__ - 1)]");
-      assign(pos__, nil_index_list(), (stan::model::deep_copy(pos__) + 1), "assigning variable pos__");
+      assign(pos__, nil_index_list(), (pos__ + 1), "assigning variable pos__");
     }
     for (size_t sym1__ = 1; sym1__ <= J; ++sym1__) {
       check_greater_or_equal(function__, "sigma[sym1__]",
@@ -264,7 +264,7 @@ class eight_schools_ncp_model : public prob_grad {
       for (size_t sym1__ = 1; sym1__ <= J; ++sym1__) {
         assign(theta_tilde, cons_list(index_uni(sym1__), nil_index_list()), 
                context__.vals_r("theta_tilde")[(pos__ - 1)], "assigning variable theta_tilde[(sym1__ - 1)]");
-        assign(pos__, nil_index_list(), (stan::model::deep_copy(pos__) + 1), "assigning variable pos__");
+        assign(pos__, nil_index_list(), (pos__ + 1), "assigning variable pos__");
       }
     }
     } // transform_inits() 
@@ -389,7 +389,7 @@ class one_var_per_block_model : public prob_grad {
       for (size_t sym1__ = 1; sym1__ <= K; ++sym1__) {
         assign(datavar, cons_list(index_uni(sym1__), cons_list(index_uni(sym2__), nil_index_list())), 
                context__.vals_r("datavar")[(pos__ - 1)], "assigning variable datavar[(sym1__ - 1), (sym2__ - 1)]");
-        assign(pos__, nil_index_list(), (stan::model::deep_copy(pos__) + 1), "assigning variable pos__");
+        assign(pos__, nil_index_list(), (pos__ + 1), "assigning variable pos__");
       }}
     for (size_t sym1__ = 1; sym1__ <= K; ++sym1__) {
       for (size_t sym2__ = 1; sym2__ <= N; ++sym2__) {
@@ -721,7 +721,7 @@ class one_var_per_block_model : public prob_grad {
         for (size_t sym1__ = 1; sym1__ <= K; ++sym1__) {
           assign(param, cons_list(index_uni(sym1__), cons_list(index_uni(sym2__), nil_index_list())), 
                  context__.vals_r("param")[(pos__ - 1)], "assigning variable param[(sym1__ - 1), (sym2__ - 1)]");
-          assign(pos__, nil_index_list(), (stan::model::deep_copy(pos__) + 1), "assigning variable pos__");
+          assign(pos__, nil_index_list(), (pos__ + 1), "assigning variable pos__");
         }}
       for (size_t sym1__ = 1; sym1__ <= K; ++sym1__) {
         for (size_t sym2__ = 1; sym2__ <= N; ++sym2__) {
@@ -738,7 +738,7 @@ class one_var_per_block_model : public prob_grad {
           for (size_t sym1__ = 1; sym1__ <= K; ++sym1__) {
             assign(matparam, cons_list(index_uni(sym1__), cons_list(index_uni(sym2__), cons_list(index_uni(sym3__), nil_index_list()))), 
                    context__.vals_r("matparam")[(pos__ - 1)], "assigning variable matparam[(sym1__ - 1), (sym2__ - 1), (sym3__ - 1)]");
-            assign(pos__, nil_index_list(), (stan::model::deep_copy(pos__) + 1), "assigning variable pos__");
+            assign(pos__, nil_index_list(), (pos__ + 1), "assigning variable pos__");
           }}}
       for (size_t sym1__ = 1; sym1__ <= K; ++sym1__) {
         for (size_t sym2__ = 1; sym2__ <= (K + 1); ++sym2__) {

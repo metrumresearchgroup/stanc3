@@ -100,11 +100,16 @@ let rec pp_statement (ppf : Format.formatter)
     when internal_fn_of_string f = Some FnMakeArray ->
       pf ppf "%a = @[<hov>%a;@]" pp_indexed_simple lhs pp_expr rhs
   | Assignment ((assignee, idcs), rhs) ->
-      let rec maybe_deep_copy vident = function
+      let rec maybe_deep_copy vident rhs =
+        let recurse e =
+          {e with expr= map_expr (maybe_deep_copy vident) e.expr}
+        in
+        match rhs with
+        | {emeta= {mtype= UInt; _}; _} as e -> recurse e
         | {expr= Var v; _} as e when v = vident ->
             { e with
               expr= FunApp (CompilerInternal, "stan::model::deep_copy", [e]) }
-        | {expr; emeta} -> {expr= map_expr (maybe_deep_copy vident) expr; emeta}
+        | e -> recurse e
       in
       let rhs =
         match rhs.expr with
