@@ -19,7 +19,7 @@ module Validate = Validation.Make (Semantic_error)
 
 let check_of_compatible_return_type rt1 srt2 =
   match (rt1, srt2) with
-  | Void, NoReturnType
+  | UnsizedType.Void, NoReturnType
    |Void, Incomplete Void
    |Void, Complete Void
    |Void, AnyReturnType ->
@@ -66,12 +66,12 @@ let type_of_expr_typed ue = ue.emeta.type_
 
 let rec unsizedtype_contains_int ut =
   match ut with
-  | UInt -> true
+  | UnsizedType.UInt -> true
   | UArray ut -> unsizedtype_contains_int ut
   | _ -> false
 
 let rec unsizedtype_of_sizedtype = function
-  | SInt -> UInt
+  | SizedType.SInt -> UnsizedType.UInt
   | SReal -> UReal
   | SVector _ -> UVector
   | SRowVector _ -> URowVector
@@ -79,15 +79,15 @@ let rec unsizedtype_of_sizedtype = function
   | SArray (st, _) -> UArray (unsizedtype_of_sizedtype st)
 
 let rec lub_ad_type = function
-  | [] -> DataOnly
+  | [] -> UnsizedType.DataOnly
   | x :: xs ->
       let y = lub_ad_type xs in
-      if compare_autodifftype x y < 0 then y else x
+      if UnsizedType.compare_autodifftype x y < 0 then y else x
 
 let calculate_autodifftype at ut =
   match at with
   | (Param | TParam | Model) when not (unsizedtype_contains_int ut) ->
-      AutoDiffable
+      UnsizedType.AutoDiffable
   | _ -> DataOnly
 
 let has_int_type ue = ue.emeta.type_ = UInt
@@ -121,8 +121,8 @@ let probability_distribution_name_variants id =
 
 let lub_rt loc rt1 rt2 =
   match (rt1, rt2) with
-  | ReturnType UReal, ReturnType UInt | ReturnType UInt, ReturnType UReal ->
-      Validate.ok (ReturnType UReal)
+  | UnsizedType.ReturnType UReal, UnsizedType.ReturnType UInt | ReturnType UInt, ReturnType UReal ->
+      Validate.ok (UnsizedType.ReturnType UReal)
   | _, _ when rt1 = rt2 -> Validate.ok rt2
   | _ -> Semantic_error.mismatched_return_types loc rt1 rt2 |> Validate.error
 
@@ -162,7 +162,7 @@ let semantic_check_assignmentoperator op = Validate.ok op
 let semantic_check_autodifftype at = Validate.ok at
 
 (* Probably nothing to do here *)
-let rec semantic_check_unsizedtype : unsizedtype -> unit Validate.t = function
+let rec semantic_check_unsizedtype : UnsizedType.t -> unit Validate.t = function
   | UFun (l, rt) ->
       (* fold over argument types accumulating errors with initial state 
           given by validating the return type *)
@@ -177,7 +177,7 @@ let rec semantic_check_unsizedtype : unsizedtype -> unit Validate.t = function
   | UArray ut -> semantic_check_unsizedtype ut
   | _ -> Validate.ok ()
 
-and semantic_check_returntype : returntype -> unit Validate.t = function
+and semantic_check_returntype : UnsizedType.returntype -> unit Validate.t = function
   | Void -> Validate.ok ()
   | ReturnType ut -> semantic_check_unsizedtype ut
 
@@ -263,7 +263,7 @@ let semantic_check_fn_rng cf ~loc id =
 let semantic_check_fn_normal ~loc id es =
   Validate.(
     match Symbol_table.look vm id.name with
-    | Some (_, UFun (_, Void)) ->
+    | Some (_, UnsizedType.UFun (_, Void)) ->
         Semantic_error.returning_fn_expected_nonreturning_found loc id.name
         |> error
     | Some (_, UFun (listed_tys, rt))
@@ -420,7 +420,7 @@ let semantic_check_target_pe ~loc ~cf id =
 
 let semantic_check_cond_dist_app_rt_stanmath_fn ~loc ~returnblock id es =
   function
-  | Void ->
+  | UnsizedType.Void ->
       Semantic_error.returning_fn_expected_nonreturning_found loc id.name
       |> Validate.error
   | ReturnType ut ->
@@ -501,8 +501,8 @@ let semantic_check_array_expr ~loc es =
     | [] -> Semantic_error.empty_array loc |> error
     | ty :: _ as elementtypes ->
         let type_ =
-          if List.exists ~f:(fun x -> ty <> x) elementtypes then UArray UReal
-          else UArray ty
+          if List.exists ~f:(fun x -> ty <> x) elementtypes then UnsizedType.UArray UReal
+          else UnsizedType.UArray ty
         and ad_level = lub_ad_e es in
         mk_typed_expression ~expr:(ArrayExpr es) ~ad_level ~type_ ~loc |> ok)
 
@@ -530,12 +530,12 @@ let tuple3 a b c = (a, b, c)
 let inferred_unsizedtype_of_indexed ~loc ut typed_idxs =
   let rec aux k ut xs =
     match (ut, xs) with
-    | UMatrix, [(All, _); (Single _, UInt)]
+    | UnsizedType.UMatrix, [(All, _); (Single _, UnsizedType.UInt)]
      |UMatrix, [(Upfrom _, _); (Single _, UInt)]
      |UMatrix, [(Downfrom _, _); (Single _, UInt)]
      |UMatrix, [(Between _, _); (Single _, UInt)]
      |UMatrix, [(Single _, UArray UInt); (Single _, UInt)] ->
-        k @@ Validate.ok UVector
+        k @@ Validate.ok UnsizedType.UVector
     | _, [] -> k @@ Validate.ok ut
     | _, next :: rest -> (
       match next with
@@ -548,7 +548,7 @@ let inferred_unsizedtype_of_indexed ~loc ut typed_idxs =
       | _ -> (
         match ut with
         | UArray inner_ty ->
-            let k' = compose k (Validate.map ~f:(fun t -> UArray t)) in
+            let k' = compose k (Validate.map ~f:(fun t -> UnsizedType.UArray t)) in
             aux k' inner_ty rest
         | UVector | URowVector | UMatrix -> aux k ut rest
         | _ -> Semantic_error.not_indexable loc ut |> Validate.error ) )
@@ -566,7 +566,7 @@ let inferred_ad_type_of_indexed at uindices =
     ( at
     :: List.map
          ~f:(function
-           | All -> DataOnly
+           | All -> UnsizedType.DataOnly
            | Single ue1 | Upfrom ue1 | Downfrom ue1 ->
                lub_ad_type [at; ue1.emeta.ad_level]
            | Between (ue1, ue2) ->
@@ -574,7 +574,7 @@ let inferred_ad_type_of_indexed at uindices =
          uindices )
 
 let index_with_type idx =
-  match idx with Single e -> (idx, e.emeta.type_) | _ -> (idx, UInt)
+  match idx with Single e -> (idx, e.emeta.type_) | _ -> (idx,UnsizedType.UInt)
 
 let rec semantic_check_indexed ~loc ~cf e indices =
   Validate.(
@@ -743,22 +743,22 @@ and semantic_check_expression_of_int_or_real_type cf e name =
 
 (* -- Sized Types ----------------------------------------------------------- *)
 let rec semantic_check_sizedtype cf = function
-  | SInt -> Validate.ok SInt
-  | SReal -> Validate.ok SReal
+  | SizedType.SInt -> Validate.ok SizedType.SInt
+  | SReal -> Validate.ok SizedType.SReal
   | SVector e ->
       semantic_check_expression_of_int_type cf e "Vector sizes"
-      |> Validate.map ~f:(fun ue -> SVector ue)
+      |> Validate.map ~f:(fun ue -> SizedType.SVector ue)
   | SRowVector e ->
       semantic_check_expression_of_int_type cf e "Row vector sizes"
-      |> Validate.map ~f:(fun ue -> SRowVector ue)
+      |> Validate.map ~f:(fun ue -> SizedType.SRowVector ue)
   | SMatrix (e1, e2) ->
       let ue1 = semantic_check_expression_of_int_type cf e1 "Matrix sizes"
       and ue2 = semantic_check_expression_of_int_type cf e2 "Matrix sizes" in
-      Validate.liftA2 (fun ue1 ue2 -> SMatrix (ue1, ue2)) ue1 ue2
+      Validate.liftA2 (fun ue1 ue2 -> SizedType.SMatrix (ue1, ue2)) ue1 ue2
   | SArray (st, e) ->
       let ust = semantic_check_sizedtype cf st
       and ue = semantic_check_expression_of_int_type cf e "Array sizes" in
-      Validate.liftA2 (fun ust ue -> SArray (ust, ue)) ust ue
+      Validate.liftA2 (fun ust ue -> SizedType.SArray (ust, ue)) ust ue
 
 (* -- Transformations ------------------------------------------------------- *)
 let semantic_check_transformation cf = function
@@ -1043,7 +1043,7 @@ let semantic_check_valid_sampling_pos ~loc ~cf =
 let semantic_check_sampling_distribution ~loc id arguments =
   let name = id.name
   and argumenttypes = List.map ~f:arg_type arguments
-  and is_real_rt = function ReturnType UReal -> true | _ -> false in
+  and is_real_rt = function UnsizedType.ReturnType UReal -> true | _ -> false in
   let is_reat_rt_for_suffix suffix =
     stan_math_returntype (name ^ suffix) argumenttypes
     |> Option.value_map ~default:false ~f:is_real_rt
@@ -1069,7 +1069,7 @@ let semantic_check_sampling_distribution ~loc id arguments =
 let cumulative_density_is_defined id arguments =
   let name = id.name
   and argumenttypes = List.map ~f:arg_type arguments
-  and is_real_rt = function ReturnType UReal -> true | _ -> false in
+  and is_real_rt = function UnsizedType.ReturnType UReal -> true | _ -> false in
   let is_reat_rt_for_suffix suffix =
     stan_math_returntype (name ^ suffix) argumenttypes
     |> Option.value_map ~default:false ~f:is_real_rt
@@ -1277,7 +1277,7 @@ and semantic_check_for ~loc ~cf loop_var lower_bound_e upper_bound_e loop_body
     liftA2 tuple2 ue1 ue2
     |> apply_const (semantic_check_identifier loop_var)
     >>= fun (ue1, ue2) ->
-    semantic_check_loop_body ~cf loop_var UInt loop_body
+    semantic_check_loop_body ~cf loop_var UnsizedType.UInt loop_body
     |> map ~f:(fun us ->
            mk_typed_statement
              ~stmt:
@@ -1292,8 +1292,8 @@ and semantic_check_for ~loc ~cf loop_var lower_bound_e upper_bound_e loop_body
 and semantic_check_foreach_loop_identifier_type ~loc ty =
   Validate.(
     match ty with
-    | UArray ut -> ok ut
-    | UVector | URowVector | UMatrix -> ok UReal
+    | UnsizedType.UArray ut -> ok ut
+    | UVector | URowVector | UMatrix -> ok UnsizedType.UReal
     | _ ->
         Semantic_error.array_vector_rowvector_matrix_expected loc ty |> error)
 
@@ -1376,7 +1376,7 @@ and semantic_check_size_decl ~loc is_global sized_ty =
     match e.emeta.ad_level with AutoDiffable -> false | _ -> true
   in
   let rec check_sizes_data_only = function
-    | SVector e -> not_ptq e
+    | SizedType.SVector e -> not_ptq e
     | SRowVector e -> not_ptq e
     | SMatrix (e1, e2) -> not_ptq e1 && not_ptq e2
     | SArray (sized_ty, e) when not_ptq e -> check_sizes_data_only sized_ty
@@ -1399,7 +1399,7 @@ and semantic_check_var_decl_bounds ~loc is_global sized_ty trans =
     | _ -> false
   in
   Validate.(
-    if is_global && sized_ty = SInt && is_valid_transformation then
+    if is_global && sized_ty = SizedType.SInt && is_valid_transformation then
       Semantic_error.non_int_bounds loc |> error
     else ok ())
 
@@ -1470,7 +1470,7 @@ and semantic_check_fundef_overloaded ~loc id arg_tys rt =
     (* User defined functions cannot be overloaded *)
     if Symbol_table.check_is_unassigned vm id.name then
       match Symbol_table.look vm id.name with
-      | Some (Functions, UFun (arg_tys', rt'))
+      | Some (Functions, UnsizedType.UFun (arg_tys', rt'))
         when arg_tys' = arg_tys && rt' = rt ->
           ok ()
       | _ ->
@@ -1503,7 +1503,7 @@ and semantic_check_fundef_dist_rt ~loc id return_ty =
     in
     if is_dist then
       match return_ty with
-      | ReturnType UReal -> ok ()
+      | UnsizedType.ReturnType UReal -> ok ()
       | _ -> error @@ Semantic_error.non_real_prob_fn_def loc
     else ok ())
 
@@ -1511,7 +1511,7 @@ and semantic_check_pdf_fundef_first_arg_ty ~loc id arg_tys =
   Validate.(
     (* TODO: I think these kind of functions belong with the type definition *)
     let is_real_type = function
-      | UReal | UVector | URowVector | UMatrix
+      | UnsizedType.UReal | UVector | URowVector | UMatrix
        |UArray UReal
        |UArray UVector
        |UArray URowVector
@@ -1534,7 +1534,7 @@ and semantic_check_pdf_fundef_first_arg_ty ~loc id arg_tys =
 and semantic_check_pmf_fundef_first_arg_ty ~loc id arg_tys =
   Validate.(
     (* TODO: I think these kind of functions belong with the type definition *)
-    let is_int_type = function UInt | UArray UInt -> true | _ -> false in
+    let is_int_type = function UnsizedType.UInt | UArray UInt -> true | _ -> false in
     if String.is_suffix id.name ~suffix:"_lpmf" then
       List.hd arg_tys
       |> Option.value_map
@@ -1611,7 +1611,7 @@ and semantic_check_fundef ~loc ~cf return_ty id args body =
       List.iter2 ~f:(Symbol_table.enter vm) uarg_names
         (List.map
            ~f:(function
-             | DataOnly, ut -> (Data, ut) | AutoDiffable, ut -> (Param, ut))
+             | UnsizedType.DataOnly, ut -> (Data, ut) | AutoDiffable, ut -> (Param, ut))
            uarg_types)
     and context =
       { cf with

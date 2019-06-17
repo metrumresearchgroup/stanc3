@@ -5,10 +5,11 @@ open State.Cps
 module type S = sig 
         
     type t
+    
     (** A `Label` is a module with the type `t` overwhich the flowgraph
         is constructed along with 
     *)
-    module Label : Node.S
+    module Label : Label.S
 
     (** A `LabelSet` is a set with elements of type `Label.t` 
     *)
@@ -82,7 +83,7 @@ module Statement_reverse : S = struct
 
     type t = Middle.stmt_loc
 
-    module Label = Node.Make(Int)
+    module Label = Label.Make(Int)
 
     module LabelSet = Set.Make_using_comparator(Label)
 
@@ -97,20 +98,25 @@ module Statement_reverse : S = struct
         a map from label to `int stmt_label`
     *)
     let label_statements (stmt_loc : stmt_loc) =
-        let apply_label location =
+        let apply_label label location = 
+            {  location ; label } 
+        in
+        let f location =
             State.(
-            get >>= fun label -> 
-            put (label + 1) >>= fun _ -> 
+            get >>= fun (label,map) -> 
+            let stmt = map_stmt_with ~e:(fun x -> x) ~f:(apply_label label) stmt_loc in
+            let map' = LabelMap.add_exn map ~key:label ~data:stmt in
+            put (label + 1,map') >>= fun _ -> 
             return @@ {location; label}
         )
         in
-        traverse_stmt_with ~e:State.return ~f:apply_label stmt_loc
+        traverse_stmt_with ~e:State.return ~f stmt_loc
 
 
     let build stmt_loc = 
         let _ = 
             label_statements stmt_loc
-            |> State.run_state ~init:0
+            |> State.run_state ~init:(0,LabelMap.empty)
         in 
         { initials = LabelSet.empty 
         ; successors = LabelMap.empty

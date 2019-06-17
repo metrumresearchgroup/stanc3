@@ -3,6 +3,7 @@
 open Core_kernel
 open Type_conversion
 open Mir
+open Mir.UnsizedType
 
 (** The signatures hash table *)
 let stan_math_signatures = String.Table.create ()
@@ -21,7 +22,7 @@ let stan_math_returntype name args =
   else
     Some
       (List.hd_exn
-         (List.sort ~compare:compare_returntype
+         (List.sort ~compare:UnsizedType.compare_returntype
             (List.map ~f:fst filteredmatches)))
 
 let is_stan_math_function_name name =
@@ -34,7 +35,7 @@ let stan_distribution_name_suffix name =
   |> List.hd_exn
 
 let assignmentoperator_to_stan_math_fn = function
-  | Plus -> Some "assign_add"
+  | Operator.Plus -> Some "assign_add"
   | Minus -> Some "assign_subtract"
   | Times -> Some "assign_multiply"
   | Divide -> Some "assign_divide"
@@ -47,7 +48,7 @@ let assignmentoperator_stan_math_return_type assop arg_tys =
   |> Option.bind ~f:(fun name -> stan_math_returntype name arg_tys)
 
 let operator_to_stan_math_fns = function
-  | Plus -> ["add"]
+  | Operator.Plus -> ["add"]
   | PPlus -> ["plus"]
   | Minus -> ["subtract"]
   | PMinus -> ["minus"]

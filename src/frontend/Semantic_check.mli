@@ -4,9 +4,9 @@ open Core_kernel
 
 val inferred_unsizedtype_of_indexed_exn :
      loc:Middle.location_span
-  -> Middle.unsizedtype
-  -> ('a Ast.index * Middle.unsizedtype) list
-  -> Middle.unsizedtype
+  -> Middle.UnsizedType.t
+  -> ('a Ast.index * Middle.UnsizedType.t) list
+  -> Middle.UnsizedType.t
 (** Infers unsized type of an `Indexed` expression  *)
 
 val semantic_check_program :

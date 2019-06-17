@@ -2,7 +2,7 @@
     operate on *)
 
 open Core_kernel
-open State.Cps
+(* open State.Cps *)
 
 (** Source code locations *)
 type location =
@@ -15,6 +15,650 @@ type location =
 (** Delimited locations *)
 type location_span = {begin_loc: location; end_loc: location} [@@deriving sexp]
 
+
+
+module LitType = struct
+  type t = Int | Real | Str
+  [@@deriving compare,hash, sexp]
+end
+
+module UnsizedType  = struct
+  type t =
+    | UInt
+    | UReal
+    | UVector
+    | URowVector
+    | UMatrix
+    | UArray of t
+    | UFun of (autodifftype * t) list * returntype
+    | UMathLibraryFunction
+  [@@deriving compare,hash,sexp]
+
+  (** Flags for data only arguments to functions *)
+  and autodifftype = DataOnly | AutoDiffable
+
+  and returntype = Void | ReturnType of t
+end
+
+
+module SizedType = struct
+    (** Sized types, for variable declarations *)
+    type 'e t =
+      | SInt
+      | SReal
+      | SVector of 'e
+      | SRowVector of 'e
+      | SMatrix of 'e * 'e
+      | SArray of 'e t * 'e
+    [@@deriving compare, fold, hash,map, sexp]
+
+  module T = struct
+    type nonrec 'a t = 'a t
+    let map = map
+    let fold_left ~f ~init x = fold f init x
+
+    let fold_right = 
+      let rec aux ~f ~init = function 
+        | SInt -> init 
+        | SReal -> init 
+        | SVector e -> f e init
+        | SRowVector e -> f e init
+        | SMatrix(e1,e2) -> f e1 (f e2 init)
+        | SArray(sizedtype,e) -> aux ~f ~init:(f e init) sizedtype
+
+      in `Custom aux
+
+  end 
+
+  
+  module FF = FoldableFunctor.Make(T)
+  include FF
+
+end
+
+module PossiblySizedType = struct
+  module T = struct
+    type 'e t = 
+      | Sized of 'e SizedType.t
+      | Unsized of UnsizedType.t
+    [@@deriving hash, map, fold, sexp]
+  
+    let fold_left ~f ~init x = fold f init x
+
+    let fold_right =
+      let aux ~f ~init = function
+        | Sized sizedtype -> SizedType.fold_right ~f ~init sizedtype
+        | Unsized _ -> init  in
+      `Custom aux
+    
+  end
+
+  include T 
+  module FF = FoldableFunctor.Make(T)
+  include FF
+    
+  
+end
+
+
+
+module IndexedExpr  = struct
+  module T = struct
+    type 'e t = 
+      | All
+      | Single of 'e
+      | Upfrom of 'e
+      | Downfrom of 'e
+      | Between of 'e * 'e
+      | MultiIndex of 'e
+    [@@deriving hash, map, fold, sexp]
+
+    let fold_left ~f ~init x = fold f init x
+
+    
+    let fold_right = 
+      let aux ~f ~init = function
+        | All -> init 
+        | Single e -> f e init
+        | Upfrom e -> f e init
+        | Downfrom e -> f e init
+        | Between(e1,e2) -> f e1 (f e2 init)
+        | MultiIndex e -> f e init  
+      in `Custom aux
+      
+  end
+  include T 
+  module FF = FoldableFunctor.Make(T)
+  include FF
+
+  (* module Traverse(M : Monad.S ) : Traversable.S with module F := FF = struct
+    let traverse ~f = function
+    | Single e -> M.map (f e) ~f:(fun e' -> Single e')
+    | Upfrom e -> M.map (f e) ~f:(fun e' -> Upfrom e')
+    | Downfrom e -> M.map (f e) ~f:(fun e' -> Downfrom e')
+    | MultiIndex e -> M.map (f e) ~f:(fun e' -> Upfrom e')
+    | Between (lower_e, upper_e) ->
+      M.(
+        f lower_e
+        >>= fun lower_e' ->
+        f upper_e |> map ~f:(fun upper_e' -> Between (lower_e', upper_e')))
+    | All -> M.return All
+  end 
+
+  module Traverse2(M : Monad.S2) : Traversable.S2 with module F := FF = struct
+    let traverse ~f = function
+    | Single e -> M.map (f e) ~f:(fun e' -> Single e')
+    | Upfrom e -> M.map (f e) ~f:(fun e' -> Upfrom e')
+    | Downfrom e -> M.map (f e) ~f:(fun e' -> Downfrom e')
+    | MultiIndex e -> M.map (f e) ~f:(fun e' -> Upfrom e')
+    | Between (lower_e, upper_e) ->
+      M.(
+        f lower_e
+        >>= fun lower_e' ->
+        f upper_e |> map ~f:(fun upper_e' -> Between (lower_e', upper_e')))
+    | All -> M.return All
+  end 
+
+  module TraverseState = Traverse2(State) *)
+
+end
+
+module FunKind = struct
+  type t = StanLib | CompilerInternal | UserDefined
+  [@@deriving compare, hash, sexp]
+end
+
+module Operator = struct
+  type t =
+    | Plus
+    | PPlus
+    | Minus
+    | PMinus
+    | Times
+    | Divide
+    | Modulo
+    | LDivide
+    | EltTimes
+    | EltDivide
+    | Pow
+    | Or
+    | And
+    | Equals
+    | NEquals
+    | Less
+    | Leq
+    | Greater
+    | Geq
+    | PNot
+    | Transpose
+  [@@deriving compare,sexp,hash] 
+
+  let to_string x = 
+    Sexp.to_string (sexp_of_t x) ^ "__"
+end
+
+module Expr = struct
+
+  module Pattern  = struct
+    (** Expression pattern functor *)
+    type 'e t = 
+      | Var of string
+      | Lit of LitType.t * string
+      | FunApp of FunKind.t * string * 'e list
+      | TernaryIf of 'e * 'e * 'e
+      | EAnd of 'e * 'e
+      | EOr of 'e * 'e
+      | Indexed of 'e * 'e IndexedExpr.t list 
+    [@@deriving hash, map, sexp, fold]
+
+    module T = struct
+      type nonrec 'a t = 'a t 
+      let map = map 
+
+      let fold_left ~f ~init x = fold f init x
+      
+      let fold_right = 
+        let aux ~f ~init = function
+          | Var _ | Lit _ -> init
+          | FunApp(_,_,xs) ->  List.fold_right ~f xs ~init
+          | TernaryIf(pred_e,true_e,false_e) ->  f pred_e (f true_e (f false_e init))
+          | EAnd(e1,e2) | EOr(e1,e2) -> f e1 (f e2 init)
+          | Indexed(e,idxs) -> 
+              List.fold_right ~f:(fun x accu -> IndexedExpr.fold_right ~f ~init:accu x) idxs ~init
+              |> f e
+        in 
+        `Custom aux
+      
+      
+    end
+
+    module FF = FoldableFunctor.Make(T)
+    include FF
+    
+    let lit_string n = Lit(LitType.Str,n)
+    let lit_real n = Lit(LitType.Real,string_of_float n)
+    let lit_int n = Lit(LitType.Int, string_of_int n)
+    let var name = Var name
+    let if_then_else pred then_ else_ = TernaryIf(pred,then_,else_)
+    let and_ a b = EAnd(a,b)
+    let or_ a b = EOr(a,b)
+    let udf name args = FunApp(FunKind.UserDefined,name,args)
+    let compiler_fn name args = FunApp(FunKind.CompilerInternal, name, args)
+    let stan_fn name args = FunApp(FunKind.StanLib,name,args)
+    let plus a b = stan_fn Operator.(to_string Plus) [a;b]
+    let pplus a b = stan_fn Operator.(to_string PPlus) [a;b]
+    let minus a b = stan_fn Operator.(to_string Minus) [a;b]
+    let pminus a b = stan_fn Operator.(to_string PMinus) [a;b]
+    let times a b = stan_fn Operator.(to_string Times) [a;b]
+    let divide a b = stan_fn Operator.(to_string Divide) [a;b]
+    let modulo a b = stan_fn Operator.(to_string Modulo) [a;b]
+    let ldivide a b = stan_fn Operator.(to_string LDivide) [a;b]
+    let elt_times a b = stan_fn Operator.(to_string EltTimes) [a;b]
+    let elt_divide a b = stan_fn Operator.(to_string EltDivide) [a;b]
+    let pow a b = stan_fn Operator.(to_string Pow) [a;b]
+    let equals a b = stan_fn Operator.(to_string Equals) [a;b]
+    let nequals a b = stan_fn Operator.(to_string NEquals) [a;b]
+    let less a b = stan_fn Operator.(to_string Less) [a;b]
+    let leq a b = stan_fn Operator.(to_string Leq) [a;b]
+    let greater a b = stan_fn Operator.(to_string Greater) [a;b]
+    let geq a b = stan_fn Operator.(to_string Geq) [a;b]
+    let pnot a= stan_fn Operator.(to_string PNot) [a]
+    let transpose a = stan_fn Operator.(to_string Transpose) [a]
+  end
+
+  module T = struct
+    (** Expressions *)
+    type 'meta t = 
+      { expr : 'meta t Pattern.t 
+      ; emeta : 'meta 
+      }
+    [@@deriving hash, sexp]
+    
+    let rec map f { expr ; emeta } = 
+      { expr = Pattern.map (map f) expr 
+      ; emeta = f emeta 
+      }
+
+    let rec fold_left ~f ~(init: 'b) { expr ; emeta} = 
+      let accu = f init emeta in
+      Pattern.fold_left ~f:(fun init e -> fold_left ~f ~init e) ~init:accu expr
+    
+    let fold_right = 
+      let rec aux ~f  ~(init: 'b) {expr ; emeta} : 'b = 
+        let accu = Pattern.fold_right ~f:(fun e init -> aux ~f ~init e) ~init expr in
+        f emeta accu
+      in 
+      `Custom aux
+  end 
+
+  include T
+  module FF = FoldableFunctor.Make(T)
+  include FF
+
+  let rec fold_right_pattern ~f ~init {expr;_} = 
+    Pattern.fold_right 
+      ~f:(fun x accu -> fold_right_pattern ~f ~init:accu x) 
+      ~init:(f expr init ) 
+      expr
+            
+  let rec fold_left_pattern ~f ~init {expr;_} = 
+    Pattern.fold_left 
+      ~f:(fun accu x -> fold_left_pattern ~f ~init:accu x) 
+      ~init:(f init expr) 
+      expr
+
+  let any_pattern ~pred ?init:(accu=false) expr =
+    let f x accu = accu || pred x in
+    fold_right_pattern ~f ~init:accu expr
+
+  let all_pattern ~pred ?init:(accu=true) expr =
+    let f x accu = accu && pred x in
+    fold_right_pattern ~f ~init:accu expr
+
+  
+  module Untyped = struct 
+    type meta = unit
+    type nonrec t = meta t
+  end 
+
+  module Typed = struct 
+    type meta =
+      { mtype: UnsizedType.t
+      ; mloc: location_span sexp_opaque [@compare.ignore]
+      ; madlevel: UnsizedType.autodifftype }
+    [@@deriving sexp, hash]
+
+    (** Typed expressions with location info  *)
+    type nonrec t = meta t
+
+    let type_of x = x.emeta.mtype
+    let ad_level x = x.emeta.madlevel
+    let location  x = x.emeta.mloc
+
+    let sexp_of_t = sexp_of_t sexp_of_meta
+    let t_of_sexp = t_of_sexp meta_of_sexp
+  end 
+
+(* Construct values *)
+  let with_meta m p = { expr = p ; emeta = m}
+    
+  let lit_string ~meta n = with_meta meta @@ Pattern.lit_string n
+  let lit_string_ = lit_string ~meta:()
+  
+  let lit_real ~meta n = with_meta meta @@ Pattern.lit_real n
+  let lit_real_ = lit_real ~meta:()
+  
+  let lit_int ~meta n = with_meta meta @@ Pattern.lit_int n
+  let lit_int_ = lit_int ~meta:()
+      
+  let var ~meta name = with_meta meta @@ Pattern.var name
+  let var_ = var ~meta:()
+
+  
+  let if_then_else ~meta pred then_ else_ = with_meta meta @@ Pattern.if_then_else pred then_ else_
+  let if_then_else_ = if_then_else ~meta:()
+    
+  let and_ ~meta a b = with_meta meta @@ Pattern.and_ a b 
+  let and__ = and_ ~meta:()
+  
+  let or_ ~meta a b = with_meta meta @@ Pattern.or_ a b
+  let or__ = or_ ~meta:()
+    
+  let udf ~meta name args = with_meta meta @@ Pattern.udf name args
+  let udf_ = udf ~meta:()
+  
+  let compiler_fn ~meta name args = with_meta meta @@ Pattern.compiler_fn name args
+  let compiler_fn_  = compiler_fn ~meta:()
+  
+  let stan_fn ~meta name args = with_meta meta @@ Pattern.stan_fn name args
+  let stan_fn_  = compiler_fn ~meta:()
+   
+  let plus ~meta a b = with_meta meta @@ Pattern.plus a b
+  let plus_ = plus ~meta:()
+  
+  let pplus ~meta a b = with_meta meta @@ Pattern.pplus a b
+  let pplus_ = pplus ~meta:()
+  
+  let minus ~meta a b = with_meta meta @@ Pattern.minus a b
+  let minus_ = minus ~meta:()
+    
+  let pminus ~meta a b = with_meta meta @@ Pattern.pminus a b
+  let pminus_ = pminus ~meta:()
+  
+  let times ~meta a b = with_meta meta @@ Pattern.times a b
+  let times_ = times ~meta:()
+  
+  let divide ~meta a b = with_meta meta @@ Pattern.divide a b
+  let divide_ = divide ~meta:()
+  
+  let modulo ~meta a b = with_meta meta @@ Pattern.modulo a b
+  let modulo_ = modulo ~meta:()
+  
+  let ldivide ~meta a b = with_meta meta @@ Pattern.ldivide a b
+  let ldivide_ = ldivide ~meta:()
+  
+  let elt_times ~meta a b = with_meta meta @@ Pattern.elt_times a b
+  let elt_times_ = elt_times ~meta:()
+  
+  let elt_divide ~meta a b = with_meta meta @@ Pattern.elt_divide a b
+  let elt_divide_ = elt_divide ~meta:()
+  
+  let pow ~meta a b = with_meta meta @@ Pattern.pow a b
+  let pow_ = pow ~meta:()
+  
+  let equals ~meta a b = with_meta meta @@ Pattern.equals a b
+  let equals_ = equals ~meta:()
+  
+  let nequals ~meta a b = with_meta meta @@ Pattern.nequals a b
+  let nequals_ = nequals ~meta:()
+  
+  let less ~meta a b = with_meta meta @@ Pattern.less a b
+  let less_ = less ~meta:()
+  
+  let leq ~meta a b = with_meta meta @@ Pattern.leq a b
+  let leq_ = leq ~meta:()
+  
+  let greater ~meta a b = with_meta meta @@ Pattern.greater a b
+  let greater_ = greater ~meta:()
+  
+  let geq ~meta a b = with_meta meta @@ Pattern.geq a b
+  let geq_ = geq ~meta:()
+  
+  let pnot ~meta a  = with_meta meta @@ Pattern.pnot a 
+  let pnot_ = pnot ~meta:()
+  
+  let transpose ~meta a  = with_meta meta @@ Pattern.transpose a 
+  let transpose_ = transpose ~meta:()
+
+end
+
+module Stmt = struct
+
+
+  module Pattern = struct
+
+    module T = struct
+      type ('e, 's) t =
+        | Assignment of (string * 'e IndexedExpr.t list) * 'e
+        | TargetPE of 'e
+        | NRFunApp of FunKind.t * string * 'e list
+        | Break
+        | Continue
+        | Return of 'e option
+        | Skip
+        | IfElse of 'e * 's * 's option
+        | While of 'e * 's  
+        | For of {loopvar: string; lower: 'e; upper: 'e; body: 's}
+        | Block of 's list
+        | SList of 's list
+        | Decl of
+          { decl_adtype: UnsizedType.autodifftype
+          ; decl_id: string
+          ; decl_type: 'e PossiblySizedType.t 
+          }
+      [@@deriving sexp,map,fold,hash]
+    
+      let bimap ~f ~g x = map f g x
+
+      let bifold_left ~f ~g ~init x = fold f g init x
+      
+      let bifold_right = 
+        let bifold_right_aux ~f ~g ~init = function
+          | Assignment((_,idxs),rval) -> 
+              List.fold_right idxs ~init:(f rval init) 
+                ~f:(fun idx accu -> IndexedExpr.fold_right ~f ~init:accu idx) 
+          | TargetPE expr -> f expr init
+          | NRFunApp(_,_,exprs) -> List.fold_right ~f exprs ~init 
+          | Return (Some expr) -> f expr init 
+          | Break | Continue | Skip | Return None -> init      
+          | IfElse(pred_e,true_s,Some(false_s)) -> f pred_e (g true_s (g false_s init))
+          | IfElse(pred_e,true_s,None) -> f pred_e (g true_s  init)
+          
+          | While(pred_e,s) -> f pred_e (g s init)
+          | For {lower; upper; body; _} ->  f lower (f upper (g body init))
+          | Block xs | SList xs  -> List.fold_right ~f:g xs ~init
+          | Decl{decl_type;_} -> PossiblySizedType.fold_right ~f ~init  decl_type
+        in 
+        `Custom bifold_right_aux
+
+    end 
+
+    include T 
+    module BB = BifoldableBifunctor.Make(T)
+    include BB
+
+  end 
+  
+
+  module T = struct
+
+    type ('exprmeta,'stmtmeta) t = 
+      { stmt : ('exprmeta Expr.t , ('exprmeta,'stmtmeta) t) Pattern.t 
+      ; smeta : 'stmtmeta
+      }
+    [@@deriving hash, sexp]
+
+    let rec bimap ~f ~g {stmt; smeta} =
+      { stmt = Pattern.bimap ~f:(Expr.map f) ~g:(bimap ~f ~g) stmt
+      ; smeta = g smeta 
+      }
+
+    let rec bifold_left ~f ~g ~init {stmt;smeta} = 
+      Pattern.bifold_left 
+        ~f:(fun accu -> Expr.fold_left ~f ~init:accu)
+        ~g:(fun accu -> bifold_left ~f ~g ~init:accu)
+        ~init:(g init smeta)
+        stmt
+
+    let bifold_right = 
+      let rec aux ~f ~g ~init {stmt;smeta} = 
+        let accu = 
+          Pattern.bifold_right 
+            ~f:(fun x accu -> Expr.fold_right ~f ~init:accu x)
+            ~g:(fun x accu -> aux ~f ~g ~init:accu x)
+          ~init 
+          stmt
+        in 
+        g smeta accu
+        in
+        `Custom aux
+  end
+
+  include T 
+  module BB = BifoldableBifunctor.Make(T)
+  include BB
+
+  let pattern {stmt;_} = stmt 
+  let meta {smeta;_} = smeta
+
+
+
+
+
+  module Untyped = struct 
+    type meta = unit 
+    type nonrec t = (Expr.Untyped.meta,meta) t 
+  end 
+
+  module Typed = struct 
+    type meta = location_span sexp_opaque[@compare.ignore] [@@deriving sexp]
+    (** Statements with typed expressions and location info *)
+    type nonrec t = (Expr.Typed.meta, meta) t
+
+    let sexp_of_t = sexp_of_t Expr.Typed.sexp_of_t sexp_of_meta
+    let t_of_sexp = t_of_sexp Expr.Typed.t_of_sexp meta_of_sexp
+  end
+
+  module Labelled = struct
+    type 'lbl meta = 
+        {location: location_span sexp_opaque [@compare.ignore]
+        ; label: 'lbl
+        }
+    [@@deriving sexp]
+
+    (** Statements with typed expressions, location info and labels *)
+    type nonrec 'lbl t = (Expr.Typed.meta, 'lbl meta) t
+
+    let sexp_of_t sexp_of_lbl = sexp_of_t Expr.Typed.sexp_of_t (sexp_of_meta sexp_of_lbl)
+    let t_of_sexp lbl_of_sexp = t_of_sexp Expr.Typed.t_of_sexp (meta_of_sexp lbl_of_sexp)
+  end 
+
+
+
+end
+
+
+module FunDef = struct
+    type fun_arg_decl = (UnsizedType.autodifftype * string * UnsizedType.t) list
+    [@@deriving hash,sexp]
+
+    module T = struct
+      type 's t =
+        { fdrt: UnsizedType.t option
+        ; fdname: string
+        ; fdargs: fun_arg_decl
+        ; fdbody: 's
+        ; fdloc: location_span sexp_opaque [@compare.ignore] 
+        }
+      [@@deriving sexp, map, fold]  
+
+      let fold_left ~f ~init x = fold f init x 
+
+      let fold_right = `Define_using_fold_left
+    end 
+
+    include T 
+    module FF = FoldableFunctor.Make(T)
+    include FF
+end 
+
+
+
+module Program = struct 
+
+  type io_block =
+    | Data
+    | Parameters
+    | TransformedParameters
+    | GeneratedQuantities
+  [@@deriving sexp, hash]
+
+  type 'e io_var = string * ('e SizedType.t * io_block) [@@deriving sexp, map]
+
+  
+  type ('e, 's) t =
+  { functions_block: 's FunDef.t list
+  ; input_vars: 'e io_var list
+  ; prepare_data: 's list (* data & transformed data decls and statements *)
+  ; log_prob: 's list (*assumes data & params are in scope and ready*)
+  ; generate_quantities: 's list (* assumes data & params ready & in scope*)
+  ; transform_inits: 's list
+  ; output_vars: 'e io_var list
+  ; prog_name: string
+  ; prog_path: string }
+  [@@deriving sexp, map]
+
+
+  let name {prog_name;_} = prog_name
+  let prepare_data {prepare_data;_} = prepare_data
+  let output_vars {output_vars;_} = output_vars
+
+  let transform_inits {transform_inits;_} = transform_inits
+
+  module Untyped = struct 
+    type nonrec t = (Expr.Untyped.t , Stmt.Untyped.t) t
+  end 
+
+  module Typed = struct 
+    type nonrec t = (Expr.Typed.t , Stmt.Typed.t) t
+    
+  end 
+end 
+
+type internal_fn =
+  | FnLength
+  | FnMakeArray
+  | FnMakeRowVec
+  | FnNegInf
+  | FnReadData
+  | FnReadParam
+  | FnWriteParam
+  | FnConstrain
+  | FnUnconstrain
+  | FnCheck
+  | FnPrint
+  | FnReject
+[@@deriving sexp]
+
+
+
+
+
+
+
+
+
+(* 
 (** Arithmetic and logical operators *)
 type operator =
   | Plus
@@ -40,39 +684,11 @@ type operator =
   | Transpose
 [@@deriving sexp, hash, compare]
 
-(** Unsized types for function arguments and for decorating expressions
-    during type checking; we have a separate type here for Math library
-    functions as these functions can be overloaded, so do not have a unique
-    type in the usual sense. Still, we want to assign a unique type to every
-    expression during type checking.  *)
-type unsizedtype =
-  | UInt
-  | UReal
-  | UVector
-  | URowVector
-  | UMatrix
-  | UArray of unsizedtype
-  | UFun of (autodifftype * unsizedtype) list * returntype
-  | UMathLibraryFunction
-[@@deriving sexp, hash]
 
-(** Flags for data only arguments to functions *)
-and autodifftype = DataOnly | AutoDiffable [@@deriving sexp, hash, compare]
 
-and returntype = Void | ReturnType of unsizedtype [@@deriving sexp, hash]
 
-(** Sized types, for variable declarations *)
-type 'e sizedtype =
-  | SInt
-  | SReal
-  | SVector of 'e
-  | SRowVector of 'e
-  | SMatrix of 'e * 'e
-  | SArray of 'e sizedtype * 'e
-[@@deriving sexp, compare, map, hash, fold]
 
-type 'e possiblysizedtype = Sized of 'e sizedtype | Unsized of unsizedtype
-[@@deriving sexp, compare, map, hash, fold]
+
 
 type litType = Int | Real | Str [@@deriving sexp, hash, compare]
 
@@ -139,26 +755,12 @@ type ('e, 's) statement =
       ; decl_type: 'e possiblysizedtype }
 [@@deriving sexp, hash, map, fold]
 
-type io_block =
-  | Data
-  | Parameters
-  | TransformedParameters
-  | GeneratedQuantities
-[@@deriving sexp, hash]
 
-type 'e io_var = string * ('e sizedtype * io_block) [@@deriving sexp, map]
 
-type ('e, 's) prog =
-  { functions_block: 's fun_def list
-  ; input_vars: 'e io_var list
-  ; prepare_data: 's list (* data & transformed data decls and statements *)
-  ; log_prob: 's list (*assumes data & params are in scope and ready*)
-  ; generate_quantities: 's list (* assumes data & params ready & in scope*)
-  ; transform_inits: 's list
-  ; output_vars: 'e io_var list
-  ; prog_name: string
-  ; prog_path: string }
-[@@deriving sexp, map]
+
+
+
+
 
 
 
@@ -295,6 +897,7 @@ let rec map_expr_with ~f {expr; emeta} =
 let rec fold_expr_with ~f ~init {expr ; emeta } =
   fold_expr (fun accu -> fold_expr_with ~f ~init:accu) (f init emeta) expr
 
+
 (** Traverse a `with_expr` mapping the type of meta-data with effects *)
 let rec traverse_expr_with ~f {expr; emeta} =
   State.(
@@ -324,6 +927,10 @@ let rec fold_stmt_with ~e ~f ~init {stmt;smeta} =
     (f init smeta)
     stmt
 
+
+
+    
+
 let rec traverse_stmt_with ~e ~f {stmt; smeta} =
   State.(
     f smeta
@@ -331,6 +938,9 @@ let rec traverse_stmt_with ~e ~f {stmt; smeta} =
     traverse_statement stmt ~e:(traverse_expr_with ~f:e)
       ~f:(traverse_stmt_with ~e ~f)
     |> map ~f:(fun stmt' -> {stmt= stmt'; smeta= smeta'}))
+
+
+
 
 type ('e, 'm) stmt_with_num = {stmtn: ('e with_expr, int) statement; smetan: 'm}
 [@@deriving sexp, hash]
@@ -368,6 +978,18 @@ and 'lbl stmt_label =
 [@@deriving sexp]
 
 
+let label_statements (stmt_loc : stmt_loc) : int stmt_labelled =
+    let f location = State.(
+        get >>= fun label -> 
+        put (label + 1) >>= fun _ -> 
+        return @@ {location; label}
+    )
+    in
+    traverse_stmt_with ~e:State.return ~f stmt_loc
+    |> State.run_state ~init:0
+    |> fst
+
+
 
 type stmt_loc_num =
   (mtype_loc_ad, (location_span sexp_opaque[@compare.ignore])) stmt_with_num
@@ -399,4 +1021,4 @@ end
 module ExprSet = Set.Make (ExprComparator)
 
 (**  A module for maps of expressions which ignore their locations *)
-module ExprMap = Map.Make (ExprComparator)
+module ExprMap = Map.Make (ExprComparator) *)

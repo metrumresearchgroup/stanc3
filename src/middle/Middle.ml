@@ -9,7 +9,7 @@ module Utils = Utils
 
 (* ===================== Some helper functions and values ====================== *)
 
-let expr_from_idx (i : expr_typed_located index) =
+let expr_from_idx (i : Expr.Typed.t IndexedExpr.t) =
   match i with
   | All -> []
   | Single e | Upfrom e | Downfrom e | MultiIndex e -> [e]
@@ -18,14 +18,16 @@ let expr_from_idx (i : expr_typed_located index) =
 (** remove_size [st] discards size information from a sizedtype
     to return an unsizedtype. *)
 let rec remove_size = function
-  | SInt -> UInt
+  | SizedType.SInt -> UnsizedType.UInt
   | SReal -> UReal
   | SVector _ -> UVector
   | SRowVector _ -> URowVector
   | SMatrix _ -> UMatrix
   | SArray (t, _) -> UArray (remove_size t)
 
-let remove_possible_size = function Sized t -> remove_size t | Unsized t -> t
+let remove_possible_size = function 
+  | PossiblySizedType.Sized t -> remove_size t 
+  | Unsized t -> t
 let no_loc = {filename= ""; line_num= 0; col_num= 0; included_from= None}
 let no_span = {begin_loc= no_loc; end_loc= no_loc}
 let mk_string_of sexp_of x = Sexp.to_string (sexp_of x) ^ "__"
@@ -40,27 +42,29 @@ let mk_of_string of_sexp x =
 
 let internal_fn_of_string = mk_of_string internal_fn_of_sexp
 
-let internal_funapp ifn args emeta =
-  {expr= FunApp (CompilerInternal, string_of_internal_fn ifn, args); emeta}
+let internal_funapp ifn args emeta : 'a Expr.t =
+  Expr.compiler_fn ~meta:emeta (string_of_internal_fn ifn) args
+  (* { expr = Expr.Pattern.FunApp (CompilerInternal, string_of_internal_fn ifn, args)
+  ; emeta 
+  } *)
 
-let internal_meta = {mloc= no_span; mtype= UInt; madlevel= DataOnly}
-let zero = {expr= Lit (Int, "0"); emeta= internal_meta}
-let loop_bottom = {expr= Lit (Int, "1"); emeta= internal_meta}
-let string_of_operator = mk_string_of sexp_of_operator
-let operator_of_string = mk_of_string operator_of_sexp
+let internal_meta : Expr.Typed.meta = 
+  { mloc= no_span
+  ; mtype= UInt
+  ; madlevel= DataOnly
+  }
+let zero : Expr.Typed.t = 
+  { expr= Lit (Int, "0")
+  ; emeta= internal_meta
+  }
+let loop_bottom : Expr.Typed.t = {expr= Lit (Int, "1"); emeta= internal_meta}
+let string_of_operator = mk_string_of Operator.sexp_of_t
+let operator_of_string = mk_of_string Operator.t_of_sexp
 
 let%test "bad op name" = phys_equal (operator_of_string "Pluss__") None
 let%test "good op name" = operator_of_string "Plus__" = Some Plus
 
-(** remove_size [st] discards size information from a sizedtype
-    to return an unsizedtype. *)
-let rec remove_size = function
-  | SInt -> UInt
-  | SReal -> UReal
-  | SVector _ -> UVector
-  | SRowVector _ -> URowVector
-  | SMatrix _ -> UMatrix
-  | SArray (t, _) -> UArray (remove_size t)
+
 
 (* -- Locations and spans --------------------------------------------------- *)
 
@@ -160,7 +164,7 @@ let string_of_operators =
 let operator_return_type_from_string op_name argtypes =
   if op_name = "Assign" || op_name = "ArrowAssign" then
     match List.map ~f:snd argtypes with
-    | [ut1; ut2] when check_of_same_type_mod_array_conv "" ut1 ut2 -> Some Void
+    | [ut1; ut2] when check_of_same_type_mod_array_conv "" ut1 ut2 -> Some UnsizedType.Void
     | _ -> None
   else
     Map.Poly.find_multi string_of_operators op_name
@@ -169,8 +173,11 @@ let operator_return_type_from_string op_name argtypes =
 let operator_return_type op =
   operator_return_type_from_string (string_of_operator op)
 
-let rec sexp_of_expr_typed_located {expr; _} =
-  sexp_of_expr sexp_of_expr_typed_located expr
+let sexp_of_expr_typed_located = 
+  Expr.sexp_of_t Expr.Typed.sexp_of_meta
+  
 
-let rec sexp_of_stmt_loc {stmt; _} =
-  sexp_of_statement sexp_of_expr_typed_located sexp_of_stmt_loc stmt
+let sexp_of_stmt_loc  = 
+  Stmt.sexp_of_t  Expr.Typed.sexp_of_meta Stmt.Typed.sexp_of_meta 
+  
+(* end *)

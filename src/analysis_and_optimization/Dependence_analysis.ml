@@ -25,7 +25,7 @@ let reaching_defn_lookup (rds : reaching_defn Set.Poly.t) (var : vexpr) :
 
 let node_immediate_dependencies
     (statement_map :
-      (label, (expr_typed_located, label) statement * node_dep_info) Map.Poly.t)
+      (label, (Expr.Typed.t, label) Statement.StmtF.t * node_dep_info) Map.Poly.t)
     (label : label) : label Set.Poly.t =
   let stmt, info = Map.Poly.find_exn statement_map label in
   let rhs_set = stmt_rhs_var_set stmt in

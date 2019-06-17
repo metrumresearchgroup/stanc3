@@ -281,7 +281,7 @@ let copy_propagation_transfer
   ( module struct
     type labels = int
     type properties = (string, Middle.expr_typed_located) Map.Poly.t option
-
+    
     let transfer_function l p =
       match p with
       | None -> None

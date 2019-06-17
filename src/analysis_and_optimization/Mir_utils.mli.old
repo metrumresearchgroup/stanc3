@@ -1,0 +1,162 @@
+open Core_kernel
+open Middle
+open Dataflow_types
+
+val map_rec_expr :
+     (Expr.Typed.t Expr.ExprF.t -> Expr.Typed.t Expr.ExprF.t)
+  -> Expr.Typed.t
+  -> Expr.Typed.t
+
+val map_rec_expr_state :
+     ('s -> Expr.Typed.t ExprF.t -> Expr.Typed.t ExprF.t * 's)
+  -> 's
+  -> Expr.Typed.t
+  -> Expr.Typed.t * 's
+
+val map_rec_stmt_loc :
+     (   (Expr.Typed.t, Statement.Typed.t) Statement.StmtF.t
+      -> (Expr.Typed.t, Statement.Typed.t) Statement.StmtF.t)
+  -> Statement.Typed.t
+  -> Statement.Typed.t
+
+val map_rec_state_stmt_loc :
+     (   's
+      -> (Expr.Typed.t, Statement.Typed.t) Statement.StmtF.t
+      -> (Expr.Typed.t, Statement.Typed.t) Statement.StmtF.t * 's)
+  -> 's
+  -> Statement.Typed.t
+  -> Statement.Typed.t * 's
+
+val map_rec_stmt_loc_num :
+     (int, Statement.Typed.t_num) Map.Poly.t
+  -> (   int
+      -> (Expr.Typed.t, Statement.Typed.t) Statement.StmtF.t
+      -> (Expr.Typed.t, Statement.Typed.t) Statement.StmtF.t)
+  -> Statement.Typed.t_num
+  -> Statement.Typed.t
+
+val map_rec_state_stmt_loc_num :
+     (int, Statement.Typed.t_num) Map.Poly.t
+  -> (   int
+      -> 's
+      -> (Expr.Typed.t, Statement.Typed.t) Statement.StmtF.t
+      -> (Expr.Typed.t, Statement.Typed.t) Statement.StmtF.t * 's)
+  -> 's
+  -> Statement.Typed.t_num
+  -> Statement.Typed.t * 's
+
+val Statement.Typed.t_of_stmt_loc_num :
+  (int, Statement.Typed.t_num) Map.Poly.t -> Statement.Typed.t_num -> Statement.Typed.t
+
+val Statement.StmtF.t_stmt_loc_of_Statement.StmtF.t_stmt_loc_num :
+     (int, Statement.Typed.t_num) Map.Poly.t
+  -> (mtype_loc_ad with_expr, int) Statement.StmtF.t
+  -> ( mtype_loc_ad with_expr
+     , (mtype_loc_ad, location_span) stmt_with )
+     Statement.StmtF.t
+
+val unnumbered_prog_of_numbered_prog :
+     (int, Statement.Typed.t_num) Map.Poly.t
+  -> ('a -> 'b)
+  -> (stmt_loc_num, 'a) prog
+  -> (stmt_loc, 'b) prog
+
+val fwd_traverse_Statement.StmtF.t :
+     ('e, 'a) Statement.StmtF.t
+  -> init:'f
+  -> f:('f -> 'a -> 'f * 'c)
+  -> 'f * ('e, 'c) Statement.StmtF.t
+(**
+   A traversal that simultaneously accumulates a state (type 'f) and replaces the
+   subStatement.StmtF.t values from ('a to 'c). Traversal is done in-order but ignores branching,
+   e.g., and if's then block is followed by the else block rather than branching.
+*)
+
+val vexpr_of_expr_exn : Expr.Typed.t -> vexpr
+(**
+   Take a LHS ExprF.tession from a general ExprF.tession, throwing an exception if it can't be a
+   LHS ExprF.tession.
+*)
+
+val ExprF.t_var_set : Expr.Typed.t -> vexpr Set.Poly.t
+(**
+   The set of variables in an ExprF.tession, including inside an index.
+
+   For use in RHS sets, not LHS assignment sets, except in a target term.
+*)
+
+val index_var_set : Expr.Typed.t index -> vexpr Set.Poly.t
+(**
+   The set of variables in an index.
+
+   For use in RHS sets, not LHS assignment sets, except in a target term
+*)
+
+val stmt_rhs : (Expr.Typed.t, 's) Statement.StmtF.t -> ExprSet.t
+(**
+   The set of variables that can affect the value or behavior of the ExprF.tession, i.e. rhs.
+
+   Using Set.Poly instead of ExprSet so that 'e can be polymorphic, it usually doesn't
+   matter if there's duplication.
+*)
+
+val union_map : 'a Set.Poly.t -> f:('a -> 'b Set.Poly.t) -> 'b Set.Poly.t
+(**
+   This is a helper function equivalent to List.concat_map but for Sets
+*)
+
+val stmt_rhs_var_set : (Expr.Typed.t, 's) Statement.StmtF.t -> vexpr Set.Poly.t
+(**
+   The set of variables in an ExprF.tession, including inside an index.
+
+   For use in RHS sets, not LHS assignment sets, except in a target term.
+*)
+
+val ExprF.t_assigned_var : Expr.Typed.t -> vexpr
+(**
+   The variable being assigned to when the ExprF.tession is the LHS
+*)
+
+val summation_terms : Expr.Typed.t -> Expr.Typed.t list
+(** The list of terms in ExprF.tession separated by a + *)
+
+val stmt_of_block : Statement.Typed.t list -> Statement.Typed.t
+(** Represent a list of Statement.StmtF.ts as a single Statement.StmtF.t *)
+
+val subst_expr :
+     (string, Expr.Typed.t) Map.Poly.t
+  -> Expr.Typed.t
+  -> Expr.Typed.t
+(** Substitute variables in an ExprF.tession according to the provided Map. *)
+
+val subst_stmt_base :
+     (string, Expr.Typed.t) Map.Poly.t
+  -> (Expr.Typed.t, 'a) Statement.StmtF.t
+  -> (Expr.Typed.t, 'a) Statement.StmtF.t
+(** Substitute variables occurring at the top level in Statement.StmtF.ts according to the provided Map. *)
+
+val subst_stmt :
+  (string, Expr.Typed.t) Map.Poly.t -> Statement.Typed.t -> Statement.Typed.t
+(** Substitute variables occurring anywhere in a Statement.StmtF.t according to the provided Map. *)
+
+val ExprF.t_subst_expr :
+  Expr.Typed.t ExprMap.t -> Expr.Typed.t -> Expr.Typed.t
+(** Substitute subexpressions in an ExprF.tession according to the provided Map, trying
+    to match on larger subexpressions before smaller ones. *)
+
+val ExprF.t_subst_stmt : Expr.Typed.t ExprMap.t -> Statement.Typed.t -> Statement.Typed.t
+(** Substitute subexpressions occurring anywhere in a Statement.StmtF.t according to the provided Map. *)
+
+val ExprF.t_subst_stmt_base :
+     Expr.Typed.t ExprMap.t
+  -> (Expr.Typed.t, 'a) Statement.StmtF.t
+  -> (Expr.Typed.t, 'a) Statement.StmtF.t
+(** Substitute subexpressions occurring at the top level in Statement.StmtF.ts according to the provided Map. *)
+
+val ExprF.t_depth : Expr.Typed.t -> int
+(** Calculate how deeply nested an ExprF.tession is. *)
+
+val update_expr_ad_levels :
+  string Set.Poly.t -> mtype_loc_ad with_expr -> mtype_loc_ad with_expr
+(** Recompute all AD-levels in the metadata of an ExprF.tession from the bottom up, making the variables
+    in the first argument autodiffable *)

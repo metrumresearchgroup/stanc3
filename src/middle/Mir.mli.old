@@ -1,0 +1,180 @@
+open Core_kernel
+
+(** Source code locations *)
+type location =
+  { filename: string
+  ; line_num: int
+  ; col_num: int
+  ; included_from: location option }
+[@@deriving sexp]
+
+(** Delimited locations *)
+type location_span = {begin_loc: location; end_loc: location} [@@deriving sexp]
+
+
+module UnsizedType : sig 
+  type t =
+    | UInt
+    | UReal
+    | UVector
+    | URowVector
+    | UMatrix
+    | UArray of t
+    | UFun of (autodifftype * t) list * returntype
+    | UMathLibraryFunction
+  
+  (** Flags for data only arguments to functions *)
+  and autodifftype = DataOnly | AutoDiffable
+  and returntype = Void | ReturnType of t
+  include Sexpable.S with type t := t
+  include Comparable.S with type t := t
+end 
+
+module SizedType : sig
+  type 'e t =
+    | SInt
+    | SReal
+    | SVector of 'e
+    | SRowVector of 'e
+    | SMatrix of 'e * 'e
+    | SArray of 'e t * 'e
+  [@@deriving compare]
+  include FoldableFunctor.S with type 'a t := 'a t
+  include Sexpable.S1 with type 'a t := 'a t
+end
+
+module  PossiblySizedType : sig
+  type 'e t = 
+    | Sized of 'e SizedType.t
+    | Unsized of UnsizedType.t
+  [@@deriving compare]
+  include FoldableFunctor.S with type 'a t := 'a t
+  include Sexpable.S1 with type 'a t := 'a t
+end
+
+module IndexedExpr : sig 
+    type 'e t = 
+      | All
+      | Single of 'e
+      | Upfrom of 'e
+      | Downfrom of 'e
+      | Between of 'e * 'e
+      | MultiIndex of 'e
+    [@@deriving compare]
+    include FoldableFunctor.S with type 'a t := 'a t 
+    include Sexpable.S1 with type 'a t := 'a t
+end 
+
+type fun_kind = StanLib | CompilerInternal | UserDefined
+[@@deriving compare, sexp]
+
+type litType = Int | Real | Str
+[@@deriving compare, sexp]
+
+type operator =
+  | Plus
+  | PPlus
+  | Minus
+  | PMinus
+  | Times
+  | Divide
+  | Modulo
+  | LDivide
+  | EltTimes
+  | EltDivide
+  | Pow
+  | Or
+  | And
+  | Equals
+  | NEquals
+  | Less
+  | Leq
+  | Greater
+  | Geq
+  | PNot
+  | Transpose
+[@@deriving sexp,compare]  
+
+
+module Expr : sig
+
+  module ExprF : sig 
+    type 'e t = 
+      | Var of string
+      | Lit of litType * string
+      | FunApp of fun_kind * string * 'e list
+      | TernaryIf of 'e * 'e * 'e
+      | EAnd of 'e * 'e
+      | EOr of 'e * 'e
+      | Indexed of 'e * 'e IndexedExpr.t list
+    [@@deriving compare] 
+    include FoldableFunctor.S with type 'a t := 'a t
+    include Sexpable.S1 with type 'a t := 'a t
+  end
+
+  type 'meta t = 
+    { expr : 'meta t ExprF.t 
+    ; meta : 'meta 
+    }
+  [@@deriving compare]
+
+
+  include FoldableFunctor.S with type 'a t := 'a t
+  include Sexpable.S1 with type 'a t := 'a t
+end 
+
+
+module Statement : sig 
+
+  module StmtF : sig 
+
+    type ('e, 's) t =
+      | Assignment of (string * 'e IndexedExpr.t list) * 'e
+      | TargetPE of 'e
+      | NRFunApp of fun_kind * string * 'e list
+      | Break
+      | Continue
+      | Return of 'e option
+      | Skip
+      | IfElse of 'e * 's * 's option
+      | While of 'e * 's  
+      | For of {loopvar: string; lower: 'e; upper: 'e; body: 's}
+      | Block of 's list
+      | SList of 's list
+      | Decl of
+        { decl_adtype: UnsizedType.autodifftype
+        ; decl_id: string
+        ; decl_type: 'e PossiblySizedType.t 
+        }
+    [@@deriving compare]
+
+    include BifoldableBifunctor.S with type ('a,'b) t := ('a,'b) t
+    include Sexpable.S2 with type ('a,'b) t := ('a,'b) t
+  end 
+
+  type ('exprmeta,'meta) t = 
+    { stmt : ('exprmeta Expr.t , ('exprmeta,'meta) t) StmtF.t 
+    ; meta : 'meta
+    }
+  
+  include BifoldableBifunctor.S with type ('a,'b) t := ('a,'b) t
+  include Sexpable.S2 with type ('a,'b) t := ('a,'b) t
+
+end
+
+
+module FunDef : sig
+type fun_arg_decl = (UnsizedType.autodifftype * string * UnsizedType.t) list
+[@@deriving compare, sexp]
+
+type 's t =
+    { fdrt: UnsizedType.t option
+    ; fdname: string
+    ; fdargs: fun_arg_decl
+    ; fdbody: 's
+    }
+[@@deriving compare]
+    
+include FoldableFunctor.S with type 'a t := 'a t 
+include Sexpable.S1 with type 'a t := 'a t
+end 

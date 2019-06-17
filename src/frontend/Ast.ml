@@ -22,9 +22,9 @@ type fun_kind = StanLib | UserDefined [@@deriving compare, sexp, hash]
     substitute untyped_expression or typed_expression for 'e *)
 type 'e expression =
   | TernaryIf of 'e * 'e * 'e
-  | BinOp of 'e * Middle.operator * 'e
-  | PrefixOp of Middle.operator * 'e
-  | PostfixOp of 'e * Middle.operator
+  | BinOp of 'e * Middle.Operator.t * 'e
+  | PrefixOp of Middle.Operator.t * 'e
+  | PostfixOp of 'e * Middle.Operator.t
   | Variable of identifier
   | IntNumeral of string
   | RealNumeral of string
@@ -53,8 +53,8 @@ type untyped_expression = located_meta expr_with
     and an origin block (lub of the origin blocks of the identifiers in it) *)
 type typed_expr_meta =
   { loc: Middle.location_span sexp_opaque [@compare.ignore]
-  ; ad_level: Middle.autodifftype
-  ; type_: Middle.unsizedtype }
+  ; ad_level: Middle.UnsizedType.autodifftype
+  ; type_: Middle.UnsizedType.t }
 [@@deriving sexp, compare, map, hash]
 
 type typed_expression = typed_expr_meta expr_with
@@ -82,7 +82,7 @@ type assignmentoperator =
   | Assign
   (* ArrowAssign is deprecated *)
   | ArrowAssign
-  | OperatorAssign of Middle.operator
+  | OperatorAssign of Middle.Operator.t
 [@@deriving sexp, hash, compare]
 
 (** Truncations *)
@@ -151,15 +151,15 @@ type ('e, 's) statement =
   | ForEach of identifier * 'e * 's
   | Block of 's list
   | VarDecl of
-      { sizedtype: 'e Middle.sizedtype
+      { sizedtype: 'e Middle.SizedType.t
       ; transformation: 'e transformation
       ; identifier: identifier
       ; initial_value: 'e option
       ; is_global: bool }
   | FunDef of
-      { returntype: Middle.returntype
+      { returntype: Middle.UnsizedType.returntype
       ; funname: identifier
-      ; arguments: (Middle.autodifftype * Middle.unsizedtype * identifier) list
+      ; arguments: (Middle.UnsizedType.autodifftype * Middle.UnsizedType.t * identifier) list
       ; body: 's }
 [@@deriving sexp, hash, compare, map]
 
@@ -173,8 +173,8 @@ type ('e, 's) statement =
     AnyReturnType corresponds to statements which have an error in every branch  *)
 type statement_returntype =
   | NoReturnType
-  | Incomplete of Middle.returntype
-  | Complete of Middle.returntype
+  | Incomplete of Middle.UnsizedType.returntype
+  | Complete of Middle.UnsizedType.returntype
   | AnyReturnType
 [@@deriving sexp, hash, compare]
 

@@ -6,7 +6,6 @@ end
 
 module type S = sig
   type t [@@deriving compare, sexp_of, of_sexp, hash]
-
   include Comparator.S with type t := t
 end
 

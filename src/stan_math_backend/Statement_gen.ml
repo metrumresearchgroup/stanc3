@@ -16,17 +16,17 @@ let pp_set_size ppf (decl_id, st, adtype) =
       pf ppf "%a" pp_unsizedtype_local (adtype, remove_size st)
     in
     match st with
-    | SInt | SReal -> pf ppf "0"
+    | SizedType.SInt | SReal -> pf ppf "0"
     | SVector d | SRowVector d -> pf ppf "%a(%a)" pp_st st pp_expr d
     | SMatrix (d1, d2) -> pf ppf "%a(%a, %a)" pp_st st pp_expr d1 pp_expr d2
     | SArray (t, d) -> pf ppf "%a(%a, %a)" pp_st st pp_expr d pp_size_ctor t
   in
   match st with
-  | SInt | SReal -> ()
+  | SizedType.SInt | SReal -> ()
   | st -> pf ppf "%s = %a;@," decl_id pp_size_ctor st
 
 let%expect_test "set size mat array" =
-  let int i = {expr= Lit (Int, string_of_int i); emeta= internal_meta} in
+  let int i = {Expr.expr= Lit (Int, string_of_int i); emeta= internal_meta} in
   strf "@[<v>%a@]" pp_set_size
     ("d", SArray (SArray (SMatrix (int 2, int 3), int 4), int 5), DataOnly)
   |> print_endline ;
@@ -52,7 +52,7 @@ let rec pp_for_loop_iteratee ?(index_ids = []) ppf (iteratee, st, pp_body) =
     gensym_exit ()
   in
   match st with
-  | SReal | SInt -> pp_body ppf (iteratee, index_ids)
+  | SizedType.SReal | SInt -> pp_body ppf (iteratee, index_ids)
   | SRowVector d | SVector d -> iter d pp_body
   | SMatrix (d1, d2) ->
       iter
@@ -65,7 +65,7 @@ let rec pp_for_loop_iteratee ?(index_ids = []) ppf (iteratee, st, pp_body) =
             (pp_for_loop_iteratee ~index_ids:idcs, (i, t, pp_body)) )
 
 let rec integer_el_type = function
-  | SReal | SVector _ | SMatrix _ | SRowVector _ -> false
+  | SizedType.SReal | SVector _ | SMatrix _ | SRowVector _ -> false
   | SInt -> true
   | SArray (st, _) -> integer_el_type st
 
@@ -79,7 +79,7 @@ let pp_sized_decl ppf (vident, st, adtype) =
 
 let pp_possibly_sized_decl ppf (vident, pst, adtype) =
   match pst with
-  | Sized st -> pp_sized_decl ppf (vident, st, adtype)
+  | PossiblySizedType.Sized st -> pp_sized_decl ppf (vident, st, adtype)
   | Unsized ut -> pp_decl ppf (vident, ut, adtype)
 
 (*
@@ -90,7 +90,7 @@ let pp_possibly_sized_decl ppf (vident, pst, adtype) =
 
 let math_fn_translations = function
   | FnPrint ->
-      Some ("stan_print", [{expr= Var "pstream__"; emeta= internal_meta}])
+      Some ("stan_print", [{Expr.expr= Var "pstream__"; emeta= internal_meta}])
   | FnLength -> Some ("length", [])
   | _ -> None
 
@@ -100,15 +100,15 @@ let trans_math_fn fname =
       (bind (internal_fn_of_string fname) ~f:math_fn_translations))
 
 let rec pp_statement (ppf : Format.formatter)
-    ({stmt; smeta} : (mtype_loc_ad, 'a) stmt_with) =
+    ({stmt; smeta } : Stmt.Typed.t) =
   let pp_stmt_list = list ~sep:cut pp_statement in
   match stmt with
   | Assignment (lhs, {expr= FunApp (CompilerInternal, f, _) as expr; emeta})
     when internal_fn_of_string f = Some FnReadData ->
       let with_vestigial_idx =
-        {expr= Indexed ({expr; emeta}, [Single loop_bottom]); emeta}
+        {Expr.expr= Indexed ({expr; emeta}, [Single loop_bottom]); emeta}
       in
-      pp_statement ppf {stmt= Assignment (lhs, with_vestigial_idx); smeta}
+      pp_statement ppf {Stmt.stmt= Assignment (lhs, with_vestigial_idx); smeta}
       (* XXX In stan2 this often generates:
                 stan::model::assign(theta,
                             stan::model::cons_list(stan::model::index_uni(j), stan::model::nil_index_list()),
@@ -144,7 +144,7 @@ If a = b
   | TargetPE e -> pf ppf "lp_accum__.add(%a);" pp_expr e
   | NRFunApp (CompilerInternal, fname, {expr= Lit (Str, check_name); _} :: args)
     when fname = string_of_internal_fn FnCheck ->
-      let args = {expr= Var "function__"; emeta= internal_meta} :: args in
+      let args = {Expr.expr= Var "function__"; emeta= internal_meta} :: args in
       pp_statement ppf
         {stmt= NRFunApp (CompilerInternal, "check_" ^ check_name, args); smeta}
   | NRFunApp (CompilerInternal, fname, [var])

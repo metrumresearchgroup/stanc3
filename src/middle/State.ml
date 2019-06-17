@@ -80,8 +80,12 @@ module Cps = struct
       let modify f = {apply= (fun e k -> k () @@ f e)}
 
       let with_state (x : ('a, 'state) t) ~(f : 'state -> 'state) :
-          ('a, 'state) t =
-        bind (modify f) ~f:(fun _ -> x)
+          ('a, 'state) t = 
+            bind x ~f:(fun y ->
+            bind (modify f) ~f:(fun _ -> 
+            return y
+            )
+          )
     end
 
     include Def

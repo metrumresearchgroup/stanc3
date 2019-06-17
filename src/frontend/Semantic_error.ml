@@ -5,32 +5,32 @@ open Middle.Pretty
 (** Type errors that may arise during semantic check *)
 module TypeError = struct
   type t =
-    | MismatchedReturnTypes of returntype * returntype
+    | MismatchedReturnTypes of UnsizedType.returntype * UnsizedType.returntype
     | MismatchedArrayTypes
     | InvalidRowVectorTypes
-    | IntExpected of string * unsizedtype
-    | IntOrRealExpected of string * unsizedtype
-    | IntIntArrayOrRangeExpected of unsizedtype
-    | IntOrRealContainerExpected of unsizedtype
-    | ArrayVectorRowVectorMatrixExpected of unsizedtype
-    | IllTypedAssignment of Ast.assignmentoperator * unsizedtype * unsizedtype
-    | IllTypedTernaryIf of unsizedtype * unsizedtype * unsizedtype
+    | IntExpected of string * UnsizedType.t
+    | IntOrRealExpected of string * UnsizedType.t
+    | IntIntArrayOrRangeExpected of UnsizedType.t
+    | IntOrRealContainerExpected of UnsizedType.t
+    | ArrayVectorRowVectorMatrixExpected of UnsizedType.t
+    | IllTypedAssignment of Ast.assignmentoperator * UnsizedType.t * UnsizedType.t
+    | IllTypedTernaryIf of UnsizedType.t * UnsizedType.t * UnsizedType.t
     | ReturningFnExpectedNonReturningFound of string
     | ReturningFnExpectedNonFnFound of string
     | ReturningFnExpectedUndeclaredIdentFound of string
     | NonReturningFnExpectedReturningFound of string
     | NonReturningFnExpectedNonFnFound of string
     | NonReturningFnExpectedUndeclaredIdentFound of string
-    | IllTypedStanLibFunctionApp of string * unsizedtype list
+    | IllTypedStanLibFunctionApp of string * UnsizedType.t list
     | IllTypedUserDefinedFunctionApp of
         string
-        * (autodifftype * unsizedtype) list
-        * returntype
-        * unsizedtype list
-    | IllTypedBinaryOperator of operator * unsizedtype * unsizedtype
-    | IllTypedPrefixOperator of operator * unsizedtype
-    | IllTypedPostfixOperator of operator * unsizedtype
-    | NotIndexable of unsizedtype
+        * ( UnsizedType.autodifftype * UnsizedType.t) list
+        *  UnsizedType.returntype
+        * UnsizedType.t list
+    | IllTypedBinaryOperator of Operator.t * UnsizedType.t * UnsizedType.t
+    | IllTypedPrefixOperator of Operator.t * UnsizedType.t
+    | IllTypedPostfixOperator of Operator.t * UnsizedType.t
+    | NotIndexable of UnsizedType.t
 
   let pp ppf = function
     | MismatchedReturnTypes (rt1, rt2) ->
@@ -66,7 +66,7 @@ module TypeError = struct
           pp_unsizedtype ut
     | IllTypedAssignment ((OperatorAssign op as assignop), lt, rt) ->
         Fmt.pf ppf
-          "@[<h>Ill-typed arguments supplied to assignment operator %s: lhs \
+          "@[<h>Ill-typed arguments supplied to assignment Operator.t %s: lhs \
            has type %a and rhs has type %a. Available signatures:@]%s"
           (Pretty_printing.pretty_print_assignmentoperator assignop)
           pp_unsizedtype lt pp_unsizedtype rt
@@ -74,13 +74,13 @@ module TypeError = struct
           |> Option.value ~default:"no matching signatures" )
     | IllTypedAssignment (assignop, lt, rt) ->
         Fmt.pf ppf
-          "Ill-typed arguments supplied to assignment operator %s: lhs has \
+          "Ill-typed arguments supplied to assignment Operator.t %s: lhs has \
            type %a and rhs has type %a"
           (Pretty_printing.pretty_print_assignmentoperator assignop)
           pp_unsizedtype lt pp_unsizedtype rt
     | IllTypedTernaryIf (ut1, ut2, ut3) ->
         Fmt.pf ppf
-          "Ill-typed arguments supplied to ? : operator. Available \
+          "Ill-typed arguments supplied to ? : Operator.t. Available \
            signatures: %s\n\
            Instead supplied arguments of incompatible type: %a, %a, %a."
           (pretty_print_all_math_lib_fn_sigs "if_else")
@@ -140,7 +140,7 @@ module TypeError = struct
           arg_tys
     | IllTypedBinaryOperator (op, lt, rt) ->
         Fmt.pf ppf
-          "Ill-typed arguments supplied to infix operator %a. Available \
+          "Ill-typed arguments supplied to infix Operator.t %a. Available \
            signatures: %s@[<h>Instead supplied arguments of incompatible \
            type: %a, %a.@]"
           pp_operator op
@@ -148,7 +148,7 @@ module TypeError = struct
           pp_unsizedtype lt pp_unsizedtype rt
     | IllTypedPrefixOperator (op, ut) ->
         Fmt.pf ppf
-          "Ill-typed arguments supplied to prefix operator %a. Available \
+          "Ill-typed arguments supplied to prefix Operator.t %a. Available \
            signatures: %s@[<h>Instead supplied argument of incompatible type: \
            %a.@]"
           pp_operator op
@@ -156,7 +156,7 @@ module TypeError = struct
           pp_unsizedtype ut
     | IllTypedPostfixOperator (op, ut) ->
         Fmt.pf ppf
-          "Ill-typed arguments supplied to postfix operator %a. Available \
+          "Ill-typed arguments supplied to postfix Operator.t %a. Available \
            signatures: %s\n\
            Instead supplied argument of incompatible type: %a."
           pp_operator op
@@ -233,12 +233,12 @@ module StatementError = struct
     | NonDataVariableSizeDecl
     | NonIntBounds
     | TransformedParamsInt
-    | MismatchFunDefDecl of string * unsizedtype option
+    | MismatchFunDefDecl of string * UnsizedType.t option
     | FunDeclExists of string
     | FunDeclNoDefn
     | NonRealProbFunDef
-    | ProbDensityNonRealVariate of unsizedtype option
-    | ProbMassNonIntVariate of unsizedtype option
+    | ProbDensityNonRealVariate of UnsizedType.t option
+    | ProbMassNonIntVariate of UnsizedType.t option
     | DuplicateArgNames
     | IncompatibleReturnType
 

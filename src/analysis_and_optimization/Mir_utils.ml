@@ -2,14 +2,13 @@ open Core_kernel
 open Middle
 open Dataflow_types
 
-let rec map_rec_expr (f : expr_typed_located expr -> expr_typed_located expr)
-    (e : expr_typed_located) =
+let rec map_rec_expr f (e: Expr.Typed.t) =
   let recurse = map_rec_expr f in
-  {e with expr= f (map_expr recurse e.expr)}
+  {e with expr= f (Expr.ExprF.map recurse e.expr)}
 
-let map_rec_expr_state
-    (f : 's -> expr_typed_located expr -> expr_typed_located expr * 's)
-    (state : 's) (e : expr_typed_located) : expr_typed_located * 's =
+let map_rec_expr_state f state e = 
+    (* (f : 's -> expr_typed_located expr -> expr_typed_located expr * 's)
+    (state : 's) (e : expr_typed_located) : expr_typed_located * 's = *)
   let cur_state = ref state in
   let g e' =
     let e', state = f !cur_state e' in
@@ -20,28 +19,31 @@ let map_rec_expr_state
   let state = !cur_state in
   (e, state)
 
-let rec map_rec_stmt_loc
-    (f :
+let rec map_rec_stmt_loc f (stmt : Statement.Typed.t) = 
+    (* (f :
          (expr_typed_located, stmt_loc) statement
-      -> (expr_typed_located, stmt_loc) statement) ({smeta; stmt} : stmt_loc) =
+      -> (expr_typed_located, stmt_loc) statement) ({smeta; stmt} : stmt_loc) = *)
   let recurse = map_rec_stmt_loc f in
-  {smeta; stmt= f (map_statement (fun x -> x) recurse stmt)}
+  { stmt with stmt= f (Statement.StmtF.map_second ~f:recurse stmt.stmt) }
+  
 
 let map_rec_state_stmt_loc
     (f :
          's
-      -> (expr_typed_located, stmt_loc) statement
-      -> (expr_typed_located, stmt_loc) statement * 's) (state : 's)
-    ({smeta; stmt} : stmt_loc) : stmt_loc * 's =
+      -> (Expr.Typed.t, Statement.Typed.t) Statement.StmtF.t
+      -> (Expr.Typed.t,Statement.Typed.t) Statement.StmtF.t * 's) (state : 's)
+    ({meta; stmt} :Statement.Typed.t) : Statement.Typed.t * 's =
   let cur_state = ref state in
   let g stmt =
     let stmt, state = f !cur_state stmt in
     let _ = cur_state := state in
     stmt
   in
-  let stmt = map_rec_stmt_loc g {smeta; stmt} in
+  let stmt = map_rec_stmt_loc g {meta; stmt} in
   let state = !cur_state in
   (stmt, state)
+
+
 
 let map_rec_stmt_loc_num (flowgraph_to_mir : (int, stmt_loc_num) Map.Poly.t)
     (f :

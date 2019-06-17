@@ -7,12 +7,14 @@ module type S = sig
   val transfer_function : labels -> properties -> properties
 end
 
+
+
 module StringSet = Set.Make_using_comparator (String)
 
 module Expression = struct
-  let rec free_vars_helper accu (expression : Middle.expr_typed_located) =
+  let rec free_vars_helper accu (expression : Middle.Expr.Typed.t) =
     match expression.expr with
-    | Middle.Var x -> StringSet.add accu x
+    | Middle.Expr.ExprF.Var x -> StringSet.add accu x
     | Lit _ -> accu
     | FunApp (_, f, l) ->
         List.fold l ~init:(StringSet.add accu f) ~f:free_vars_helper
@@ -25,10 +27,10 @@ module Expression = struct
 
   and free_vars_idxs accu indexed_expr =
     match indexed_expr with
-    | Middle.All -> accu
+    | Middle.IndexedExpr.All -> accu
     | Single e | Upfrom e | Downfrom e | MultiIndex e ->
         free_vars_helper accu e
-    | Middle.Between (e1, e2) -> free_vars_helper (free_vars_helper accu e1) e2
+    | Between (e1, e2) -> free_vars_helper (free_vars_helper accu e1) e2
 
   let free_vars = free_vars_helper StringSet.empty
 end
@@ -36,9 +38,9 @@ end
 (* -- Statements ------------------------------------------------------------ *)
 module Statement = struct
   let rec free_vars_helper ~accu
-      (stmt : (Middle.expr_typed_located, Middle.stmt_loc) Middle.statement) =
+      (stmt : Middle.Statement.Typed.t) =
     match stmt with
-    | Middle.Assignment ((_, []), e) | Return (Some e) | TargetPE e ->
+    | Middle.Statement.Assignment ((_, []), e) | Return (Some e) | TargetPE e ->
         Expression.free_vars_helper accu e
     | Assignment ((_, l), e) ->
         List.fold l

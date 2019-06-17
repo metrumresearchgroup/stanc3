@@ -30,7 +30,7 @@ type reaching_defn = vexpr * label [@@deriving sexp, hash, compare]
 type source_loc =
   | MirNode of Middle.location_span
   | StartOfBlock
-  | TargetTerm of {term: expr_typed_located; assignment_label: label}
+  | TargetTerm of {term: Expr.Typed.meta Expr.t; assignment_label: label}
 [@@deriving sexp]
 
 (**

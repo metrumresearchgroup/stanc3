@@ -1,24 +1,23 @@
 open Core_kernel
 
 module Initial = struct
+
   module type S = sig
-    module Node : Node.S
-    module NodeSet : Set.S with module Elt := Node
-
-    val initial : NodeSet.t
+    module Label : Label.S
+    module LabelSet : Set.S with module Elt := Label
+    val initial : LabelSet.t
   end
 
-  module Make_initial_empty (X : Node.S) : S with module Node = X = struct
-    module Node = X
-    module NodeSet = Set.Make_using_comparator (Node)
-
-    let initial = NodeSet.empty
+  module Make_initial_empty (X : Label.S) : S with module Label = X = struct
+    module Label = X
+    module LabelSet = Set.Make_using_comparator (Label)
+    let initial = LabelSet.empty
   end
 
-  module Make_reaching_defn (Vars : S) (Lbls : Node.S) = struct
-    module Node = struct
+  module Make_reaching_defn (Vars : S) (Lbls : Label.S) : S = struct
+    module Label = struct
       module T = struct
-        type t = Vars.Node.t * Lbls.t option
+        type t = Vars.Label.t * Lbls.t option
         [@@deriving compare, hash, sexp_of, of_sexp]
       end
 
@@ -26,32 +25,30 @@ module Initial = struct
       include Comparator.Make (T)
     end
 
-    module NodeSet = Set.Make_using_comparator (Node)
+    module LabelSet = Set.Make_using_comparator (Label)
 
-    let initial = NodeSet.map ~f:(fun x -> (x, None)) Vars.initial
+    let initial = LabelSet.map ~f:(fun x -> (x, None)) Vars.initial
   end
 end
 
 module Total = struct
   module type S = sig
-    module Node : Node.S
-    module NodeSet : Set.S with module Elt := Node
-
-    val total : NodeSet.t
+    module Label : Label.S
+    module LabelSet : Set.S with module Elt := Label
+    val total : LabelSet.t
   end
 end
 
 module InitialTotal = struct
   module type S = sig
     include Initial.S
-    include Total.S with module Node := Node and module NodeSet := NodeSet
+    include Total.S with module Label := Label and module LabelSet := LabelSet
   end
 
   module Make_initial_empty (X : Total.S) :
-    S with module Node := X.Node and module NodeSet := X.NodeSet = struct
+    S with module Label := X.Label and module LabelSet := X.LabelSet = struct
     include X
-
-    let initial = NodeSet.empty
+    let initial = LabelSet.empty
   end
 end
 
@@ -66,41 +63,43 @@ module LatticeNoBottom = struct
 
   (**  The lattice without bottom of sets of some values, with the 
         inclusion order, set union and the empty set *)
-  module Make_powerset (X : Initial.S) : S with type t = X.NodeSet.t = struct
-    type t = X.NodeSet.t
+  module Make_powerset (X : Initial.S) : S with type t = X.LabelSet.t = struct
+    type t = X.LabelSet.t
 
     let initial = X.initial
-    let leq s1 s2 = X.NodeSet.is_subset s1 ~of_:s2
-    let lub s1 s2 = X.NodeSet.union s1 s2
+    let leq s1 s2 = X.LabelSet.is_subset s1 ~of_:s2
+    let lub s1 s2 = X.LabelSet.union s1 s2
   end
 
-  module Make_dual_powerset (X : Initial.S) : S with type t = X.NodeSet.t =
+
+
+  module Make_dual_powerset (X : Initial.S) : S with type t = X.LabelSet.t =
   struct
-    type t = X.NodeSet.t
+    type t = X.LabelSet.t
 
     let initial = X.initial
-    let leq s1 s2 = X.NodeSet.is_subset s2 ~of_:s1
-    let lub s1 s2 = X.NodeSet.inter s1 s2
+    let leq s1 s2 = X.LabelSet.is_subset s2 ~of_:s1
+    let lub s1 s2 = X.LabelSet.inter s1 s2
   end
 
   (** The lattice (without bottom) of partial functions, ordered under
         inverse graph inclusion, with intersection 
     *)
-  module Make_dual_partial_function (Domain : Total.S) (Codomain : Node.S) :
+  module Make_dual_partial_function (Domain : Total.S) (Codomain : Label.S) :
     S
     with type t =
-                ( Domain.Node.t
+                ( Domain.Label.t
                 , Codomain.t
-                , Domain.Node.comparator_witness )
+                , Domain.Label.comparator_witness )
                 Map.t = struct
-    module PartialMap = Map.Make_using_comparator (Domain.Node)
+    module PartialMap = Map.Make_using_comparator (Domain.Label)
 
     type t = Codomain.t PartialMap.t
 
     let initial = PartialMap.empty
 
     let leq s1 s2 =
-      Domain.NodeSet.for_all Domain.total ~f:(fun k ->
+      Domain.LabelSet.for_all Domain.total ~f:(fun k ->
           match (PartialMap.find s1 k, PartialMap.find s2 k) with
           | Some x, Some y -> x = y
           | Some _, None | None, None -> true
@@ -148,35 +147,35 @@ module Lattice = struct
   (** The lattice of partial functions, where we add a fresh bottom element,
         to represent an inconsistent combination of functions 
     *)
-  module Make_dual_partial_function (Domain : Total.S) (Codomain : Node.S) :
+  module Make_dual_partial_function (Domain : Total.S) (Codomain : Label.S) :
     S
     with type t =
-                ( Domain.Node.t
+                ( Domain.Label.t
                 , Codomain.t
-                , Domain.Node.comparator_witness )
+                , Domain.Label.comparator_witness )
                 Map.t
                 option = struct
     include Make_from_lattice_no_bottom
               (LatticeNoBottom.Make_dual_partial_function (Domain) (Codomain))
   end
 
-  module Make_powerset (X : Initial.S) : S with type t = X.NodeSet.t = struct
+  module Make_powerset (X : Initial.S) : S with type t = X.LabelSet.t = struct
     include LatticeNoBottom.Make_powerset (X)
 
-    let bottom = X.NodeSet.empty
+    let bottom = X.LabelSet.empty
   end
 
   (** The specific powerset lattice we use for reaching definitions analysis 
         XXX : I've refactored so we don't really need this specialized functor
         though we may want it for convenience?
     *)
-  module Make_reaching_definitions (Vars : Initial.S) (Lbls : Node.S) : S =
+  module Make_reaching_definitions (Vars : Initial.S) (Lbls : Label.S) : S =
   struct
     include Make_powerset (Initial.Make_reaching_defn (Vars) (Lbls))
   end
 
   module Make_dual_powerset (X : InitialTotal.S) :
-    S with type t = X.NodeSet.t = struct
+    S with type t = X.LabelSet.t = struct
     include LatticeNoBottom.Make_dual_powerset (X)
 
     let bottom = X.total

@@ -7,7 +7,7 @@ let pp_keyword = Fmt.(string |> styled `Blue)
 let angle_brackets pp_v ppf v = Fmt.pf ppf "@[<1><%a>@]" pp_v v
 
 let pp_operator ppf = function
-  | Plus | PPlus -> Fmt.pf ppf "+"
+  | Operator.Plus | PPlus -> Fmt.pf ppf "+"
   | Minus | PMinus -> Fmt.pf ppf "-"
   | Times -> Fmt.pf ppf "*"
   | Divide -> Fmt.pf ppf "/"
@@ -28,20 +28,20 @@ let pp_operator ppf = function
   | Transpose -> Fmt.pf ppf "'"
 
 let pp_autodifftype ppf = function
-  | DataOnly -> pp_keyword ppf "data "
+  | UnsizedType.DataOnly -> pp_keyword ppf "data "
   | AutoDiffable -> ()
 
 let pp_brackets_postfix pp_e ppf = Fmt.pf ppf {|%a[]|} pp_e
 
 let unsized_array_depth unsized_ty =
   let rec aux depth = function
-    | UArray ut -> aux (depth + 1) ut
+    | UnsizedType.UArray ut -> aux (depth + 1) ut
     | ut -> (ut, depth)
   in
   aux 0 unsized_ty
 
 let rec pp_unsizedtype ppf = function
-  | UInt -> pp_keyword ppf "int"
+  | UnsizedType.UInt -> pp_keyword ppf "int"
   | UReal -> pp_keyword ppf "real"
   | UVector -> pp_keyword ppf "vector"
   | URowVector -> pp_keyword ppf "row_vector"
@@ -68,7 +68,7 @@ and pp_returntype ppf = function
 
 let rec pp_sizedtype pp_e ppf st =
   match st with
-  | SInt -> Fmt.string ppf "int"
+  | SizedType.SInt -> Fmt.string ppf "int"
   | SReal -> Fmt.string ppf "real"
   | SVector expr -> Fmt.pf ppf {|vector%a|} (Fmt.brackets pp_e) expr
   | SRowVector expr -> Fmt.pf ppf {|row_vector%a|} (Fmt.brackets pp_e) expr
@@ -84,11 +84,11 @@ let rec pp_sizedtype pp_e ppf st =
         (st, expr)
 
 let pp_possiblysizedtype pp_e ppf = function
-  | Sized st -> pp_sizedtype pp_e ppf st
+  | PossiblySizedType.Sized st -> pp_sizedtype pp_e ppf st
   | Unsized ust -> pp_unsizedtype ppf ust
 
 let rec pp_expr pp_e ppf = function
-  | Var varname -> Fmt.string ppf varname
+  | Expr.Pattern.Var varname -> Fmt.string ppf varname
   | Lit (Str, str) -> Fmt.pf ppf "%S" str
   | Lit (_, str) -> Fmt.string ppf str
   | FunApp (_, name, args) ->
@@ -109,7 +109,7 @@ and pp_indexed pp_e ppf (ident, indices) =
     indices
 
 and pp_index pp_e ppf = function
-  | All -> Fmt.char ppf ':'
+  | IndexedExpr.All -> Fmt.char ppf ':'
   | Single index -> pp_e ppf index
   | Upfrom index -> Fmt.pf ppf {|%a:|} pp_e index
   | Downfrom index -> Fmt.pf ppf {|:%a|} pp_e index
@@ -121,7 +121,7 @@ let pp_fun_arg_decl ppf (autodifftype, name, unsizedtype) =
     name
 
 let pp_fun_def pp_s ppf = function
-  | {fdrt; fdname; fdargs; fdbody; _} -> (
+  | FunDef.{fdrt; fdname; fdargs; fdbody; _} -> (
     match fdrt with
     | Some rt ->
         Fmt.pf ppf {|@[<v2>%a %s%a {@ %a@]@ }|} pp_unsizedtype rt fdname
@@ -133,7 +133,7 @@ let pp_fun_def pp_s ppf = function
           fdargs pp_s fdbody )
 
 let pp_statement pp_e pp_s ppf = function
-  | Assignment ((assignee, idcs), rhs) ->
+  | Stmt.Pattern.Assignment ((assignee, idcs), rhs) ->
       Fmt.pf ppf {|@[<h>%a =@ %a;@]|} (pp_indexed pp_e) (assignee, idcs) pp_e
         rhs
   | TargetPE expr ->
@@ -164,7 +164,7 @@ let pp_statement pp_e pp_s ppf = function
         decl_type decl_id
 
 let pp_io_block ppf = function
-  | Data -> Fmt.string ppf "data"
+  | Program.Data -> Fmt.string ppf "data"
   | Parameters -> Fmt.string ppf "parameters"
   | TransformedParameters -> Fmt.string ppf "transformed_parameters"
   | GeneratedQuantities -> Fmt.string ppf "generated_quantities"
@@ -181,24 +181,24 @@ let pp_block label pp_elem ppf elems =
 
 let pp_io_var_block label pp_e = pp_block label (pp_io_var pp_e)
 
-let pp_input_vars pp_e ppf {input_vars; _} =
+let pp_input_vars pp_e ppf {Program.input_vars; _} =
   pp_io_var_block "input_vars" pp_e ppf input_vars
 
-let pp_output_vars pp_e ppf {output_vars; _} =
+let pp_output_vars pp_e ppf {Program.output_vars; _} =
   pp_io_var_block "output_vars" pp_e ppf output_vars
 
-let pp_functions_block pp_s ppf {functions_block; _} =
+let pp_functions_block pp_s ppf {Program.functions_block; _} =
   pp_block "functions" pp_s ppf functions_block
 
-let pp_prepare_data pp_s ppf {prepare_data; _} =
+let pp_prepare_data pp_s ppf {Program.prepare_data; _} =
   pp_block "prepare_data" pp_s ppf prepare_data
 
-let pp_log_prob pp_s ppf {log_prob; _} = pp_block "log_prob" pp_s ppf log_prob
+let pp_log_prob pp_s ppf {Program.log_prob; _} = pp_block "log_prob" pp_s ppf log_prob
 
-let pp_generate_quantities pp_s ppf {generate_quantities; _} =
+let pp_generate_quantities pp_s ppf {Program.generate_quantities; _} =
   pp_block "generate_quantities" pp_s ppf generate_quantities
 
-let pp_transform_inits pp_s ppf {transform_inits; _} =
+let pp_transform_inits pp_s ppf {Program.transform_inits; _} =
   pp_block "transform_inits" pp_s ppf transform_inits
 
 let pp_prog pp_e pp_s ppf prog =
@@ -218,10 +218,10 @@ let pp_prog pp_e pp_s ppf prog =
   pp_output_vars pp_e ppf prog ;
   Format.close_box ()
 
-let rec pp_expr_typed_located ppf {expr; _} =
+let rec pp_expr_typed_located ppf ({expr; _}: Expr.Typed.t) =
   pp_expr pp_expr_typed_located ppf expr
 
-let rec pp_stmt_loc ppf {stmt; _} =
+let rec pp_stmt_loc ppf ({stmt; _}: Stmt.Typed.t) =
   pp_statement pp_expr_typed_located pp_stmt_loc ppf stmt
 
 let pp_typed_prog ppf prog = pp_prog pp_expr_typed_located pp_stmt_loc ppf prog

@@ -1,6 +1,11 @@
-module Node = Node
+module Label = Label
 module Lattice = Lattice
 module Flowgraph = Flowgraph
 module Transfer_function = Transfer_function
-
+module Factor_graph = Factor_graph
+module Dependence_analysis = Dependence_analysis
+module Dataflow_utils = Dataflow_utils
+module Dataflow_types = Dataflow_types
+module Mir_utils = Mir_utils
+module Optimize = Optimize
 (* module Monotone = Montone *)
