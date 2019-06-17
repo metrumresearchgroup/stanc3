@@ -316,6 +316,8 @@ module Expr = struct
     fold_right_pattern ~f ~init:accu expr
 
   
+  
+  
   module Untyped = struct 
     type meta = unit
     type nonrec t = meta t
@@ -487,6 +489,25 @@ module Stmt = struct
     module BB = BifoldableBifunctor.Make(T)
     include BB
 
+    let assign name ?idxs:(ix=[]) e = Assignment((name,ix),e)    
+    let targetPE e = TargetPE(e)    
+    let nr_udf name args = NRFunApp(FunKind.UserDefined,name,args)
+    let nr_compiler_fn name args = NRFunApp(FunKind.CompilerInternal, name, args)
+    let nr_stan_fn name args = NRFunApp(FunKind.StanLib,name,args)    
+    let break = Break
+    let continue = Continue
+    let skip = Skip
+    let return value = Return(Some value)
+    let return_void = Return(None)    
+    let if_then_else pred then_ else_ = IfElse(pred,then_,Some else_)
+    let if_then pred then_ = IfElse(pred,then_,None)    
+    let while_ test body = While(test,body)
+    let for_ loopvar lower upper body = For {loopvar; lower; upper; body}
+    let block xs = Block(xs)
+    let slist xs = SList(xs)    
+    let declare ~adtype name ~ty  = Decl {decl_adtype = adtype; decl_id = name; decl_type = ty}
+    let declare_unsized ~adtype name ~ty = declare ~adtype ~ty:(PossiblySizedType.Unsized ty) name
+    let declare_sized ~adtype name ~ty = declare ~adtype ~ty:(PossiblySizedType.Sized ty) name
   end 
   
 
@@ -532,6 +553,142 @@ module Stmt = struct
   let meta {smeta;_} = smeta
 
 
+let rec bimap ~f ~g { pattern ; meta } = 
+    { pattern = Pattern.bimap (Expr.map f) (bimap ~f ~g) pattern 
+    ; meta = g meta 
+    }
+    
+  let map_first ~f x = bimap ~f:(fun x -> x) ~g:f x
+    
+  let map_second ~f x = bimap ~f ~g:(fun x -> x) x  
+  
+  let rec bifold_left ~f ~g ~init {pattern;meta} = 
+    Pattern.bifold_left
+      ~f:(fun accu x -> Expr.fold_left ~f ~init:accu x)
+      ~g:(fun accu x -> bifold_left ~f ~g ~init:accu x)
+      ~init:(g init meta)
+      pattern
+      
+  let fold_left_first ~f ~init = bifold_left  ~f ~g:(fun accu _ -> accu) ~init
+  
+  let fold_left_second ~f ~init = bifold_left ~f:(fun accu _ -> accu) ~g:f ~init      
+      
+  let rec bifold_right ~f ~g ~init {pattern;meta} = 
+    g meta @@ Pattern.bifold_right
+      ~f:(fun x accu -> Expr.fold_right ~f ~init:accu x)
+      ~g:(fun x accu -> bifold_right ~f ~g ~init:accu x)
+      ~init
+      pattern
+  
+  
+  let fold_right_first ~f ~init = bifold_right   ~f ~g:(fun accu _ -> accu) ~init 
+  
+  let fold_right_second ~f ~init = bifold_right   ~f:(fun accu _ -> accu) ~g:f ~init  
+  
+  let rec bifold_right_pattern ~f ~g ~init {pattern;_} = 
+    Pattern.bifold_right 
+      ~f:(fun x accu -> Expr.fold_right_pattern ~f ~init:accu x)
+      ~g:(fun x accu -> bifold_right_pattern ~f ~g ~init:accu x) 
+      ~init:(g pattern init ) 
+      pattern
+      
+  let fold_right_pattern_first ~f ~init = 
+    bifold_right_pattern ~f ~g:(fun accu _ -> accu) ~init
+    
+  let fold_right_pattern_second ~f ~init = 
+    bifold_right_pattern ~f:(fun accu _ -> accu) ~g:f ~init
+  
+  
+  let rec bifold_left_pattern ~f ~g ~init {pattern;_} = 
+    Pattern.bifold_left 
+      ~f:(fun accu x -> Expr.fold_left_pattern ~f ~init:accu x)
+      ~g:(fun accu x -> bifold_left_pattern ~f ~g ~init:accu x) 
+      ~init:(g init pattern ) 
+      pattern
+      
+  let fold_left_pattern_first ~f ~init = 
+    bifold_right_pattern ~f ~g:(fun _ accu -> accu) ~init
+    
+  let fold_left_pattern_second ~f ~init = 
+    bifold_left_pattern ~f:(fun _ accu -> accu) ~g:f ~init
+  
+
+  (* These can be derived from a `bifold_*_pattern` definition *)
+  let biany_pattern ~pred_first ~pred_second ?init:(accu=false) x =  
+    bifold_right_pattern 
+      ~f:(fun pattern accu -> accu || pred_first pattern)
+      ~g:(fun pattern accu -> accu || pred_second pattern)
+      ~init:accu 
+      x
+      
+  let biall_pattern ~pred_first ~pred_second ?init:(accu=true) x =  
+    bifold_right_pattern 
+      ~f:(fun pattern accu -> accu && pred_first pattern)
+      ~g:(fun pattern accu -> accu && pred_second pattern)
+      ~init:accu 
+      x
+  
+
+
+   (* Construct statements *) 
+  let with_meta meta pattern = { pattern;meta }
+    
+  let assign ~meta name ?idxs e = with_meta meta @@ Pattern.assign name ?idxs e
+  let assign_ name ?idxs e = assign ~meta:()  name ?idxs e
+  
+  let targetPE ~meta e = with_meta meta @@ Pattern.targetPE e
+  let targetPE_ e = targetPE ~meta:() e
+  
+  let nr_udf ~meta name args = with_meta meta @@ Pattern.nr_udf name args
+  let nr_udf_  name args = nr_udf ~meta:() name args
+  
+  let nr_compiler_fn ~meta name args =  with_meta meta @@ Pattern.nr_compiler_fn name args
+  let nr_compiler_fn_  name args = nr_compiler_fn ~meta:() name args
+  
+  let nr_stan_fn ~meta name args =  with_meta meta @@ Pattern.nr_stan_fn name args
+  let nr_stan_fn_  name args = nr_stan_fn ~meta:() name args
+  
+  let break ~meta =  with_meta meta @@ Pattern.break
+  let break_ = break ~meta:()
+  
+  let continue ~meta = with_meta meta @@ Pattern.continue
+  let continue_ = continue ~meta:()
+  
+  let skip ~meta = with_meta meta @@ Pattern.skip
+  let skip_ = skip ~meta:()
+  
+  let return ~meta value = with_meta meta @@ Pattern.return value
+  let return_ value = return ~meta:() value
+  
+  let return_void ~meta = with_meta meta @@ Pattern.return_void
+  let return_void_ = return_void ~meta:()
+  
+  let if_then_else ~meta pred then_ else_ = with_meta meta @@ Pattern.if_then_else pred then_ else_
+  let if_then_else_ pred then_ else_ = if_then_else ~meta:() pred then_ else_
+  
+  let if_then ~meta pred then_ = with_meta meta @@ Pattern.if_then pred then_
+  let if_then_ pred then_ = if_then ~meta:() pred then_
+  
+  let while_ ~meta ~test ~body = with_meta meta @@ Pattern.while_ test body
+  let while__ ~test ~body = while_ ~meta:() ~test ~body
+  
+  let for_ ~meta loopvar lower upper body = with_meta meta @@ Pattern.for_ loopvar lower upper body
+  let for__ loopvar lower upper body = for_ ~meta:() loopvar lower upper body
+  
+  let block ~meta xs = with_meta meta @@ Pattern.block xs
+  let block_ xs = block ~meta:() xs
+  
+  let slist ~meta xs = with_meta meta @@ Pattern.slist xs
+  let slist_ xs = slist ~meta:() xs 
+  
+  let declare ~meta ~adtype name ~ty  = with_meta meta @@ Pattern.declare ~adtype name ~ty
+  let declare_ ~adtype name ~ty = declare ~meta:() ~adtype name ~ty
+  
+  let declare_unsized ~meta ~adtype name ~ty = with_meta meta @@ Pattern.declare_unsized ~adtype name ~ty
+  let declare_unsized_ ~adtype name ~ty = declare_unsized ~meta:() ~adtype name ~ty
+  
+  let declare_sized ~meta ~adtype name ~ty = with_meta meta @@ Pattern.declare_sized ~adtype name ~ty
+  let declare_sized_ ~adtype name ~ty = declare_sized ~meta:() ~adtype name ~ty
 
 
 
