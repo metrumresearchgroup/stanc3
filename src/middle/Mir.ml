@@ -586,12 +586,12 @@ let rec bimap ~f ~g { pattern ; meta } =
   let fold_right_second ~f ~init = bifold_right   ~f:(fun accu _ -> accu) ~g:f ~init  
   
   let rec bifold_right_pattern ~f ~g ~init {pattern;_} = 
-    Pattern.bifold_right 
+    g pattern @ Pattern.bifold_right 
       ~f:(fun x accu -> Expr.fold_right_pattern ~f ~init:accu x)
       ~g:(fun x accu -> bifold_right_pattern ~f ~g ~init:accu x) 
-      ~init:(g pattern init ) 
+      ~init
       pattern
-      
+
   let fold_right_pattern_first ~f ~init = 
     bifold_right_pattern ~f ~g:(fun accu _ -> accu) ~init
     
