@@ -296,9 +296,9 @@ module Expr = struct
   include FF
 
   let rec fold_right_pattern ~f ~init {expr;_} = 
-    Pattern.fold_right 
+    f expr @@ Pattern.fold_right 
       ~f:(fun x accu -> fold_right_pattern ~f ~init:accu x) 
-      ~init:(f expr init ) 
+      ~init: 
       expr
             
   let rec fold_left_pattern ~f ~init {expr;_} = 
@@ -586,17 +586,17 @@ let rec bimap ~f ~g { pattern ; meta } =
   let fold_right_second ~f ~init = bifold_right   ~f:(fun accu _ -> accu) ~g:f ~init  
   
   let rec bifold_right_pattern ~f ~g ~init {pattern;_} = 
-    g pattern @ Pattern.bifold_right 
+    g pattern @@ Pattern.bifold_right 
       ~f:(fun x accu -> Expr.fold_right_pattern ~f ~init:accu x)
       ~g:(fun x accu -> bifold_right_pattern ~f ~g ~init:accu x) 
       ~init
       pattern
 
   let fold_right_pattern_first ~f ~init = 
-    bifold_right_pattern ~f ~g:(fun accu _ -> accu) ~init
+    bifold_right_pattern ~f ~g:(fun _ accu -> accu) ~init
     
   let fold_right_pattern_second ~f ~init = 
-    bifold_right_pattern ~f:(fun accu _ -> accu) ~g:f ~init
+    bifold_right_pattern ~f:(fun _ accu -> accu) ~g:f ~init
   
   
   let rec bifold_left_pattern ~f ~g ~init {pattern;_} = 
@@ -607,10 +607,10 @@ let rec bimap ~f ~g { pattern ; meta } =
       pattern
       
   let fold_left_pattern_first ~f ~init = 
-    bifold_right_pattern ~f ~g:(fun _ accu -> accu) ~init
+    bifold_left_pattern ~f ~g:(fun accu _ -> accu) ~init
     
   let fold_left_pattern_second ~f ~init = 
-    bifold_left_pattern ~f:(fun _ accu -> accu) ~g:f ~init
+    bifold_left_pattern ~f:(fun accu _ -> accu) ~g:f ~init
   
 
   (* These can be derived from a `bifold_*_pattern` definition *)
