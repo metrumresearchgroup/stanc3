@@ -14,8 +14,7 @@ let stan_math_returntype name args =
   let filteredmatches =
     List.filter
       ~f:(fun x -> check_compatible_arguments_mod_conv name (snd x) args)
-      namematches
-  in
+      namematches in
   if List.length filteredmatches = 0 then None
     (* Return the least return type in case there are multiple options (due to implicit UInt-UReal conversion), where UInt<UReal *)
   else
@@ -83,8 +82,7 @@ let pretty_print_all_math_lib_fn_sigs name =
     ^ String.concat ~sep:"\n"
         (List.map
            ~f:(fun (x, y) ->
-             (Fmt.to_to_string Mir_pretty_printer.pp_unsizedtype) (UFun (y, x))
-             )
+             (Fmt.to_to_string Mir_pretty_printer.pp_unsizedtype) (UFun (y, x)))
            namematches)
 
 let pretty_print_math_lib_operator_sigs op =
@@ -363,10 +361,10 @@ let () =
   done ;
   for_all_vector_types (fun t ->
       add_unqualified
-        ("bernoulli_rng", ReturnType (rng_return_type UInt [t]), [t]) ) ;
+        ("bernoulli_rng", ReturnType (rng_return_type UInt [t]), [t])) ;
   for_all_vector_types (fun t ->
       add_unqualified
-        ("bernoulli_logit_rng", ReturnType (rng_return_type UInt [t]), [t]) ) ;
+        ("bernoulli_logit_rng", ReturnType (rng_return_type UInt [t]), [t])) ;
   for i = 0 to int_vector_types_size - 1 do
     for j = 0 to vector_types_size - 1 do
       add_unqualified
@@ -438,7 +436,7 @@ let () =
               add_unqualified
                 ( "beta_binomial_rng"
                 , ReturnType (rng_return_type UInt [t; u; v])
-                , [t; u; v] ) ) ) ) ;
+                , [t; u; v] )))) ;
   for i = 0 to vector_types_size - 1 do
     for j = 0 to vector_types_size - 1 do
       for k = 0 to vector_types_size - 1 do
@@ -476,8 +474,7 @@ let () =
   for_all_vector_types (fun t ->
       for_all_vector_types (fun u ->
           add_unqualified
-            ("beta_rng", ReturnType (rng_return_type UReal [t; u]), [t; u]) )
-  ) ;
+            ("beta_rng", ReturnType (rng_return_type UReal [t; u]), [t; u]))) ;
   for_vector_types (fun t ->
       for_vector_types (fun u ->
           for_all_vector_types (fun v ->
@@ -492,13 +489,13 @@ let () =
               add_unqualified
                 ("beta_proportion_lcdf", ReturnType UReal, [t; u; v]) ;
               add_unqualified
-                ("beta_proportion_lpdf", ReturnType UReal, [t; u; v]) ) ) ) ;
+                ("beta_proportion_lpdf", ReturnType UReal, [t; u; v])))) ;
   for_vector_types (fun t ->
       for_all_vector_types (fun u ->
           add_unqualified
             ( "beta_proportion_rng"
             , ReturnType (rng_return_type UReal [t; u])
-            , [t; u] ) ) ) ;
+            , [t; u] ))) ;
   add_unqualified ("binary_log_loss", ReturnType UReal, [UInt; UReal]) ;
   for i = 0 to int_vector_types_size - 1 do
     for j = 0 to int_vector_types_size - 1 do
@@ -537,8 +534,7 @@ let () =
   for_int_vector_types (fun t ->
       for_all_vector_types (fun u ->
           add_unqualified
-            ("binomial_rng", ReturnType (rng_return_type UInt [t; u]), [t; u])
-      ) ) ;
+            ("binomial_rng", ReturnType (rng_return_type UInt [t; u]), [t; u]))) ;
   add_binary "binomial_coefficient_log" ;
   for i = 0 to int_vector_types_size - 1 do
     for j = 0 to int_vector_types_size - 1 do
@@ -607,8 +603,7 @@ let () =
   for_all_vector_types (fun t ->
       for_all_vector_types (fun u ->
           add_unqualified
-            ("cauchy_rng", ReturnType (rng_return_type UReal [t; u]), [t; u])
-      ) ) ;
+            ("cauchy_rng", ReturnType (rng_return_type UReal [t; u]), [t; u]))) ;
   add_unqualified ("append_col", ReturnType UMatrix, [UMatrix; UMatrix]) ;
   add_unqualified ("append_col", ReturnType UMatrix, [UVector; UMatrix]) ;
   add_unqualified ("append_col", ReturnType UMatrix, [UMatrix; UVector]) ;
@@ -643,7 +638,7 @@ let () =
   done ;
   for_all_vector_types (fun t ->
       add_unqualified
-        ("chi_square_rng", ReturnType (rng_return_type UReal [t]), [t]) ) ;
+        ("chi_square_rng", ReturnType (rng_return_type UReal [t]), [t])) ;
   add_unqualified ("cholesky_decompose", ReturnType UMatrix, [UMatrix]) ;
   add_unqualified ("choose", ReturnType UInt, [UInt; UInt]) ;
   add_unqualified ("col", ReturnType UVector, [UMatrix; UInt]) ;
@@ -811,7 +806,7 @@ let () =
           add_unqualified
             ( "double_exponential_rng"
             , ReturnType (rng_return_type UReal [t; u])
-            , [t; u] ) ) ) ;
+            , [t; u] ))) ;
   add_nullary "e" ;
   add_unqualified ("eigenvalues_sym", ReturnType UVector, [UMatrix]) ;
   add_unqualified ("eigenvectors_sym", ReturnType UMatrix, [UMatrix]) ;
@@ -886,7 +881,7 @@ let () =
               add_unqualified
                 ( "exp_mod_normal_rng"
                 , ReturnType (rng_return_type UReal [t; u; v])
-                , [t; u; v] ) ) ) ) ;
+                , [t; u; v] )))) ;
   add_unary_vectorized "expm1" ;
   for i = 0 to vector_types_size - 1 do
     for j = 0 to vector_types_size - 1 do
@@ -914,7 +909,7 @@ let () =
   done ;
   for_all_vector_types (fun t ->
       add_unqualified
-        ("exponential_rng", ReturnType (rng_return_type UReal [t]), [t]) ) ;
+        ("exponential_rng", ReturnType (rng_return_type UReal [t]), [t])) ;
   add_unary_vectorized "fabs" ;
   add_unqualified ("falling_factorial", ReturnType UReal, [UReal; UInt]) ;
   add_unqualified ("falling_factorial", ReturnType UInt, [UInt; UInt]) ;
@@ -961,8 +956,7 @@ let () =
   for_all_vector_types (fun t ->
       for_all_vector_types (fun u ->
           add_unqualified
-            ("frechet_rng", ReturnType (rng_return_type UReal [t; u]), [t; u])
-      ) ) ;
+            ("frechet_rng", ReturnType (rng_return_type UReal [t; u]), [t; u]))) ;
   for i = 0 to vector_types_size - 1 do
     for j = 0 to vector_types_size - 1 do
       for k = 0 to vector_types_size - 1 do
@@ -1002,8 +996,7 @@ let () =
   for_all_vector_types (fun t ->
       for_all_vector_types (fun u ->
           add_unqualified
-            ("gamma_rng", ReturnType (rng_return_type UReal [t; u]), [t; u]) )
-  ) ;
+            ("gamma_rng", ReturnType (rng_return_type UReal [t; u]), [t; u]))) ;
   add_unqualified
     ( "gaussian_dlm_obs_log"
     , ReturnType UReal
@@ -1058,8 +1051,7 @@ let () =
   for_all_vector_types (fun t ->
       for_all_vector_types (fun u ->
           add_unqualified
-            ("gumbel_rng", ReturnType (rng_return_type UReal [t; u]), [t; u])
-      ) ) ;
+            ("gumbel_rng", ReturnType (rng_return_type UReal [t; u]), [t; u]))) ;
   add_unqualified ("head", ReturnType URowVector, [URowVector; UInt]) ;
   add_unqualified ("head", ReturnType UVector, [UVector; UInt]) ;
   for i = 0 to bare_types_size - 1 do
@@ -1244,7 +1236,7 @@ let () =
   done ;
   for_all_vector_types (fun t ->
       add_unqualified
-        ("inv_chi_square_rng", ReturnType (rng_return_type UReal [t]), [t]) ) ;
+        ("inv_chi_square_rng", ReturnType (rng_return_type UReal [t]), [t])) ;
   add_unary_vectorized "inv_cloglog" ;
   for i = 0 to vector_types_size - 1 do
     for j = 0 to vector_types_size - 1 do
@@ -1283,8 +1275,7 @@ let () =
   for_all_vector_types (fun t ->
       for_all_vector_types (fun u ->
           add_unqualified
-            ("inv_gamma_rng", ReturnType (rng_return_type UReal [t; u]), [t; u])
-      ) ) ;
+            ("inv_gamma_rng", ReturnType (rng_return_type UReal [t; u]), [t; u]))) ;
   add_unary_vectorized "inv_logit" ;
   add_unary_vectorized "inv_Phi" ;
   add_unary_vectorized "inv_sqrt" ;
@@ -1406,8 +1397,7 @@ let () =
   for_all_vector_types (fun t ->
       for_all_vector_types (fun u ->
           add_unqualified
-            ("logistic_rng", ReturnType (rng_return_type UReal [t; u]), [t; u])
-      ) ) ;
+            ("logistic_rng", ReturnType (rng_return_type UReal [t; u]), [t; u]))) ;
   add_unary_vectorized "logit" ;
   for i = 0 to vector_types_size - 1 do
     for j = 0 to vector_types_size - 1 do
@@ -1446,8 +1436,7 @@ let () =
   for_all_vector_types (fun t ->
       for_all_vector_types (fun u ->
           add_unqualified
-            ("lognormal_rng", ReturnType (rng_return_type UReal [t; u]), [t; u])
-      ) ) ;
+            ("lognormal_rng", ReturnType (rng_return_type UReal [t; u]), [t; u]))) ;
   add_nullary "machine_precision" ;
   add_qualified
     ( "map_rect"
@@ -1684,19 +1673,19 @@ let () =
           add_unqualified
             ( "neg_binomial_rng"
             , ReturnType (rng_return_type UInt [t; u])
-            , [t; u] ) ) ) ;
+            , [t; u] ))) ;
   for_all_vector_types (fun t ->
       for_all_vector_types (fun u ->
           add_unqualified
             ( "neg_binomial_2_rng"
             , ReturnType (rng_return_type UInt [t; u])
-            , [t; u] ) ) ) ;
+            , [t; u] ))) ;
   for_all_vector_types (fun t ->
       for_all_vector_types (fun u ->
           add_unqualified
             ( "neg_binomial_2_log_rng"
             , ReturnType (rng_return_type UInt [t; u])
-            , [t; u] ) ) ) ;
+            , [t; u] ))) ;
   add_unqualified
     ( "neg_binomial_2_log_glm_lpmf"
     , ReturnType UReal
@@ -1743,8 +1732,7 @@ let () =
   for_all_vector_types (fun t ->
       for_all_vector_types (fun u ->
           add_unqualified
-            ("normal_rng", ReturnType (rng_return_type UReal [t; u]), [t; u])
-      ) ) ;
+            ("normal_rng", ReturnType (rng_return_type UReal [t; u]), [t; u]))) ;
   add_unqualified
     ( "normal_id_glm_lpdf"
     , ReturnType UReal
@@ -1849,8 +1837,7 @@ let () =
   for_all_vector_types (fun t ->
       for_all_vector_types (fun u ->
           add_unqualified
-            ("pareto_rng", ReturnType (rng_return_type UReal [t; u]), [t; u])
-      ) ) ;
+            ("pareto_rng", ReturnType (rng_return_type UReal [t; u]), [t; u]))) ;
   for i = 0 to vector_types_size - 1 do
     for j = 0 to vector_types_size - 1 do
       for k = 0 to vector_types_size - 1 do
@@ -1900,7 +1887,7 @@ let () =
               add_unqualified
                 ( "pareto_type_2_rng"
                 , ReturnType (rng_return_type UReal [t; u; v])
-                , [t; u; v] ) ) ) ) ;
+                , [t; u; v] )))) ;
   add_unary_vectorized "Phi" ;
   add_unary_vectorized "Phi_approx" ;
   add_nullary "pi" ;
@@ -1935,7 +1922,7 @@ let () =
   done ;
   for_all_vector_types (fun t ->
       add_unqualified
-        ("poisson_rng", ReturnType (rng_return_type UInt [t]), [t]) ) ;
+        ("poisson_rng", ReturnType (rng_return_type UInt [t]), [t])) ;
   for i = 0 to int_vector_types_size - 1 do
     for j = 0 to vector_types_size - 1 do
       add_unqualified
@@ -1950,7 +1937,7 @@ let () =
   done ;
   for_all_vector_types (fun t ->
       add_unqualified
-        ("poisson_log_rng", ReturnType (rng_return_type UInt [t]), [t]) ) ;
+        ("poisson_log_rng", ReturnType (rng_return_type UInt [t]), [t])) ;
   add_unqualified
     ( "poisson_log_glm_lpmf"
     , ReturnType UReal
@@ -1998,7 +1985,7 @@ let () =
   done ;
   for_all_vector_types (fun t ->
       add_unqualified
-        ("rayleigh_rng", ReturnType (rng_return_type UReal [t]), [t]) ) ;
+        ("rayleigh_rng", ReturnType (rng_return_type UReal [t]), [t])) ;
   add_unqualified ("append_row", ReturnType UMatrix, [UMatrix; UMatrix]) ;
   add_unqualified ("append_row", ReturnType UMatrix, [URowVector; UMatrix]) ;
   add_unqualified ("append_row", ReturnType UMatrix, [UMatrix; URowVector]) ;
@@ -2094,7 +2081,7 @@ let () =
           add_unqualified
             ( "scaled_inv_chi_square_rng"
             , ReturnType (rng_return_type UReal [t; u])
-            , [t; u] ) ) ) ;
+            , [t; u] ))) ;
   add_unqualified ("sd", ReturnType UReal, [bare_array_type (UReal, 1)]) ;
   add_unqualified ("sd", ReturnType UReal, [UVector]) ;
   add_unqualified ("sd", ReturnType UReal, [URowVector]) ;
@@ -2174,7 +2161,7 @@ let () =
               add_unqualified
                 ( "skew_normal_rng"
                 , ReturnType (rng_return_type UReal [t; u; v])
-                , [t; u; v] ) ) ) ) ;
+                , [t; u; v] )))) ;
   add_unqualified ("softmax", ReturnType UVector, [UVector]) ;
   add_unqualified
     ( "sort_asc"
@@ -2283,7 +2270,7 @@ let () =
               add_unqualified
                 ( "student_t_rng"
                 , ReturnType (rng_return_type UReal [t; u; v])
-                , [t; u; v] ) ) ) ) ;
+                , [t; u; v] )))) ;
   add_unqualified ("sub_col", ReturnType UVector, [UMatrix; UInt; UInt; UInt]) ;
   add_unqualified
     ("sub_row", ReturnType URowVector, [UMatrix; UInt; UInt; UInt]) ;
@@ -2425,8 +2412,7 @@ let () =
   for_all_vector_types (fun t ->
       for_all_vector_types (fun u ->
           add_unqualified
-            ("uniform_rng", ReturnType (rng_return_type UReal [t; u]), [t; u])
-      ) ) ;
+            ("uniform_rng", ReturnType (rng_return_type UReal [t; u]), [t; u]))) ;
   add_unqualified ("variance", ReturnType UReal, [bare_array_type (UReal, 1)]) ;
   add_unqualified ("variance", ReturnType UReal, [UVector]) ;
   add_unqualified ("variance", ReturnType UReal, [URowVector]) ;
@@ -2448,8 +2434,7 @@ let () =
   for_all_vector_types (fun t ->
       for_all_vector_types (fun u ->
           add_unqualified
-            ("von_mises_rng", ReturnType (rng_return_type UReal [t; u]), [t; u])
-      ) ) ;
+            ("von_mises_rng", ReturnType (rng_return_type UReal [t; u]), [t; u]))) ;
   for i = 0 to vector_types_size - 1 do
     for j = 0 to vector_types_size - 1 do
       for k = 0 to vector_types_size - 1 do
@@ -2487,8 +2472,7 @@ let () =
   for_all_vector_types (fun t ->
       for_all_vector_types (fun u ->
           add_unqualified
-            ("weibull_rng", ReturnType (rng_return_type UReal [t; u]), [t; u])
-      ) ) ;
+            ("weibull_rng", ReturnType (rng_return_type UReal [t; u]), [t; u]))) ;
   for i = 0 to vector_types_size - 1 do
     for j = 0 to vector_types_size - 1 do
       for k = 0 to vector_types_size - 1 do

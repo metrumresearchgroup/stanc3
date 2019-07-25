@@ -167,12 +167,12 @@ and gen_misc_special_math_app f =
       Some
         (fun ppf es ->
           if List.length es = 2 then pp_binary_f ppf f es
-          else pf ppf "%s(@[<hov>%a@])" f (list ~sep:comma pp_expr) es )
+          else pf ppf "%s(@[<hov>%a@])" f (list ~sep:comma pp_expr) es)
   | "ceil" ->
       Some
         (fun ppf es ->
           if is_scalar (first es) then pp_unary ppf "std::ceil(%a)" es
-          else pf ppf "%s(@[<hov>%a@])" f (list ~sep:comma pp_expr) es )
+          else pf ppf "%s(@[<hov>%a@])" f (list ~sep:comma pp_expr) es)
   | f when f = string_of_internal_fn FnLength ->
       Some (fun ppf -> gen_fun_app ppf "stan::length")
   | f when f = string_of_internal_fn FnNegInf ->
@@ -187,8 +187,7 @@ and read_data ut ppf es =
     | UVector | URowVector | UMatrix | UArray _
      |UFun (_, _)
      |UMathLibraryFunction ->
-        raise_s [%message "Can't ReadData of " (ut : unsizedtype)]
-  in
+        raise_s [%message "Can't ReadData of " (ut : unsizedtype)] in
   pf ppf "context__.vals_%s(%a)" i_or_r pp_expr (List.hd_exn es)
 
 and gen_distribution_app f =
@@ -197,7 +196,7 @@ and gen_distribution_app f =
       (fun ppf ->
         pf ppf "%s<propto__>(@[<hov>%a@])"
           (Utils.stdlib_distribution_name f)
-          (list ~sep:comma pp_expr) )
+          (list ~sep:comma pp_expr))
   else if Utils.is_distribution_name f then
     Some
       (fun ppf -> pf ppf "%s<false>(@[<hov>%a@])" f (list ~sep:comma pp_expr))
@@ -209,22 +208,18 @@ and gen_fun_app ppf f es =
     let convert_hof_vars = function
       | {expr= Var name; emeta= {mtype= UFun _; _}} as e ->
           {e with expr= FunApp (StanLib, name ^ "_functor__", [])}
-      | e -> e
-    in
+      | e -> e in
     let converted_es = List.map ~f:convert_hof_vars es in
     let extra =
       (suffix_args f @ if es = converted_es then [] else ["pstream__"])
-      |> List.map ~f:(fun s -> {expr= Var s; emeta= internal_meta})
-    in
+      |> List.map ~f:(fun s -> {expr= Var s; emeta= internal_meta}) in
     pf ppf "%s(@[<hov>%a@])" (stan_namespace_qualify f)
-      (list ~sep:comma pp_expr) (converted_es @ extra)
-  in
+      (list ~sep:comma pp_expr) (converted_es @ extra) in
   let pp =
     [ Option.map ~f:gen_operator_app (operator_of_string f)
     ; gen_misc_special_math_app f
     ; gen_distribution_app f ]
-    |> List.filter_opt |> List.hd |> Option.value ~default
-  in
+    |> List.filter_opt |> List.hd |> Option.value ~default in
   pp ppf es
 
 and pp_constrain_funapp constrain_or_un_str ppf = function
@@ -241,8 +236,7 @@ and pp_ordinary_fn ppf f es =
 
 and pp_compiler_internal_fn ut f ppf es =
   let array_literal ppf es =
-    pf ppf "{@[<hov>%a@]}" (list ~sep:comma pp_expr) es
-  in
+    pf ppf "{@[<hov>%a@]}" (list ~sep:comma pp_expr) es in
   match internal_fn_of_string f with
   | Some FnMakeArray -> array_literal ppf es
   | Some FnMakeRowVec ->
@@ -266,8 +260,7 @@ and pp_indexed ppf (vident, indices, pretty) =
 and pp_indexed_simple ppf (vident, idcs) =
   let minus_one e =
     { expr= FunApp (StanLib, string_of_operator Minus, [e; loop_bottom])
-    ; emeta= e.emeta }
-  in
+    ; emeta= e.emeta } in
   let idx_minus_one = map_index minus_one in
   (Middle.Pretty.pp_indexed pp_expr)
     ppf

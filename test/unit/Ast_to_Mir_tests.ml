@@ -18,8 +18,7 @@ let%expect_test "Operator-assign example" =
     Option.value_exn
       (Result.ok
          (Semantic_check.semantic_check_program
-            (Option.value_exn (Result.ok ast))))
-  in
+            (Option.value_exn (Result.ok ast)))) in
   let mir = trans_prog "" (semantic_check_program_exn ast) in
   print_s [%sexp (mir : typed_prog)] ;
   [%expect
@@ -76,16 +75,14 @@ let mir_from_string s =
   let untyped_prog =
     Parse.parse_string Parser.Incremental.program s
     |> Result.map_error ~f:Parse.render_syntax_error
-    |> Result.ok_or_failwith
-  in
+    |> Result.ok_or_failwith in
   let typed_prog_result = Semantic_check.semantic_check_program untyped_prog in
   let typed_prog =
     typed_prog_result
     |> Result.map_error ~f:(function
          | x :: _ -> (Semantic_error.pp |> Fmt.to_to_string) x
-         | _ -> failwith "mir_from_string: can't happen" )
-    |> Result.ok_or_failwith
-  in
+         | _ -> failwith "mir_from_string: can't happen")
+    |> Result.ok_or_failwith in
   trans_prog "" typed_prog
 
 let%expect_test "Prefix-Op-Example" =
