@@ -89,18 +89,18 @@ let promote_base args =
     args
   |> Option.value_exn |> ints_to_real
 
-let mk_declarative_sig (fnkinds, name, args) =
-  let sfxes = function
-    | Lpmf -> ["_lpmf"; "_log"]
-    | Lpdf -> ["_lpdf"; "_log"]
-    | Rng -> ["_rng"]
-    | Cdf -> ["_cdf"; "_cdf_log"; "_lcdf"]
-    | Ccdf -> ["_ccdf_log"; "_lccdf"]
-    | Functional -> [""]
-    | DimPromoting -> [""]
-  in
+let sfxes = function
+  | Lpmf -> ["_lpmf"; "_log"]
+  | Lpdf -> ["_lpdf"; "_log"]
+  | Rng -> ["_rng"]
+  | Cdf -> ["_lcdf"; "_cdf"; "_cdf_log"]
+  | Ccdf -> ["_lccdf"; "_ccdf_log"]
+  | Functional -> [""]
+  | DimPromoting -> [""]
+
+let mk_declarative_sig gen_suffices gen_args (fnkinds, name, args) =
   let add_ints = function DReals -> DIntAndReals | x -> x in
-  let all_expanded args = all_combinations (List.map ~f:expand_arg args) in
+  let all_expanded args = all_combinations (List.map ~f:gen_args args) in
   let promoted_dim = function
     | DInts -> UInt
     (* XXX fix this up to work with more RNGs *)
@@ -113,7 +113,7 @@ let mk_declarative_sig (fnkinds, name, args) =
   in
   let create_from_fk_args fk arglists =
     List.concat_map arglists ~f:(fun args ->
-        List.map (sfxes fk) ~f:(fun sfx ->
+        List.map (gen_suffices fk) ~f:(fun sfx ->
             (name ^ sfx, find_rt UReal args fk, args) ) )
   in
   let add_fnkind = function
@@ -124,7 +124,6 @@ let mk_declarative_sig (fnkinds, name, args) =
         let name = name ^ "_rng" in
         List.map (all_expanded args) ~f:(fun args ->
             (name, find_rt rt args Rng, args) )
-    | DimPromoting -> create_from_fk_args DimPromoting (all_expanded args)
     | fk -> create_from_fk_args fk (all_expanded args)
   in
   List.concat_map fnkinds ~f:add_fnkind
@@ -238,7 +237,31 @@ let math_sigs =
 let all_declarative_sigs = distributions @ math_sigs
 
 let declarative_fnsigs =
-  List.concat_map ~f:mk_declarative_sig all_declarative_sigs
+  List.concat_map ~f:(mk_declarative_sig sfxes expand_arg) all_declarative_sigs
+
+let minimal_sfxes fnkind = fnkind |> sfxes |> List.hd_exn |> List.return
+
+let rec minimal_expand_arg = function
+  | DReal -> [UReal]
+  | DReals -> [UVector]
+  | DInts -> [UArray UInt]
+  | DIntAndReals -> minimal_expand_arg DReals @ minimal_expand_arg DInts
+  | DVectors -> [UArray UVector]
+  | DArrayAndVectors -> minimal_expand_arg DVectors
+  | D1DeepReals -> [UVector]
+  | DVector -> [UVector]
+  | DMatrix -> [UMatrix]
+  | DAllBase -> [UMatrix]
+  | DDeepVectorized ->
+      List.(
+        concat_map (expand_arg DAllBase) ~f:(fun a ->
+            map (range 0 8) ~f:(fun i -> bare_array_type (a, i)) ))
+
+let minimal_declarative_math_sigs =
+  all_declarative_sigs
+  |> List.concat_map ~f:(mk_declarative_sig minimal_sfxes minimal_expand_arg)
+  |> List.map ~f:(fun (name, rt, args) -> (name, (rt, args)))
+  |> String.Table.of_alist_multi
 
 (* -- Querying stan_math_signatures -- *)
 let stan_math_returntype name args =

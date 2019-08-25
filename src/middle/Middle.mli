@@ -98,3 +98,6 @@ val stan_math_signatures :
 
 val manual_stan_math_signatures :
   (returntype * (autodifftype * unsizedtype) list) list String.Table.t
+
+val minimal_declarative_math_sigs :
+  (returntype * (autodifftype * unsizedtype) list) list String.Table.t

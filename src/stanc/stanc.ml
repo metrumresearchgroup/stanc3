@@ -18,6 +18,7 @@ let print_model_cpp = ref false
 let dump_mir = ref false
 let dump_mir_pretty = ref false
 let dump_tx_mir = ref false
+let debug_math_explicit_instantiations = ref false
 let output_file = ref ""
 let generate_data = ref false
 
@@ -52,6 +53,10 @@ let options =
       , Arg.Set dump_tx_mir
       , " For debugging purposes: print the MIR after the backend has \
          transformed it." )
+    ; ( "--debug-explicit-instantiations"
+      , Arg.Set debug_math_explicit_instantiations
+      , "Print the C++ explicit template instantiations implied by the Stan \
+         Math signatures we have recorded in stanc." )
     ; ( "--auto-format"
       , Arg.Set pretty_print_program
       , " Pretty prints the program to the console" )
@@ -145,12 +150,19 @@ let remove_dotstan s = String.drop_suffix s 5
 let main () =
   (* Parse the arguments. *)
   Arg.parse options add_file usage ;
-  if !model_file = "" then model_file_err () ;
-  if !Semantic_check.model_name = "" then
-    Semantic_check.model_name :=
-      remove_dotstan List.(hd_exn (rev (String.split !model_file ~on:'/')))
-      ^ "_model" ;
-  if !output_file = "" then output_file := remove_dotstan !model_file ^ ".hpp" ;
-  use_file !model_file
+  if !debug_math_explicit_instantiations then (
+    Gen_explicit_instantiations.pp Fmt.stdout
+      Middle.manual_stan_math_signatures ;
+    Gen_explicit_instantiations.pp Fmt.stdout
+      Middle.minimal_declarative_math_sigs )
+  else (
+    if !model_file = "" then model_file_err () ;
+    if !Semantic_check.model_name = "" then
+      Semantic_check.model_name :=
+        remove_dotstan List.(hd_exn (rev (String.split !model_file ~on:'/')))
+        ^ "_model" ;
+    if !output_file = "" then
+      output_file := remove_dotstan !model_file ^ ".hpp" ;
+    use_file !model_file )
 
 let () = main ()
