@@ -521,12 +521,6 @@ let trans_fun_def udf_names (ts : Ast.typed_statement) =
       raise_s
         [%message "Found non-function definition statement in function block"]
 
-let get_block block prog =
-  match block with
-  | Parameters -> prog.Ast.parametersblock
-  | TransformedParameters -> prog.transformedparametersblock
-  | GeneratedQuantities -> prog.generatedquantitiesblock
-
 let migrate_checks_to_end_of_block stmts =
   let is_check = contains_fn (string_of_internal_fn FnCheck) in
   let checks, not_checks = List.partition_tf ~f:is_check stmts in
@@ -554,23 +548,18 @@ let trans_prog filename (p : Ast.typed_program) : typed_prog =
         [(identifier.name, trans_sizedtype st, transformation)]
     | _ -> []
   in
-  let grab_names_sizes block =
-    List.map ~f:get_name_size (Option.value ~default:[] (get_block block p))
-    |> List.concat_map
-         ~f:
-           (List.map ~f:(fun (n, s, t) ->
-                ( n
-                , { out_constrained_st= s
-                  ; out_unconstrained_st= param_size t s
-                  ; out_block= block } ) ))
-  in
-  let output_vars =
-    grab_names_sizes Parameters
-    @ grab_names_sizes TransformedParameters
-    @ grab_names_sizes GeneratedQuantities
-  and input_vars =
-    map get_name_size datablock |> List.map ~f:(fun (n, st, _) -> (n, st))
-  in
+  let fst_two (a, b, _) = (a, b) in
+  let constrained_parameters =
+    map get_name_size p.parametersblock
+    |> List.map ~f:fst_two in
+  let unconstrained_parameters =
+    map get_name_size p.parametersblock
+    |> List.map ~f:(fun (n, s, t) -> n, param_size t s) in
+  let transformed_parameters = map get_name_size p.transformedparametersblock
+                               |> List.map ~f:fst_two in
+  let generated_quantities = map get_name_size p.generatedquantitiesblock
+                           |> List.map ~f:fst_two in
+  let input_vars = map get_name_size datablock |> List.map ~f:fst_two in
   let declc = {dconstrain= None; dadlevel= DataOnly} in
   let datab =
     map (trans_stmt {declc with dconstrain= Some Check}) datablock
@@ -597,11 +586,9 @@ let trans_prog filename (p : Ast.typed_program) : typed_prog =
     | [] -> []
     | hd :: _ -> [{stmt= Block modelb; smeta= hd.smeta}]
   in
-  let gen_from_block declc block =
-    map (trans_stmt declc) (get_block block p)
-  in
+  let gen_from_block declc = map (trans_stmt declc) in
   let txparam_decls, txparam_stmts =
-    gen_from_block declc TransformedParameters
+    gen_from_block declc p.transformedparametersblock
     |> List.partition_tf ~f:(function {stmt= Decl _; _} -> true | _ -> false)
   in
   let compiler_if_return cond =
@@ -618,19 +605,19 @@ let trans_prog filename (p : Ast.typed_program) : typed_prog =
   in
   let gq_stmts =
     migrate_checks_to_end_of_block
-      (gen_from_block {declc with dconstrain= Some Check} GeneratedQuantities)
+      (gen_from_block {declc with dconstrain= Some Check} p.generatedquantitiesblock)
   in
   let gq_early_return =
     [ compiler_if_return
         (fnot (Var (string_of_flag_var EmitGeneratedQuantities) |> iexpr)) ]
   in
   let generate_quantities =
-    gen_from_block {declc with dconstrain= Some Constrain} Parameters
+    gen_from_block {declc with dconstrain= Some Constrain} p.parametersblock
     @ txparam_decls @ tparam_early_return @ txparam_stmts @ gq_early_return
     @ gq_stmts
   in
   let transform_inits =
-    gen_from_block {declc with dconstrain= Some Unconstrain} Parameters
+    gen_from_block {declc with dconstrain= Some Unconstrain} p.parametersblock
   in
   { functions_block= map (trans_fun_def udf_names) functionblock
   ; input_vars
@@ -638,6 +625,9 @@ let trans_prog filename (p : Ast.typed_program) : typed_prog =
   ; log_prob
   ; generate_quantities
   ; transform_inits
-  ; output_vars
+  ; unconstrained_parameters
+  ; constrained_parameters
+  ; transformed_parameters
+  ; generated_quantities
   ; prog_name= !Semantic_check.model_name
   ; prog_path= filename }

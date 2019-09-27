@@ -102,6 +102,9 @@ let%expect_test "map_rec_state_stmt_loc" =
         if(PNot__(emit_generated_quantities__)) return;
       }
 
+
+
+
       3 |}]
 
 let%expect_test "inline functions" =
@@ -398,7 +401,9 @@ let%expect_test "list collapsing" =
            (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
           ((stmt (Return ())) (smeta <opaque>)) ()))
         (smeta <opaque>))))
-     (transform_inits ()) (output_vars ()) (prog_name "") (prog_path ""))
+     (transform_inits ()) (transformed_parameters ()) (generated_quantities ())
+     (unconstrained_parameters ()) (constrained_parameters ()) (prog_name "")
+     (prog_path ""))
     |}]
 
 let%expect_test "do not inline recursive functions" =
@@ -1559,9 +1564,12 @@ let%expect_test "constant propagation, model block local scope" =
         FnPrint__((i + j));
       }
     }
-    output_vars {
-      generated_quantities int i; //int
-      generated_quantities int j; //int
+
+
+
+    generated quantities {
+      i: int
+      j: int
     } |}]
 
 let%expect_test "expression propagation" =
@@ -2277,15 +2285,26 @@ model {
         data real theta_u;
         data real phi_u;
       }
-      output_vars {
-        parameters matrix[3, 2] x_matrix; //matrix[3, 2]
-        parameters matrix[2, 4] y_matrix; //matrix[2, 4]
-        parameters matrix[4, 2] z_matrix; //matrix[4, 2]
-        parameters vector[2] x_vector; //vector[2]
-        parameters vector[3] y_vector; //vector[3]
-        parameters matrix[2, 2] x_cov; //vector[3]
-        parameters real theta_u; //real
-        parameters real phi_u; //real
+      constrained parameters {
+        x_matrix: matrix[3, 2]
+        y_matrix: matrix[2, 4]
+        z_matrix: matrix[4, 2]
+        x_vector: vector[2]
+        y_vector: vector[3]
+        x_cov: matrix[2, 2]
+        theta_u: real
+        phi_u: real
+      }
+
+      unconstrained parameters {
+        x_matrix: matrix[3, 2]
+        y_matrix: matrix[2, 4]
+        z_matrix: matrix[4, 2]
+        x_vector: vector[2]
+        y_vector: vector[3]
+        x_cov: vector[3]
+        theta_u: real
+        phi_u: real
       } |}]
 
 let%expect_test "lazy code motion" =
@@ -3173,7 +3192,9 @@ let%expect_test "block fixing" =
              (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
             ((stmt (Return ())) (smeta <opaque>)) ()))
           (smeta <opaque>))))
-       (transform_inits ()) (output_vars ()) (prog_name "") (prog_path "")) |}]
+       (transform_inits ()) (transformed_parameters ()) (generated_quantities ())
+       (unconstrained_parameters ()) (constrained_parameters ()) (prog_name "")
+       (prog_path "")) |}]
 
 let%expect_test "one-step loop unrolling" =
   gensym_reset_danger_use_cautiously () ;
@@ -3303,8 +3324,12 @@ let%expect_test "adlevel_optimization" =
       transform_inits {
         data real w;
       }
-      output_vars {
-        parameters real w; //real
+      constrained parameters {
+        w: real
+      }
+
+      unconstrained parameters {
+        w: real
       } |}]
 
 let%expect_test "adlevel_optimization expressions" =
@@ -3516,7 +3541,14 @@ let%expect_test "adlevel_optimization 2" =
       transform_inits {
         data real w;
       }
-      output_vars {
-        parameters real w; //real
-        transformed_parameters real w_trans; //real
+      constrained parameters {
+        w: real
+      }
+
+      unconstrained parameters {
+        w: real
+      }
+
+      transformed parameters {
+        w_trans: real
       } |}]

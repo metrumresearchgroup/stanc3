@@ -138,14 +138,8 @@ type ('e, 's) statement =
       ; decl_type: 'e possiblysizedtype }
 [@@deriving sexp, hash, map, fold]
 
-type io_block = Parameters | TransformedParameters | GeneratedQuantities
-[@@deriving sexp, hash]
-
-type 'e outvar =
-  { out_unconstrained_st: 'e sizedtype
-  ; out_constrained_st: 'e sizedtype
-  ; out_block: io_block }
-[@@deriving sexp, map, hash]
+type 'e var_type_map = (string * 'e sizedtype) list
+[@@deriving sexp, map]
 
 type ('e, 's) prog =
   { functions_block: 's fun_def list
@@ -154,7 +148,10 @@ type ('e, 's) prog =
   ; log_prob: 's list (*assumes data & params are in scope and ready*)
   ; generate_quantities: 's list (* assumes data & params ready & in scope*)
   ; transform_inits: 's list
-  ; output_vars: (string * 'e outvar) list
+  ; transformed_parameters: 'e var_type_map
+  ; generated_quantities: 'e var_type_map
+  ; unconstrained_parameters: 'e var_type_map
+  ; constrained_parameters: 'e var_type_map
   ; prog_name: string
   ; prog_path: string }
 [@@deriving sexp, map]

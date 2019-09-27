@@ -20,11 +20,10 @@ let rec sizedtype_to_json (st : mtype_loc_ad with_expr sizedtype) :
         ; ("length", `String (emit_cpp_expr d))
         ; ("element_type", sizedtype_to_json st) ]
 
-let out_var_json (name, st, block) : Yojson.Basic.t =
+let var_type_json (name, st) : Yojson.Basic.t =
   `Assoc
     [ ("name", `String name)
-    ; ("type", sizedtype_to_json st)
-    ; ("block", `String (Fmt.strf "%a" Pretty.pp_io_block block)) ]
+    ; ("type", sizedtype_to_json st)]
 
 let%expect_test "outvar to json pretty" =
   let var x = {expr= Var x; emeta= internal_meta} in
@@ -33,8 +32,8 @@ let%expect_test "outvar to json pretty" =
        vector[N] var_one[K];
      }
   *)
-  ("var_one", SArray (SVector (var "N"), var "K"), Parameters)
-  |> out_var_json |> Yojson.Basic.pretty_to_string |> print_endline ;
+  ("var_one", SArray (SVector (var "N"), var "K"))
+  |> var_type_json |> Yojson.Basic.pretty_to_string |> print_endline ;
   [%expect
     {|
   {
@@ -43,8 +42,7 @@ let%expect_test "outvar to json pretty" =
       "name": "array",
       "length": "<< K >>",
       "element_type": { "name": "vector", "length": "<< N >>" }
-    },
-    "block": "parameters"
+    }
   } |}]
 
 let replace_cpp_expr s =
@@ -55,14 +53,15 @@ let replace_cpp_expr s =
 
 let wrap_in_quotes s = "\"" ^ s ^ "\""
 
-let out_var_interpolated_json_str vars =
-  `List (List.map ~f:out_var_json vars)
+let out_var_interpolated_json_str var_type_map =
+  var_type_map |> List.map ~f:var_type_json
+  |> (fun l -> `List l)
   |> Yojson.Basic.to_string |> replace_cpp_expr |> wrap_in_quotes
 
 let%expect_test "outvar to json" =
   let var x = {expr= Var x; emeta= internal_meta} in
-  [("var_one", SArray (SVector (var "N"), var "K"), Parameters)]
+  [("var_one", SArray (SVector (var "N"), var "K"))]
   |> out_var_interpolated_json_str |> print_endline ;
   [%expect
     {|
-    "[{\"name\":\"var_one\",\"type\":{\"name\":\"array\",\"length\":" << K << ",\"element_type\":{\"name\":\"vector\",\"length\":" << N << "}},\"block\":\"parameters\"}]" |}]
+    "[{\"name\":\"var_one\",\"type\":{\"name\":\"array\",\"length\":" << K << ",\"element_type\":{\"name\":\"vector\",\"length\":" << N << "}}}]" |}]

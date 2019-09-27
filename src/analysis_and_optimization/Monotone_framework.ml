@@ -868,6 +868,13 @@ let rec declared_variables_stmt
       Set.Poly.union_list
         (List.map ~f:(fun x -> declared_variables_stmt x.stmt) l)
 
+let global_var_names prog =
+  (List.concat_map
+     ~f:(List.map ~f:fst)
+     [prog.Middle.input_vars;
+      prog.constrained_parameters; prog.transformed_parameters; prog.generated_quantities]
+  )|> Set.Poly.of_list
+
 let propagation_mfp (prog : Middle.typed_prog)
     (module Flowgraph : Monotone_framework_sigs.FLOWGRAPH
       with type labels = int)
@@ -888,10 +895,9 @@ let propagation_mfp (prog : Middle.typed_prog)
 
       let total =
         Set.Poly.union_list
-          [ Set.Poly.of_list (List.map ~f:fst prog.input_vars)
-          ; Set.Poly.of_list (List.map ~f:fst prog.output_vars)
-          ; declared_variables_stmt
-              (stmt_loc_of_stmt_loc_num flowgraph_to_mir mir).stmt ]
+          [global_var_names prog
+            ; declared_variables_stmt
+             (stmt_loc_of_stmt_loc_num flowgraph_to_mir mir).stmt ]
     end
     : TOTALTYPE
       with type vals = string )
@@ -919,10 +925,7 @@ let reaching_definitions_mfp (mir : Middle.typed_prog)
     ( module struct
       type vals = string
 
-      let initial =
-        Set.Poly.union_list
-          [ Set.Poly.of_list (List.map ~f:fst mir.input_vars)
-          ; Set.Poly.of_list (List.map ~f:fst mir.output_vars) ]
+      let initial = global_var_names mir
     end
     : INITIALTYPE
       with type vals = string )
@@ -967,7 +970,9 @@ let live_variables_mfp (prog : Middle.typed_prog)
    so should be live. *)
       let initial =
         Set.Poly.add
-          (Set.Poly.of_list (List.map ~f:fst prog.output_vars))
+          (Set.Poly.union_list
+             (List.map ~f:(Fn.compose Set.Poly.of_list (List.map ~f:fst))
+                [prog.constrained_parameters; prog.transformed_parameters; prog.generated_quantities]))
           "target"
     end
     : INITIALTYPE

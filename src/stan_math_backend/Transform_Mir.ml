@@ -49,36 +49,32 @@ let rec base_ut_to_string = function
       raise_s
         [%message "Another place where it's weird to get " (t : unsizedtype)]
 
-let param_read smeta
-    (decl_id, {out_constrained_st= cst; out_unconstrained_st= ucst; out_block})
-    =
-  if not (out_block = Parameters) then []
-  else
-    let decl_id, decl =
-      match cst = ucst with
-      | true -> (decl_id, [])
-      | false ->
-          let decl_id = decl_id ^ "_in__" in
-          let d =
-            Decl {decl_adtype= AutoDiffable; decl_id; decl_type= Sized ucst}
-          in
-          (decl_id, [{stmt= d; smeta}])
-    in
-    let unconstrained_decl_var =
-      { expr= Var decl_id
-      ; emeta= {mloc= smeta; mtype= remove_size cst; madlevel= AutoDiffable} }
-    in
-    let bodyfn var =
-      let readfnapp var =
-        internal_funapp FnReadParam
-          ( { expr= Lit (Str, base_ut_to_string (remove_size ucst))
-            ; emeta= internal_meta }
-          :: eigen_size ucst )
-          {var.emeta with mtype= base_type ucst}
+let param_read smeta (decl_id, (ucst, cst)) =
+  let decl_id, decl =
+    match cst = ucst with
+    | true -> (decl_id, [])
+    | false ->
+      let decl_id = decl_id ^ "_in__" in
+      let d =
+        Decl {decl_adtype= AutoDiffable; decl_id; decl_type= Sized ucst}
       in
-      assign_indexed (remove_size cst) decl_id smeta readfnapp var
+      (decl_id, [{stmt= d; smeta}])
+  in
+  let unconstrained_decl_var =
+    { expr= Var decl_id
+    ; emeta= {mloc= smeta; mtype= remove_size cst; madlevel= AutoDiffable} }
+  in
+  let bodyfn var =
+    let readfnapp var =
+      internal_funapp FnReadParam
+        ( { expr= Lit (Str, base_ut_to_string (remove_size ucst))
+          ; emeta= internal_meta }
+          :: eigen_size ucst )
+        {var.emeta with mtype= base_type ucst}
     in
-    decl @ [for_eigen ucst bodyfn unconstrained_decl_var smeta]
+    assign_indexed (remove_size cst) decl_id smeta readfnapp var
+  in
+  decl @ [for_eigen ucst bodyfn unconstrained_decl_var smeta]
 
 let escape_name str =
   str
@@ -157,16 +153,11 @@ let rec contains_var_expr is_vident accum {expr; _} =
    to change the FnConstrain calls to constrain that variable and assign to the
    actual <param_name> var.
 *)
-let constrain_in_params outvars stmts =
-  let is_target_var = function
-    | name, {out_unconstrained_st; out_constrained_st; out_block= Parameters}
-      when not (out_unconstrained_st = out_constrained_st) ->
-        Some name
-    | _ -> None
+let constrain_in_params params_with_both_types stmts =
+  let is_target_var (name, (unconstrained_st, constrained_st)) =
+    if (unconstrained_st = constrained_st) then None else Some name
   in
-  let target_vars =
-    List.filter_map outvars ~f:is_target_var |> String.Set.of_list
-  in
+  let target_vars = params_with_both_types |> List.filter_map ~f:is_target_var |> String.Set.of_list in
   let rec change_constrain_target s =
     match s.stmt with
     | Assignment (_, {expr= FunApp (CompilerInternal, f, args); _})
@@ -206,22 +197,9 @@ let trans_prog (p : typed_prog) =
     |> List.map ~f:(fun stmt -> {stmt; smeta= no_span})
   in
   let log_prob = List.map ~f:add_jacobians p.log_prob in
-  let get_pname_cst = function
-    | name, {out_block= Parameters; out_constrained_st; _} ->
-        Some (name, out_constrained_st)
-    | _ -> None
-  in
-  let constrained_params = List.filter_map ~f:get_pname_cst p.output_vars in
-  let param_writes, tparam_writes, gq_writes =
-    List.map p.output_vars
-      ~f:(fun (name, {out_constrained_st= st; out_block; _}) ->
-        (out_block, gen_write (name, st)) )
-    |> List.partition3_map ~f:(fun (b, x) ->
-           match b with
-           | Parameters -> `Fst x
-           | TransformedParameters -> `Snd x
-           | GeneratedQuantities -> `Trd x )
-  in
+  let param_writes = List.map ~f:gen_write p.constrained_parameters in
+  let tparam_writes = List.map ~f:gen_write p.transformed_parameters  in
+  let gq_writes = List.map ~f:gen_write p.generated_quantities in
   let tparam_start {stmt; _} =
     match stmt with
     | IfElse (cond, _, _)
@@ -240,24 +218,29 @@ let trans_prog (p : typed_prog) =
         true
     | _ -> false
   in
+  let params_with_both_types =
+    List.zip_exn p.unconstrained_parameters p.constrained_parameters
+  |> List.map ~f:(fun ((name, ucst), (_, cst)) -> name, (ucst, cst))
+  in
+  let with_param_reads block =
+    add_reads block params_with_both_types param_read
+    |> constrain_in_params params_with_both_types
+  in
   let gq =
-    ( add_reads p.generate_quantities p.output_vars param_read
-    |> constrain_in_params p.output_vars
+    ( with_param_reads p.generate_quantities
     |> insert_before tparam_start param_writes
     |> insert_before gq_start tparam_writes )
     @ gq_writes
   in
   let p =
     { p with
-      log_prob=
-        add_reads log_prob p.output_vars param_read
-        |> constrain_in_params p.output_vars
+      log_prob= with_param_reads log_prob
     ; prog_name= escape_name p.prog_name
     ; prepare_data= init_pos @ add_reads p.prepare_data p.input_vars data_read
     ; transform_inits=
         init_pos
-        @ add_reads p.transform_inits constrained_params data_read
-        @ List.map ~f:gen_write constrained_params
+        @ add_reads p.transform_inits p.constrained_parameters data_read
+        @ List.map ~f:gen_write p.constrained_parameters
     ; generate_quantities= gq }
   in
   map_prog Fn.id ensure_body_in_block p

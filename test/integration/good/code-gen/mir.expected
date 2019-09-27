@@ -9064,1033 +9064,432 @@
             (smeta <opaque>)))))
         (smeta <opaque>)))))
     (smeta <opaque>))))
- (output_vars
-  ((p_real
-    ((out_unconstrained_st SReal) (out_constrained_st SReal)
-     (out_block Parameters)))
-   (offset_multiplier
-    ((out_unconstrained_st
-      (SArray SReal
-       ((expr (Lit Int 5))
-        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
-     (out_constrained_st
-      (SArray SReal
-       ((expr (Lit Int 5))
-        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
-     (out_block Parameters)))
-   (p_real_1d_ar
-    ((out_unconstrained_st
-      (SArray SReal
-       ((expr (Var N))
-        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
-     (out_constrained_st
-      (SArray SReal
-       ((expr (Var N))
-        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
-     (out_block Parameters)))
-   (p_real_3d_ar
-    ((out_unconstrained_st
-      (SArray
-       (SArray
-        (SArray SReal
-         ((expr (Var K))
-          (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-        ((expr (Var M))
-         (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-       ((expr (Var N))
-        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
-     (out_constrained_st
-      (SArray
-       (SArray
-        (SArray SReal
-         ((expr (Var K))
-          (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-        ((expr (Var M))
-         (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-       ((expr (Var N))
-        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
-     (out_block Parameters)))
-   (p_vec
-    ((out_unconstrained_st
-      (SVector
-       ((expr (Var N))
-        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
-     (out_constrained_st
-      (SVector
-       ((expr (Var N))
-        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
-     (out_block Parameters)))
-   (p_1d_vec
-    ((out_unconstrained_st
-      (SArray
-       (SVector
-        ((expr (Var N))
-         (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-       ((expr (Var N))
-        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
-     (out_constrained_st
-      (SArray
-       (SVector
-        ((expr (Var N))
-         (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-       ((expr (Var N))
-        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
-     (out_block Parameters)))
-   (p_3d_vec
-    ((out_unconstrained_st
-      (SArray
-       (SArray
-        (SArray
-         (SVector
-          ((expr (Var N))
-           (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-         ((expr (Var K))
-          (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-        ((expr (Var M))
-         (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-       ((expr (Var N))
-        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
-     (out_constrained_st
-      (SArray
-       (SArray
-        (SArray
-         (SVector
-          ((expr (Var N))
-           (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-         ((expr (Var K))
-          (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-        ((expr (Var M))
-         (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-       ((expr (Var N))
-        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
-     (out_block Parameters)))
-   (p_row_vec
-    ((out_unconstrained_st
-      (SRowVector
-       ((expr (Var N))
-        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
-     (out_constrained_st
-      (SRowVector
-       ((expr (Var N))
-        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
-     (out_block Parameters)))
-   (p_1d_row_vec
-    ((out_unconstrained_st
-      (SArray
-       (SRowVector
-        ((expr (Var N))
-         (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-       ((expr (Var N))
-        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
-     (out_constrained_st
-      (SArray
-       (SRowVector
-        ((expr (Var N))
-         (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-       ((expr (Var N))
-        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
-     (out_block Parameters)))
-   (p_3d_row_vec
-    ((out_unconstrained_st
-      (SArray
-       (SArray
-        (SArray
-         (SRowVector
-          ((expr (Var N))
-           (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-         ((expr (Var K))
-          (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-        ((expr (Var M))
-         (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-       ((expr (Var N))
-        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
-     (out_constrained_st
-      (SArray
-       (SArray
-        (SArray
-         (SRowVector
-          ((expr (Var N))
-           (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-         ((expr (Var K))
-          (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-        ((expr (Var M))
-         (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-       ((expr (Var N))
-        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
-     (out_block Parameters)))
-   (p_ar_mat
-    ((out_unconstrained_st
-      (SArray
-       (SArray
-        (SMatrix
-         ((expr (Lit Int 2))
-          (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
-         ((expr (Lit Int 3))
-          (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-        ((expr (Lit Int 5))
-         (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-       ((expr (Lit Int 4))
-        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
-     (out_constrained_st
-      (SArray
-       (SArray
-        (SMatrix
-         ((expr (Lit Int 2))
-          (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
-         ((expr (Lit Int 3))
-          (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-        ((expr (Lit Int 5))
-         (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-       ((expr (Lit Int 4))
-        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
-     (out_block Parameters)))
-   (p_simplex
-    ((out_unconstrained_st
-      (SVector
-       ((expr
-         (FunApp StanLib Minus__
-          (((expr (Var N))
-            (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
-           ((expr (Lit Int 1))
-            (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))))
-        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
-     (out_constrained_st
-      (SVector
-       ((expr (Var N))
-        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
-     (out_block Parameters)))
-   (p_1d_simplex
-    ((out_unconstrained_st
-      (SArray
-       (SVector
-        ((expr
-          (FunApp StanLib Minus__
-           (((expr (Var N))
-             (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
-            ((expr (Lit Int 1))
-             (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))))
-         (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-       ((expr (Var N))
-        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
-     (out_constrained_st
-      (SArray
-       (SVector
-        ((expr (Var N))
-         (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-       ((expr (Var N))
-        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
-     (out_block Parameters)))
-   (p_3d_simplex
-    ((out_unconstrained_st
-      (SArray
-       (SArray
-        (SArray
-         (SVector
-          ((expr
-            (FunApp StanLib Minus__
-             (((expr (Var N))
-               (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
-              ((expr (Lit Int 1))
-               (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))))
-           (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-         ((expr (Var K))
-          (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-        ((expr (Var M))
-         (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-       ((expr (Var N))
-        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
-     (out_constrained_st
-      (SArray
-       (SArray
-        (SArray
-         (SVector
-          ((expr (Var N))
-           (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-         ((expr (Var K))
-          (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-        ((expr (Var M))
-         (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-       ((expr (Var N))
-        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
-     (out_block Parameters)))
-   (p_cfcov_54
-    ((out_unconstrained_st
-      (SVector
-       ((expr
-         (FunApp StanLib Plus__
-          (((expr
-             (FunApp StanLib Plus__
-              (((expr
-                 (FunApp StanLib Divide__
-                  (((expr
-                     (FunApp StanLib Times__
-                      (((expr (Lit Int 4))
-                        (emeta
-                         ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
-                       ((expr
-                         (FunApp StanLib Minus__
-                          (((expr (Lit Int 4))
-                            (emeta
-                             ((mtype UInt) (mloc <opaque>)
-                              (madlevel DataOnly))))
-                           ((expr (Lit Int 1))
-                            (emeta
-                             ((mtype UInt) (mloc <opaque>)
-                              (madlevel DataOnly)))))))
-                        (emeta
-                         ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))))
-                    (emeta
-                     ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
-                   ((expr (Lit Int 2))
-                    (emeta
-                     ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))))
-                (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
-               ((expr (Lit Int 4))
-                (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))))
-            (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
-           ((expr
-             (FunApp StanLib Times__
-              (((expr
-                 (FunApp StanLib Minus__
-                  (((expr (Lit Int 5))
-                    (emeta
-                     ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
-                   ((expr (Lit Int 4))
-                    (emeta
-                     ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))))
-                (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
-               ((expr (Lit Int 4))
-                (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))))
-            (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))))
-        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
-     (out_constrained_st
-      (SMatrix
-       ((expr (Lit Int 5))
-        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
-       ((expr (Lit Int 4))
-        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
-     (out_block Parameters)))
-   (p_cfcov_33
-    ((out_unconstrained_st
-      (SVector
-       ((expr
-         (FunApp StanLib Plus__
-          (((expr
-             (FunApp StanLib Plus__
-              (((expr
-                 (FunApp StanLib Divide__
-                  (((expr
-                     (FunApp StanLib Times__
-                      (((expr (Lit Int 3))
-                        (emeta
-                         ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
-                       ((expr
-                         (FunApp StanLib Minus__
-                          (((expr (Lit Int 3))
-                            (emeta
-                             ((mtype UInt) (mloc <opaque>)
-                              (madlevel DataOnly))))
-                           ((expr (Lit Int 1))
-                            (emeta
-                             ((mtype UInt) (mloc <opaque>)
-                              (madlevel DataOnly)))))))
-                        (emeta
-                         ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))))
-                    (emeta
-                     ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
-                   ((expr (Lit Int 2))
-                    (emeta
-                     ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))))
-                (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
-               ((expr (Lit Int 3))
-                (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))))
-            (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
-           ((expr
-             (FunApp StanLib Times__
-              (((expr
-                 (FunApp StanLib Minus__
-                  (((expr (Lit Int 3))
-                    (emeta
-                     ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
-                   ((expr (Lit Int 3))
-                    (emeta
-                     ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))))
-                (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
-               ((expr (Lit Int 3))
-                (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))))
-            (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))))
-        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
-     (out_constrained_st
-      (SMatrix
-       ((expr (Lit Int 3))
-        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
-       ((expr (Lit Int 3))
-        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
-     (out_block Parameters)))
-   (p_cfcov_33_ar
-    ((out_unconstrained_st
-      (SArray
-       (SVector
-        ((expr
-          (FunApp StanLib Plus__
-           (((expr
-              (FunApp StanLib Plus__
-               (((expr
-                  (FunApp StanLib Divide__
-                   (((expr
-                      (FunApp StanLib Times__
-                       (((expr (Lit Int 3))
-                         (emeta
-                          ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
-                        ((expr
-                          (FunApp StanLib Minus__
-                           (((expr (Lit Int 3))
-                             (emeta
-                              ((mtype UInt) (mloc <opaque>)
-                               (madlevel DataOnly))))
-                            ((expr (Lit Int 1))
-                             (emeta
-                              ((mtype UInt) (mloc <opaque>)
-                               (madlevel DataOnly)))))))
-                         (emeta
-                          ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))))
-                     (emeta
-                      ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
-                    ((expr (Lit Int 2))
-                     (emeta
-                      ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))))
-                 (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
-                ((expr (Lit Int 3))
-                 (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))))
-             (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
-            ((expr
-              (FunApp StanLib Times__
-               (((expr
-                  (FunApp StanLib Minus__
-                   (((expr (Lit Int 3))
-                     (emeta
-                      ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
-                    ((expr (Lit Int 3))
-                     (emeta
-                      ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))))
-                 (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
-                ((expr (Lit Int 3))
-                 (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))))
-             (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))))
-         (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-       ((expr (Var K))
-        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
-     (out_constrained_st
-      (SArray
-       (SMatrix
-        ((expr (Lit Int 3))
-         (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
-        ((expr (Lit Int 3))
-         (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-       ((expr (Var K))
-        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
-     (out_block Parameters)))
-   (tp_real_1d_ar
-    ((out_unconstrained_st
-      (SArray SReal
-       ((expr (Var N))
-        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
-     (out_constrained_st
-      (SArray SReal
-       ((expr (Var N))
-        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
-     (out_block TransformedParameters)))
+ (transformed_parameters
+  ((tp_real_1d_ar
+    (SArray SReal
+     ((expr (Var N))
+      (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
    (tp_real_3d_ar
-    ((out_unconstrained_st
-      (SArray
-       (SArray
-        (SArray SReal
-         ((expr (Var K))
-          (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-        ((expr (Var M))
-         (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-       ((expr (Var N))
-        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
-     (out_constrained_st
-      (SArray
-       (SArray
-        (SArray SReal
-         ((expr (Var K))
-          (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-        ((expr (Var M))
-         (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-       ((expr (Var N))
-        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
-     (out_block TransformedParameters)))
+    (SArray
+     (SArray
+      (SArray SReal
+       ((expr (Var K))
+        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
+      ((expr (Var M))
+       (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
+     ((expr (Var N))
+      (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
    (tp_vec
-    ((out_unconstrained_st
-      (SVector
-       ((expr (Var N))
-        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
-     (out_constrained_st
-      (SVector
-       ((expr (Var N))
-        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
-     (out_block TransformedParameters)))
+    (SVector
+     ((expr (Var N))
+      (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
    (tp_1d_vec
-    ((out_unconstrained_st
-      (SArray
-       (SVector
-        ((expr (Var N))
-         (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-       ((expr (Var N))
-        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
-     (out_constrained_st
-      (SArray
-       (SVector
-        ((expr (Var N))
-         (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-       ((expr (Var N))
-        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
-     (out_block TransformedParameters)))
+    (SArray
+     (SVector
+      ((expr (Var N))
+       (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
+     ((expr (Var N))
+      (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
    (tp_3d_vec
-    ((out_unconstrained_st
+    (SArray
+     (SArray
       (SArray
-       (SArray
-        (SArray
-         (SVector
-          ((expr (Var N))
-           (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-         ((expr (Var K))
-          (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-        ((expr (Var M))
+       (SVector
+        ((expr (Var N))
          (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-       ((expr (Var N))
-        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
-     (out_constrained_st
-      (SArray
-       (SArray
-        (SArray
-         (SVector
-          ((expr (Var N))
-           (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-         ((expr (Var K))
-          (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-        ((expr (Var M))
-         (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-       ((expr (Var N))
-        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
-     (out_block TransformedParameters)))
+       ((expr (Var K))
+        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
+      ((expr (Var M))
+       (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
+     ((expr (Var N))
+      (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
    (tp_row_vec
-    ((out_unconstrained_st
-      (SRowVector
-       ((expr (Var N))
-        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
-     (out_constrained_st
-      (SRowVector
-       ((expr (Var N))
-        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
-     (out_block TransformedParameters)))
+    (SRowVector
+     ((expr (Var N))
+      (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
    (tp_1d_row_vec
-    ((out_unconstrained_st
-      (SArray
-       (SRowVector
-        ((expr (Var N))
-         (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-       ((expr (Var N))
-        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
-     (out_constrained_st
-      (SArray
-       (SRowVector
-        ((expr (Var N))
-         (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-       ((expr (Var N))
-        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
-     (out_block TransformedParameters)))
+    (SArray
+     (SRowVector
+      ((expr (Var N))
+       (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
+     ((expr (Var N))
+      (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
    (tp_3d_row_vec
-    ((out_unconstrained_st
+    (SArray
+     (SArray
       (SArray
-       (SArray
-        (SArray
-         (SRowVector
-          ((expr (Var N))
-           (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-         ((expr (Var K))
-          (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-        ((expr (Var M))
+       (SRowVector
+        ((expr (Var N))
          (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-       ((expr (Var N))
-        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
-     (out_constrained_st
-      (SArray
-       (SArray
-        (SArray
-         (SRowVector
-          ((expr (Var N))
-           (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-         ((expr (Var K))
-          (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-        ((expr (Var M))
-         (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-       ((expr (Var N))
-        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
-     (out_block TransformedParameters)))
+       ((expr (Var K))
+        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
+      ((expr (Var M))
+       (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
+     ((expr (Var N))
+      (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
    (tp_ar_mat
-    ((out_unconstrained_st
-      (SArray
-       (SArray
-        (SMatrix
-         ((expr (Lit Int 2))
-          (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
-         ((expr (Lit Int 3))
-          (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-        ((expr (Lit Int 5))
-         (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-       ((expr (Lit Int 4))
-        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
-     (out_constrained_st
-      (SArray
-       (SArray
-        (SMatrix
-         ((expr (Lit Int 2))
-          (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
-         ((expr (Lit Int 3))
-          (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-        ((expr (Lit Int 5))
-         (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-       ((expr (Lit Int 4))
-        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
-     (out_block TransformedParameters)))
+    (SArray
+     (SArray
+      (SMatrix
+       ((expr (Lit Int 2))
+        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
+       ((expr (Lit Int 3))
+        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
+      ((expr (Lit Int 5))
+       (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
+     ((expr (Lit Int 4))
+      (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
    (tp_simplex
-    ((out_unconstrained_st
-      (SVector
-       ((expr
-         (FunApp StanLib Minus__
-          (((expr (Var N))
-            (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
-           ((expr (Lit Int 1))
-            (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))))
-        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
-     (out_constrained_st
-      (SVector
-       ((expr (Var N))
-        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
-     (out_block TransformedParameters)))
+    (SVector
+     ((expr (Var N))
+      (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
    (tp_1d_simplex
-    ((out_unconstrained_st
-      (SArray
-       (SVector
-        ((expr
-          (FunApp StanLib Minus__
-           (((expr (Var N))
-             (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
-            ((expr (Lit Int 1))
-             (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))))
-         (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-       ((expr (Var N))
-        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
-     (out_constrained_st
-      (SArray
-       (SVector
-        ((expr (Var N))
-         (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-       ((expr (Var N))
-        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
-     (out_block TransformedParameters)))
+    (SArray
+     (SVector
+      ((expr (Var N))
+       (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
+     ((expr (Var N))
+      (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
    (tp_3d_simplex
-    ((out_unconstrained_st
+    (SArray
+     (SArray
       (SArray
-       (SArray
-        (SArray
-         (SVector
-          ((expr
-            (FunApp StanLib Minus__
-             (((expr (Var N))
-               (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
-              ((expr (Lit Int 1))
-               (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))))
-           (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-         ((expr (Var K))
-          (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-        ((expr (Var M))
+       (SVector
+        ((expr (Var N))
          (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-       ((expr (Var N))
-        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
-     (out_constrained_st
-      (SArray
-       (SArray
-        (SArray
-         (SVector
-          ((expr (Var N))
-           (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-         ((expr (Var K))
-          (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-        ((expr (Var M))
-         (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-       ((expr (Var N))
-        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
-     (out_block TransformedParameters)))
+       ((expr (Var K))
+        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
+      ((expr (Var M))
+       (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
+     ((expr (Var N))
+      (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
    (tp_cfcov_54
-    ((out_unconstrained_st
-      (SVector
-       ((expr
-         (FunApp StanLib Plus__
-          (((expr
-             (FunApp StanLib Plus__
-              (((expr
-                 (FunApp StanLib Divide__
-                  (((expr
-                     (FunApp StanLib Times__
-                      (((expr (Lit Int 4))
-                        (emeta
-                         ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
-                       ((expr
-                         (FunApp StanLib Minus__
-                          (((expr (Lit Int 4))
-                            (emeta
-                             ((mtype UInt) (mloc <opaque>)
-                              (madlevel DataOnly))))
-                           ((expr (Lit Int 1))
-                            (emeta
-                             ((mtype UInt) (mloc <opaque>)
-                              (madlevel DataOnly)))))))
-                        (emeta
-                         ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))))
-                    (emeta
-                     ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
-                   ((expr (Lit Int 2))
-                    (emeta
-                     ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))))
-                (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
-               ((expr (Lit Int 4))
-                (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))))
-            (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
-           ((expr
-             (FunApp StanLib Times__
-              (((expr
-                 (FunApp StanLib Minus__
-                  (((expr (Lit Int 5))
-                    (emeta
-                     ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
-                   ((expr (Lit Int 4))
-                    (emeta
-                     ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))))
-                (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
-               ((expr (Lit Int 4))
-                (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))))
-            (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))))
-        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
-     (out_constrained_st
-      (SMatrix
-       ((expr (Lit Int 5))
-        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
-       ((expr (Lit Int 4))
-        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
-     (out_block TransformedParameters)))
+    (SMatrix
+     ((expr (Lit Int 5))
+      (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
+     ((expr (Lit Int 4))
+      (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
    (tp_cfcov_33
-    ((out_unconstrained_st
-      (SVector
-       ((expr
-         (FunApp StanLib Plus__
-          (((expr
-             (FunApp StanLib Plus__
-              (((expr
-                 (FunApp StanLib Divide__
-                  (((expr
-                     (FunApp StanLib Times__
-                      (((expr (Lit Int 3))
-                        (emeta
-                         ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
-                       ((expr
-                         (FunApp StanLib Minus__
-                          (((expr (Lit Int 3))
-                            (emeta
-                             ((mtype UInt) (mloc <opaque>)
-                              (madlevel DataOnly))))
-                           ((expr (Lit Int 1))
-                            (emeta
-                             ((mtype UInt) (mloc <opaque>)
-                              (madlevel DataOnly)))))))
-                        (emeta
-                         ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))))
-                    (emeta
-                     ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
-                   ((expr (Lit Int 2))
-                    (emeta
-                     ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))))
-                (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
-               ((expr (Lit Int 3))
-                (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))))
-            (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
-           ((expr
-             (FunApp StanLib Times__
-              (((expr
-                 (FunApp StanLib Minus__
-                  (((expr (Lit Int 3))
-                    (emeta
-                     ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
-                   ((expr (Lit Int 3))
-                    (emeta
-                     ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))))
-                (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
-               ((expr (Lit Int 3))
-                (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))))
-            (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))))
-        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
-     (out_constrained_st
+    (SMatrix
+     ((expr (Lit Int 3))
+      (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
+     ((expr (Lit Int 3))
+      (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
+   (tp_cfcov_33_ar
+    (SArray
+     (SMatrix
+      ((expr (Lit Int 3))
+       (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
+      ((expr (Lit Int 3))
+       (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
+     ((expr (Var K))
+      (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))))
+ (generated_quantities
+  ((gq_r1 SReal) (gq_r2 SReal)
+   (gq_real_1d_ar
+    (SArray SReal
+     ((expr (Var N))
+      (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
+   (gq_real_3d_ar
+    (SArray
+     (SArray
+      (SArray SReal
+       ((expr (Var K))
+        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
+      ((expr (Var M))
+       (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
+     ((expr (Var N))
+      (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
+   (gq_vec
+    (SVector
+     ((expr (Var N))
+      (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
+   (gq_1d_vec
+    (SArray
+     (SVector
+      ((expr (Var N))
+       (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
+     ((expr (Var N))
+      (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
+   (gq_3d_vec
+    (SArray
+     (SArray
+      (SArray
+       (SVector
+        ((expr (Var N))
+         (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
+       ((expr (Var K))
+        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
+      ((expr (Var M))
+       (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
+     ((expr (Var N))
+      (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
+   (gq_row_vec
+    (SRowVector
+     ((expr (Var N))
+      (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
+   (gq_1d_row_vec
+    (SArray
+     (SRowVector
+      ((expr (Var N))
+       (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
+     ((expr (Var N))
+      (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
+   (gq_3d_row_vec
+    (SArray
+     (SArray
+      (SArray
+       (SRowVector
+        ((expr (Var N))
+         (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
+       ((expr (Var K))
+        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
+      ((expr (Var M))
+       (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
+     ((expr (Var N))
+      (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
+   (gq_ar_mat
+    (SArray
+     (SArray
       (SMatrix
-       ((expr (Lit Int 3))
+       ((expr (Lit Int 2))
         (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
        ((expr (Lit Int 3))
-        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
-     (out_block TransformedParameters)))
-   (tp_cfcov_33_ar
-    ((out_unconstrained_st
-      (SArray
-       (SVector
-        ((expr
-          (FunApp StanLib Plus__
-           (((expr
-              (FunApp StanLib Plus__
-               (((expr
-                  (FunApp StanLib Divide__
-                   (((expr
-                      (FunApp StanLib Times__
-                       (((expr (Lit Int 3))
-                         (emeta
-                          ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
-                        ((expr
-                          (FunApp StanLib Minus__
-                           (((expr (Lit Int 3))
-                             (emeta
-                              ((mtype UInt) (mloc <opaque>)
-                               (madlevel DataOnly))))
-                            ((expr (Lit Int 1))
-                             (emeta
-                              ((mtype UInt) (mloc <opaque>)
-                               (madlevel DataOnly)))))))
-                         (emeta
-                          ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))))
-                     (emeta
-                      ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
-                    ((expr (Lit Int 2))
-                     (emeta
-                      ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))))
-                 (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
-                ((expr (Lit Int 3))
-                 (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))))
-             (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
-            ((expr
-              (FunApp StanLib Times__
-               (((expr
-                  (FunApp StanLib Minus__
-                   (((expr (Lit Int 3))
-                     (emeta
-                      ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
-                    ((expr (Lit Int 3))
-                     (emeta
-                      ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))))
-                 (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
-                ((expr (Lit Int 3))
-                 (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))))
-             (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))))
-         (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-       ((expr (Var K))
-        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
-     (out_constrained_st
-      (SArray
-       (SMatrix
-        ((expr (Lit Int 3))
-         (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
-        ((expr (Lit Int 3))
-         (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-       ((expr (Var K))
-        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
-     (out_block TransformedParameters)))
-   (gq_r1
-    ((out_unconstrained_st SReal) (out_constrained_st SReal)
-     (out_block GeneratedQuantities)))
-   (gq_r2
-    ((out_unconstrained_st SReal) (out_constrained_st SReal)
-     (out_block GeneratedQuantities)))
-   (gq_real_1d_ar
-    ((out_unconstrained_st
-      (SArray SReal
-       ((expr (Var N))
-        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
-     (out_constrained_st
-      (SArray SReal
-       ((expr (Var N))
-        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
-     (out_block GeneratedQuantities)))
-   (gq_real_3d_ar
-    ((out_unconstrained_st
-      (SArray
-       (SArray
-        (SArray SReal
-         ((expr (Var K))
-          (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-        ((expr (Var M))
-         (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-       ((expr (Var N))
-        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
-     (out_constrained_st
-      (SArray
-       (SArray
-        (SArray SReal
-         ((expr (Var K))
-          (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-        ((expr (Var M))
-         (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-       ((expr (Var N))
-        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
-     (out_block GeneratedQuantities)))
-   (gq_vec
-    ((out_unconstrained_st
-      (SVector
-       ((expr (Var N))
-        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
-     (out_constrained_st
-      (SVector
-       ((expr (Var N))
-        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
-     (out_block GeneratedQuantities)))
-   (gq_1d_vec
-    ((out_unconstrained_st
-      (SArray
-       (SVector
-        ((expr (Var N))
-         (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-       ((expr (Var N))
-        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
-     (out_constrained_st
-      (SArray
-       (SVector
-        ((expr (Var N))
-         (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-       ((expr (Var N))
-        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
-     (out_block GeneratedQuantities)))
-   (gq_3d_vec
-    ((out_unconstrained_st
-      (SArray
-       (SArray
-        (SArray
-         (SVector
-          ((expr (Var N))
-           (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-         ((expr (Var K))
-          (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-        ((expr (Var M))
-         (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-       ((expr (Var N))
-        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
-     (out_constrained_st
-      (SArray
-       (SArray
-        (SArray
-         (SVector
-          ((expr (Var N))
-           (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-         ((expr (Var K))
-          (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-        ((expr (Var M))
-         (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-       ((expr (Var N))
-        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
-     (out_block GeneratedQuantities)))
-   (gq_row_vec
-    ((out_unconstrained_st
-      (SRowVector
-       ((expr (Var N))
-        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
-     (out_constrained_st
-      (SRowVector
-       ((expr (Var N))
-        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
-     (out_block GeneratedQuantities)))
-   (gq_1d_row_vec
-    ((out_unconstrained_st
-      (SArray
-       (SRowVector
-        ((expr (Var N))
-         (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-       ((expr (Var N))
-        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
-     (out_constrained_st
-      (SArray
-       (SRowVector
-        ((expr (Var N))
-         (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-       ((expr (Var N))
-        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
-     (out_block GeneratedQuantities)))
-   (gq_3d_row_vec
-    ((out_unconstrained_st
-      (SArray
-       (SArray
-        (SArray
-         (SRowVector
-          ((expr (Var N))
-           (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-         ((expr (Var K))
-          (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-        ((expr (Var M))
-         (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-       ((expr (Var N))
-        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
-     (out_constrained_st
-      (SArray
-       (SArray
-        (SArray
-         (SRowVector
-          ((expr (Var N))
-           (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-         ((expr (Var K))
-          (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-        ((expr (Var M))
-         (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-       ((expr (Var N))
-        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
-     (out_block GeneratedQuantities)))
-   (gq_ar_mat
-    ((out_unconstrained_st
-      (SArray
-       (SArray
-        (SMatrix
-         ((expr (Lit Int 2))
-          (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
-         ((expr (Lit Int 3))
-          (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-        ((expr (Lit Int 5))
-         (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-       ((expr (Lit Int 4))
-        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
-     (out_constrained_st
-      (SArray
-       (SArray
-        (SMatrix
-         ((expr (Lit Int 2))
-          (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
-         ((expr (Lit Int 3))
-          (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-        ((expr (Lit Int 5))
-         (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-       ((expr (Lit Int 4))
-        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
-     (out_block GeneratedQuantities)))
+        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
+      ((expr (Lit Int 5))
+       (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
+     ((expr (Lit Int 4))
+      (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
    (gq_simplex
-    ((out_unconstrained_st
-      (SVector
-       ((expr
-         (FunApp StanLib Minus__
-          (((expr (Var N))
-            (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
-           ((expr (Lit Int 1))
-            (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))))
-        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
-     (out_constrained_st
-      (SVector
-       ((expr (Var N))
-        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
-     (out_block GeneratedQuantities)))
+    (SVector
+     ((expr (Var N))
+      (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
    (gq_1d_simplex
-    ((out_unconstrained_st
+    (SArray
+     (SVector
+      ((expr (Var N))
+       (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
+     ((expr (Var N))
+      (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
+   (gq_3d_simplex
+    (SArray
+     (SArray
+      (SArray
+       (SVector
+        ((expr (Var N))
+         (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
+       ((expr (Var K))
+        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
+      ((expr (Var M))
+       (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
+     ((expr (Var N))
+      (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
+   (gq_cfcov_54
+    (SMatrix
+     ((expr (Lit Int 5))
+      (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
+     ((expr (Lit Int 4))
+      (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
+   (gq_cfcov_33
+    (SMatrix
+     ((expr (Lit Int 3))
+      (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
+     ((expr (Lit Int 3))
+      (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
+   (gq_cfcov_33_ar
+    (SArray
+     (SMatrix
+      ((expr (Lit Int 3))
+       (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
+      ((expr (Lit Int 3))
+       (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
+     ((expr (Var K))
+      (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
+   (indices
+    (SArray SInt
+     ((expr (Lit Int 3))
+      (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
+   (indexing_mat
+    (SArray
+     (SMatrix
+      ((expr (Lit Int 3))
+       (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
+      ((expr (Lit Int 4))
+       (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
+     ((expr (Lit Int 5))
+      (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
+   (idx_res1
+    (SArray
+     (SMatrix
+      ((expr (Lit Int 3))
+       (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
+      ((expr (Lit Int 4))
+       (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
+     ((expr (Lit Int 3))
+      (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
+   (idx_res2
+    (SArray
+     (SMatrix
+      ((expr (Lit Int 3))
+       (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
+      ((expr (Lit Int 4))
+       (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
+     ((expr (Lit Int 5))
+      (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
+   (idx_res3
+    (SArray
+     (SMatrix
+      ((expr (Lit Int 3))
+       (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
+      ((expr (Lit Int 3))
+       (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
+     ((expr (Lit Int 3))
+      (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
+   (idx_res11
+    (SArray
+     (SMatrix
+      ((expr (Lit Int 3))
+       (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
+      ((expr (Lit Int 4))
+       (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
+     ((expr (Lit Int 3))
+      (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
+   (idx_res21
+    (SArray
+     (SMatrix
+      ((expr (Lit Int 3))
+       (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
+      ((expr (Lit Int 4))
+       (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
+     ((expr (Lit Int 5))
+      (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
+   (idx_res31
+    (SArray
+     (SMatrix
+      ((expr (Lit Int 3))
+       (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
+      ((expr (Lit Int 3))
+       (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
+     ((expr (Lit Int 3))
+      (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
+   (idx_res4
+    (SArray
+     (SRowVector
+      ((expr (Lit Int 4))
+       (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
+     ((expr (Lit Int 3))
+      (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
+   (idx_res5
+    (SArray
+     (SVector
+      ((expr (Lit Int 2))
+       (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
+     ((expr (Lit Int 2))
+      (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))))
+ (unconstrained_parameters
+  ((p_real SReal)
+   (offset_multiplier
+    (SArray SReal
+     ((expr (Lit Int 5))
+      (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
+   (p_real_1d_ar
+    (SArray SReal
+     ((expr (Var N))
+      (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
+   (p_real_3d_ar
+    (SArray
+     (SArray
+      (SArray SReal
+       ((expr (Var K))
+        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
+      ((expr (Var M))
+       (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
+     ((expr (Var N))
+      (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
+   (p_vec
+    (SVector
+     ((expr (Var N))
+      (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
+   (p_1d_vec
+    (SArray
+     (SVector
+      ((expr (Var N))
+       (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
+     ((expr (Var N))
+      (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
+   (p_3d_vec
+    (SArray
+     (SArray
+      (SArray
+       (SVector
+        ((expr (Var N))
+         (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
+       ((expr (Var K))
+        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
+      ((expr (Var M))
+       (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
+     ((expr (Var N))
+      (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
+   (p_row_vec
+    (SRowVector
+     ((expr (Var N))
+      (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
+   (p_1d_row_vec
+    (SArray
+     (SRowVector
+      ((expr (Var N))
+       (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
+     ((expr (Var N))
+      (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
+   (p_3d_row_vec
+    (SArray
+     (SArray
+      (SArray
+       (SRowVector
+        ((expr (Var N))
+         (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
+       ((expr (Var K))
+        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
+      ((expr (Var M))
+       (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
+     ((expr (Var N))
+      (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
+   (p_ar_mat
+    (SArray
+     (SArray
+      (SMatrix
+       ((expr (Lit Int 2))
+        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
+       ((expr (Lit Int 3))
+        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
+      ((expr (Lit Int 5))
+       (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
+     ((expr (Lit Int 4))
+      (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
+   (p_simplex
+    (SVector
+     ((expr
+       (FunApp StanLib Minus__
+        (((expr (Var N))
+          (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
+         ((expr (Lit Int 1))
+          (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))))
+      (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
+   (p_1d_simplex
+    (SArray
+     (SVector
+      ((expr
+        (FunApp StanLib Minus__
+         (((expr (Var N))
+           (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
+          ((expr (Lit Int 1))
+           (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))))
+       (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
+     ((expr (Var N))
+      (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
+   (p_3d_simplex
+    (SArray
+     (SArray
       (SArray
        (SVector
         ((expr
@@ -10100,408 +9499,271 @@
             ((expr (Lit Int 1))
              (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))))
          (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-       ((expr (Var N))
-        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
-     (out_constrained_st
+       ((expr (Var K))
+        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
+      ((expr (Var M))
+       (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
+     ((expr (Var N))
+      (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
+   (p_cfcov_54
+    (SVector
+     ((expr
+       (FunApp StanLib Plus__
+        (((expr
+           (FunApp StanLib Plus__
+            (((expr
+               (FunApp StanLib Divide__
+                (((expr
+                   (FunApp StanLib Times__
+                    (((expr (Lit Int 4))
+                      (emeta
+                       ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
+                     ((expr
+                       (FunApp StanLib Minus__
+                        (((expr (Lit Int 4))
+                          (emeta
+                           ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
+                         ((expr (Lit Int 1))
+                          (emeta
+                           ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))))
+                      (emeta
+                       ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))))
+                  (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
+                 ((expr (Lit Int 2))
+                  (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))))
+              (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
+             ((expr (Lit Int 4))
+              (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))))
+          (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
+         ((expr
+           (FunApp StanLib Times__
+            (((expr
+               (FunApp StanLib Minus__
+                (((expr (Lit Int 5))
+                  (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
+                 ((expr (Lit Int 4))
+                  (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))))
+              (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
+             ((expr (Lit Int 4))
+              (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))))
+          (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))))
+      (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
+   (p_cfcov_33
+    (SVector
+     ((expr
+       (FunApp StanLib Plus__
+        (((expr
+           (FunApp StanLib Plus__
+            (((expr
+               (FunApp StanLib Divide__
+                (((expr
+                   (FunApp StanLib Times__
+                    (((expr (Lit Int 3))
+                      (emeta
+                       ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
+                     ((expr
+                       (FunApp StanLib Minus__
+                        (((expr (Lit Int 3))
+                          (emeta
+                           ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
+                         ((expr (Lit Int 1))
+                          (emeta
+                           ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))))
+                      (emeta
+                       ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))))
+                  (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
+                 ((expr (Lit Int 2))
+                  (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))))
+              (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
+             ((expr (Lit Int 3))
+              (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))))
+          (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
+         ((expr
+           (FunApp StanLib Times__
+            (((expr
+               (FunApp StanLib Minus__
+                (((expr (Lit Int 3))
+                  (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
+                 ((expr (Lit Int 3))
+                  (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))))
+              (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
+             ((expr (Lit Int 3))
+              (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))))
+          (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))))
+      (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
+   (p_cfcov_33_ar
+    (SArray
+     (SVector
+      ((expr
+        (FunApp StanLib Plus__
+         (((expr
+            (FunApp StanLib Plus__
+             (((expr
+                (FunApp StanLib Divide__
+                 (((expr
+                    (FunApp StanLib Times__
+                     (((expr (Lit Int 3))
+                       (emeta
+                        ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
+                      ((expr
+                        (FunApp StanLib Minus__
+                         (((expr (Lit Int 3))
+                           (emeta
+                            ((mtype UInt) (mloc <opaque>)
+                             (madlevel DataOnly))))
+                          ((expr (Lit Int 1))
+                           (emeta
+                            ((mtype UInt) (mloc <opaque>)
+                             (madlevel DataOnly)))))))
+                       (emeta
+                        ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))))
+                   (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
+                  ((expr (Lit Int 2))
+                   (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))))
+               (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
+              ((expr (Lit Int 3))
+               (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))))
+           (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
+          ((expr
+            (FunApp StanLib Times__
+             (((expr
+                (FunApp StanLib Minus__
+                 (((expr (Lit Int 3))
+                   (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
+                  ((expr (Lit Int 3))
+                   (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))))
+               (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
+              ((expr (Lit Int 3))
+               (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))))
+           (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))))
+       (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
+     ((expr (Var K))
+      (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))))
+ (constrained_parameters
+  ((p_real SReal)
+   (offset_multiplier
+    (SArray SReal
+     ((expr (Lit Int 5))
+      (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
+   (p_real_1d_ar
+    (SArray SReal
+     ((expr (Var N))
+      (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
+   (p_real_3d_ar
+    (SArray
+     (SArray
+      (SArray SReal
+       ((expr (Var K))
+        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
+      ((expr (Var M))
+       (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
+     ((expr (Var N))
+      (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
+   (p_vec
+    (SVector
+     ((expr (Var N))
+      (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
+   (p_1d_vec
+    (SArray
+     (SVector
+      ((expr (Var N))
+       (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
+     ((expr (Var N))
+      (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
+   (p_3d_vec
+    (SArray
+     (SArray
       (SArray
        (SVector
         ((expr (Var N))
          (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-       ((expr (Var N))
-        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
-     (out_block GeneratedQuantities)))
-   (gq_3d_simplex
-    ((out_unconstrained_st
-      (SArray
-       (SArray
-        (SArray
-         (SVector
-          ((expr
-            (FunApp StanLib Minus__
-             (((expr (Var N))
-               (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
-              ((expr (Lit Int 1))
-               (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))))
-           (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-         ((expr (Var K))
-          (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-        ((expr (Var M))
-         (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-       ((expr (Var N))
-        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
-     (out_constrained_st
-      (SArray
-       (SArray
-        (SArray
-         (SVector
-          ((expr (Var N))
-           (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-         ((expr (Var K))
-          (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-        ((expr (Var M))
-         (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-       ((expr (Var N))
-        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
-     (out_block GeneratedQuantities)))
-   (gq_cfcov_54
-    ((out_unconstrained_st
-      (SVector
-       ((expr
-         (FunApp StanLib Plus__
-          (((expr
-             (FunApp StanLib Plus__
-              (((expr
-                 (FunApp StanLib Divide__
-                  (((expr
-                     (FunApp StanLib Times__
-                      (((expr (Lit Int 4))
-                        (emeta
-                         ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
-                       ((expr
-                         (FunApp StanLib Minus__
-                          (((expr (Lit Int 4))
-                            (emeta
-                             ((mtype UInt) (mloc <opaque>)
-                              (madlevel DataOnly))))
-                           ((expr (Lit Int 1))
-                            (emeta
-                             ((mtype UInt) (mloc <opaque>)
-                              (madlevel DataOnly)))))))
-                        (emeta
-                         ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))))
-                    (emeta
-                     ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
-                   ((expr (Lit Int 2))
-                    (emeta
-                     ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))))
-                (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
-               ((expr (Lit Int 4))
-                (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))))
-            (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
-           ((expr
-             (FunApp StanLib Times__
-              (((expr
-                 (FunApp StanLib Minus__
-                  (((expr (Lit Int 5))
-                    (emeta
-                     ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
-                   ((expr (Lit Int 4))
-                    (emeta
-                     ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))))
-                (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
-               ((expr (Lit Int 4))
-                (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))))
-            (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))))
-        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
-     (out_constrained_st
-      (SMatrix
-       ((expr (Lit Int 5))
-        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
-       ((expr (Lit Int 4))
-        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
-     (out_block GeneratedQuantities)))
-   (gq_cfcov_33
-    ((out_unconstrained_st
-      (SVector
-       ((expr
-         (FunApp StanLib Plus__
-          (((expr
-             (FunApp StanLib Plus__
-              (((expr
-                 (FunApp StanLib Divide__
-                  (((expr
-                     (FunApp StanLib Times__
-                      (((expr (Lit Int 3))
-                        (emeta
-                         ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
-                       ((expr
-                         (FunApp StanLib Minus__
-                          (((expr (Lit Int 3))
-                            (emeta
-                             ((mtype UInt) (mloc <opaque>)
-                              (madlevel DataOnly))))
-                           ((expr (Lit Int 1))
-                            (emeta
-                             ((mtype UInt) (mloc <opaque>)
-                              (madlevel DataOnly)))))))
-                        (emeta
-                         ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))))
-                    (emeta
-                     ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
-                   ((expr (Lit Int 2))
-                    (emeta
-                     ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))))
-                (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
-               ((expr (Lit Int 3))
-                (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))))
-            (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
-           ((expr
-             (FunApp StanLib Times__
-              (((expr
-                 (FunApp StanLib Minus__
-                  (((expr (Lit Int 3))
-                    (emeta
-                     ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
-                   ((expr (Lit Int 3))
-                    (emeta
-                     ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))))
-                (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
-               ((expr (Lit Int 3))
-                (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))))
-            (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))))
-        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
-     (out_constrained_st
-      (SMatrix
-       ((expr (Lit Int 3))
-        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
-       ((expr (Lit Int 3))
-        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
-     (out_block GeneratedQuantities)))
-   (gq_cfcov_33_ar
-    ((out_unconstrained_st
-      (SArray
-       (SVector
-        ((expr
-          (FunApp StanLib Plus__
-           (((expr
-              (FunApp StanLib Plus__
-               (((expr
-                  (FunApp StanLib Divide__
-                   (((expr
-                      (FunApp StanLib Times__
-                       (((expr (Lit Int 3))
-                         (emeta
-                          ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
-                        ((expr
-                          (FunApp StanLib Minus__
-                           (((expr (Lit Int 3))
-                             (emeta
-                              ((mtype UInt) (mloc <opaque>)
-                               (madlevel DataOnly))))
-                            ((expr (Lit Int 1))
-                             (emeta
-                              ((mtype UInt) (mloc <opaque>)
-                               (madlevel DataOnly)))))))
-                         (emeta
-                          ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))))
-                     (emeta
-                      ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
-                    ((expr (Lit Int 2))
-                     (emeta
-                      ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))))
-                 (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
-                ((expr (Lit Int 3))
-                 (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))))
-             (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
-            ((expr
-              (FunApp StanLib Times__
-               (((expr
-                  (FunApp StanLib Minus__
-                   (((expr (Lit Int 3))
-                     (emeta
-                      ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
-                    ((expr (Lit Int 3))
-                     (emeta
-                      ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))))
-                 (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
-                ((expr (Lit Int 3))
-                 (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))))
-             (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))))
-         (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
        ((expr (Var K))
-        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
-     (out_constrained_st
-      (SArray
-       (SMatrix
-        ((expr (Lit Int 3))
-         (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
-        ((expr (Lit Int 3))
-         (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-       ((expr (Var K))
-        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
-     (out_block GeneratedQuantities)))
-   (indices
-    ((out_unconstrained_st
-      (SArray SInt
-       ((expr (Lit Int 3))
-        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
-     (out_constrained_st
-      (SArray SInt
-       ((expr (Lit Int 3))
-        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
-     (out_block GeneratedQuantities)))
-   (indexing_mat
-    ((out_unconstrained_st
-      (SArray
-       (SMatrix
-        ((expr (Lit Int 3))
-         (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
-        ((expr (Lit Int 4))
-         (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-       ((expr (Lit Int 5))
-        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
-     (out_constrained_st
-      (SArray
-       (SMatrix
-        ((expr (Lit Int 3))
-         (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
-        ((expr (Lit Int 4))
-         (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-       ((expr (Lit Int 5))
-        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
-     (out_block GeneratedQuantities)))
-   (idx_res1
-    ((out_unconstrained_st
-      (SArray
-       (SMatrix
-        ((expr (Lit Int 3))
-         (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
-        ((expr (Lit Int 4))
-         (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-       ((expr (Lit Int 3))
-        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
-     (out_constrained_st
-      (SArray
-       (SMatrix
-        ((expr (Lit Int 3))
-         (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
-        ((expr (Lit Int 4))
-         (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-       ((expr (Lit Int 3))
-        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
-     (out_block GeneratedQuantities)))
-   (idx_res2
-    ((out_unconstrained_st
-      (SArray
-       (SMatrix
-        ((expr (Lit Int 3))
-         (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
-        ((expr (Lit Int 4))
-         (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-       ((expr (Lit Int 5))
-        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
-     (out_constrained_st
-      (SArray
-       (SMatrix
-        ((expr (Lit Int 3))
-         (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
-        ((expr (Lit Int 4))
-         (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-       ((expr (Lit Int 5))
-        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
-     (out_block GeneratedQuantities)))
-   (idx_res3
-    ((out_unconstrained_st
-      (SArray
-       (SMatrix
-        ((expr (Lit Int 3))
-         (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
-        ((expr (Lit Int 3))
-         (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-       ((expr (Lit Int 3))
-        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
-     (out_constrained_st
-      (SArray
-       (SMatrix
-        ((expr (Lit Int 3))
-         (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
-        ((expr (Lit Int 3))
-         (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-       ((expr (Lit Int 3))
-        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
-     (out_block GeneratedQuantities)))
-   (idx_res11
-    ((out_unconstrained_st
-      (SArray
-       (SMatrix
-        ((expr (Lit Int 3))
-         (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
-        ((expr (Lit Int 4))
-         (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-       ((expr (Lit Int 3))
-        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
-     (out_constrained_st
-      (SArray
-       (SMatrix
-        ((expr (Lit Int 3))
-         (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
-        ((expr (Lit Int 4))
-         (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-       ((expr (Lit Int 3))
-        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
-     (out_block GeneratedQuantities)))
-   (idx_res21
-    ((out_unconstrained_st
-      (SArray
-       (SMatrix
-        ((expr (Lit Int 3))
-         (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
-        ((expr (Lit Int 4))
-         (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-       ((expr (Lit Int 5))
-        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
-     (out_constrained_st
-      (SArray
-       (SMatrix
-        ((expr (Lit Int 3))
-         (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
-        ((expr (Lit Int 4))
-         (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-       ((expr (Lit Int 5))
-        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
-     (out_block GeneratedQuantities)))
-   (idx_res31
-    ((out_unconstrained_st
-      (SArray
-       (SMatrix
-        ((expr (Lit Int 3))
-         (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
-        ((expr (Lit Int 3))
-         (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-       ((expr (Lit Int 3))
-        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
-     (out_constrained_st
-      (SArray
-       (SMatrix
-        ((expr (Lit Int 3))
-         (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
-        ((expr (Lit Int 3))
-         (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-       ((expr (Lit Int 3))
-        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
-     (out_block GeneratedQuantities)))
-   (idx_res4
-    ((out_unconstrained_st
+        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
+      ((expr (Var M))
+       (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
+     ((expr (Var N))
+      (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
+   (p_row_vec
+    (SRowVector
+     ((expr (Var N))
+      (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
+   (p_1d_row_vec
+    (SArray
+     (SRowVector
+      ((expr (Var N))
+       (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
+     ((expr (Var N))
+      (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
+   (p_3d_row_vec
+    (SArray
+     (SArray
       (SArray
        (SRowVector
-        ((expr (Lit Int 4))
+        ((expr (Var N))
          (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
+       ((expr (Var K))
+        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
+      ((expr (Var M))
+       (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
+     ((expr (Var N))
+      (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
+   (p_ar_mat
+    (SArray
+     (SArray
+      (SMatrix
+       ((expr (Lit Int 2))
+        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
        ((expr (Lit Int 3))
-        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
-     (out_constrained_st
-      (SArray
-       (SRowVector
-        ((expr (Lit Int 4))
-         (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-       ((expr (Lit Int 3))
-        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
-     (out_block GeneratedQuantities)))
-   (idx_res5
-    ((out_unconstrained_st
+        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
+      ((expr (Lit Int 5))
+       (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
+     ((expr (Lit Int 4))
+      (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
+   (p_simplex
+    (SVector
+     ((expr (Var N))
+      (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
+   (p_1d_simplex
+    (SArray
+     (SVector
+      ((expr (Var N))
+       (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
+     ((expr (Var N))
+      (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
+   (p_3d_simplex
+    (SArray
+     (SArray
       (SArray
        (SVector
-        ((expr (Lit Int 2))
+        ((expr (Var N))
          (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-       ((expr (Lit Int 2))
-        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
-     (out_constrained_st
-      (SArray
-       (SVector
-        ((expr (Lit Int 2))
-         (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
-       ((expr (Lit Int 2))
-        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
-     (out_block GeneratedQuantities)))))
+       ((expr (Var K))
+        (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
+      ((expr (Var M))
+       (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
+     ((expr (Var N))
+      (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
+   (p_cfcov_54
+    (SMatrix
+     ((expr (Lit Int 5))
+      (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
+     ((expr (Lit Int 4))
+      (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
+   (p_cfcov_33
+    (SMatrix
+     ((expr (Lit Int 3))
+      (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
+     ((expr (Lit Int 3))
+      (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))
+   (p_cfcov_33_ar
+    (SArray
+     (SMatrix
+      ((expr (Lit Int 3))
+       (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))
+      ((expr (Lit Int 3))
+       (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly)))))
+     ((expr (Var K))
+      (emeta ((mtype UInt) (mloc <opaque>) (madlevel DataOnly))))))))
  (prog_name mother_model) (prog_path mother.stan))
 
 Warning: deprecated language construct used in 'mother.stan', line 60, column 21:
