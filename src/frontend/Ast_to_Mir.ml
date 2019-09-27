@@ -550,15 +550,18 @@ let trans_prog filename (p : Ast.typed_program) : typed_prog =
   in
   let fst_two (a, b, _) = (a, b) in
   let constrained_parameters =
-    map get_name_size p.parametersblock
-    |> List.map ~f:fst_two in
+    map get_name_size p.parametersblock |> List.map ~f:fst_two
+  in
   let unconstrained_parameters =
     map get_name_size p.parametersblock
-    |> List.map ~f:(fun (n, s, t) -> n, param_size t s) in
-  let transformed_parameters = map get_name_size p.transformedparametersblock
-                               |> List.map ~f:fst_two in
-  let generated_quantities = map get_name_size p.generatedquantitiesblock
-                           |> List.map ~f:fst_two in
+    |> List.map ~f:(fun (n, s, t) -> (n, param_size t s))
+  in
+  let transformed_parameters =
+    map get_name_size p.transformedparametersblock |> List.map ~f:fst_two
+  in
+  let generated_quantities =
+    map get_name_size p.generatedquantitiesblock |> List.map ~f:fst_two
+  in
   let input_vars = map get_name_size datablock |> List.map ~f:fst_two in
   let declc = {dconstrain= None; dadlevel= DataOnly} in
   let datab =
@@ -605,7 +608,9 @@ let trans_prog filename (p : Ast.typed_program) : typed_prog =
   in
   let gq_stmts =
     migrate_checks_to_end_of_block
-      (gen_from_block {declc with dconstrain= Some Check} p.generatedquantitiesblock)
+      (gen_from_block
+         {declc with dconstrain= Some Check}
+         p.generatedquantitiesblock)
   in
   let gq_early_return =
     [ compiler_if_return

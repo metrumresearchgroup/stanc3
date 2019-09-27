@@ -138,8 +138,7 @@ type ('e, 's) statement =
       ; decl_type: 'e possiblysizedtype }
 [@@deriving sexp, hash, map, fold]
 
-type 'e var_type_map = (string * 'e sizedtype) list
-[@@deriving sexp, map]
+type 'e var_type_map = (string * 'e sizedtype) list [@@deriving sexp, map]
 
 type ('e, 's) prog =
   { functions_block: 's fun_def list

@@ -192,7 +192,8 @@ let pp_ctor ppf (p : Locations.typed_prog_num) =
   let pp_num_param ppf dims =
     pf ppf "num_params_r__ += %a;" (list ~sep:pp_mul pp_expr) dims
   in
-  let get_st_dims (_, st) = match get_dims st with [] -> Some [loop_bottom] | ls -> Some ls
+  let get_st_dims (_, st) =
+    match get_dims st with [] -> Some [loop_bottom] | ls -> Some ls
   in
   let pp_stmt_topdecl_size_only ppf s =
     match s.stmt with
@@ -217,7 +218,7 @@ let pp_ctor ppf (p : Locations.typed_prog_num) =
         pf ppf "num_params_r__ = 0U;@ " ;
         pf ppf "%a@ "
           (list ~sep:cut pp_num_param)
-          (p.unconstrained_parameters |> List.filter_map ~f:get_st_dims))
+          (p.unconstrained_parameters |> List.filter_map ~f:get_st_dims) )
     , p )
 
 let pp_model_private ppf p =
@@ -238,14 +239,14 @@ let pp_method ppf rt name params intro ?(outro = []) ppbody =
   pf ppf "@,} // %s() @,@]" name
 
 let get_output_vars p =
-     p.constrained_parameters @ p.transformed_parameters @ p.generated_quantities
+  p.constrained_parameters @ p.transformed_parameters @ p.generated_quantities
 
 let pp_get_param_names ppf p =
   let add_param = fmt "names__.push_back(%S);" in
   pp_method ppf "void" "get_param_names" ["std::vector<std::string>& names__"]
     [] (fun ppf ->
       pf ppf "names__.resize(0);@ " ;
-      (list ~sep:cut add_param) ppf (List.map ~f:fst (get_output_vars p)))
+      (list ~sep:cut add_param) ppf (List.map ~f:fst (get_output_vars p)) )
 
 let pp_get_dims ppf p =
   let pp_dim ppf dim = pf ppf "dims__.push_back(%a);@," pp_expr dim in
@@ -321,7 +322,7 @@ let pp_constrained_param_names ppf p =
     pp_for_loop_iteratee ppf (decl_id, dims, emit_name)
   in
   pp_method ppf "void" "constrained_param_names" params [] (fun ppf ->
-      (list ~sep:cut pp_param_names) ppf p.constrained_parameters;
+      (list ~sep:cut pp_param_names) ppf p.constrained_parameters ;
       pf ppf "@,if (emit_transformed_parameters__) %a@," pp_block
         (list ~sep:cut pp_param_names, p.transformed_parameters) ;
       pf ppf "@,if (emit_generated_quantities__) %a@," pp_block
@@ -461,10 +462,14 @@ let pp_model_public ppf p =
   pf ppf "@ %a" pp_get_dims p ;
   pf ppf "@ %a" pp_constrained_param_names p ;
   pf ppf "@ %a" pp_unconstrained_param_names p ;
-  pf ppf "@ %a" pp_outvar_metadata ("get_unconstrained_param_sizedtypes", p.unconstrained_parameters) ;
-  pf ppf "@ %a" pp_outvar_metadata ("get_constrained_param_sizedtypes", p.constrained_parameters) ;
-  pf ppf "@ %a" pp_outvar_metadata ("get_transformed_param_sizedtypes", p.transformed_parameters) ;
-  pf ppf "@ %a" pp_outvar_metadata ("get_generated_quantities_sizedtypes", p.generated_quantities) ;
+  pf ppf "@ %a" pp_outvar_metadata
+    ("get_unconstrained_param_sizedtypes", p.unconstrained_parameters) ;
+  pf ppf "@ %a" pp_outvar_metadata
+    ("get_constrained_param_sizedtypes", p.constrained_parameters) ;
+  pf ppf "@ %a" pp_outvar_metadata
+    ("get_transformed_param_sizedtypes", p.transformed_parameters) ;
+  pf ppf "@ %a" pp_outvar_metadata
+    ("get_generated_quantities_sizedtypes", p.generated_quantities) ;
   (* Boilerplate *)
   pf ppf "@ %a" pp_overloads ()
 

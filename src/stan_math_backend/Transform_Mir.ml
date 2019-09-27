@@ -54,11 +54,11 @@ let param_read smeta (decl_id, (ucst, cst)) =
     match cst = ucst with
     | true -> (decl_id, [])
     | false ->
-      let decl_id = decl_id ^ "_in__" in
-      let d =
-        Decl {decl_adtype= AutoDiffable; decl_id; decl_type= Sized ucst}
-      in
-      (decl_id, [{stmt= d; smeta}])
+        let decl_id = decl_id ^ "_in__" in
+        let d =
+          Decl {decl_adtype= AutoDiffable; decl_id; decl_type= Sized ucst}
+        in
+        (decl_id, [{stmt= d; smeta}])
   in
   let unconstrained_decl_var =
     { expr= Var decl_id
@@ -69,7 +69,7 @@ let param_read smeta (decl_id, (ucst, cst)) =
       internal_funapp FnReadParam
         ( { expr= Lit (Str, base_ut_to_string (remove_size ucst))
           ; emeta= internal_meta }
-          :: eigen_size ucst )
+        :: eigen_size ucst )
         {var.emeta with mtype= base_type ucst}
     in
     assign_indexed (remove_size cst) decl_id smeta readfnapp var
@@ -155,9 +155,13 @@ let rec contains_var_expr is_vident accum {expr; _} =
 *)
 let constrain_in_params params_with_both_types stmts =
   let is_target_var (name, (unconstrained_st, constrained_st)) =
-    if (unconstrained_st = constrained_st) then None else Some name
+    if unconstrained_st = constrained_st then None else Some name
   in
-  let target_vars = params_with_both_types |> List.filter_map ~f:is_target_var |> String.Set.of_list in
+  let target_vars =
+    params_with_both_types
+    |> List.filter_map ~f:is_target_var
+    |> String.Set.of_list
+  in
   let rec change_constrain_target s =
     match s.stmt with
     | Assignment (_, {expr= FunApp (CompilerInternal, f, args); _})
@@ -198,7 +202,7 @@ let trans_prog (p : typed_prog) =
   in
   let log_prob = List.map ~f:add_jacobians p.log_prob in
   let param_writes = List.map ~f:gen_write p.constrained_parameters in
-  let tparam_writes = List.map ~f:gen_write p.transformed_parameters  in
+  let tparam_writes = List.map ~f:gen_write p.transformed_parameters in
   let gq_writes = List.map ~f:gen_write p.generated_quantities in
   let tparam_start {stmt; _} =
     match stmt with
@@ -220,7 +224,7 @@ let trans_prog (p : typed_prog) =
   in
   let params_with_both_types =
     List.zip_exn p.unconstrained_parameters p.constrained_parameters
-  |> List.map ~f:(fun ((name, ucst), (_, cst)) -> name, (ucst, cst))
+    |> List.map ~f:(fun ((name, ucst), (_, cst)) -> (name, (ucst, cst)))
   in
   let with_param_reads block =
     add_reads block params_with_both_types param_read

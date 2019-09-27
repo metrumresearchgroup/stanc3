@@ -211,10 +211,10 @@ let pp_prog pp_e pp_s ppf prog =
   pp_generate_quantities pp_s ppf prog ;
   pp_transform_inits pp_s ppf prog ;
   Fmt.list ~sep:Fmt.cut (pp_var_type_map pp_e) ppf
-    ["constrained parameters", prog.constrained_parameters
-    ; "unconstrained parameters", prog.unconstrained_parameters
-    ; "transformed parameters", prog.transformed_parameters
-    ; "generated quantities", prog.generated_quantities] ;
+    [ ("constrained parameters", prog.constrained_parameters)
+    ; ("unconstrained parameters", prog.unconstrained_parameters)
+    ; ("transformed parameters", prog.transformed_parameters)
+    ; ("generated quantities", prog.generated_quantities) ] ;
   Format.close_box ()
 
 let rec pp_expr_typed_located ppf {expr; _} =

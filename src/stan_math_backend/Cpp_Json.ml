@@ -22,9 +22,7 @@ let rec sizedtype_to_json (st : mtype_loc_ad with_expr sizedtype) :
         ; ("element_type", sizedtype_to_json st) ]
 
 let var_type_json (name, st) : Yojson.Basic.t =
-  `Assoc
-    [ ("name", `String name)
-    ; ("type", sizedtype_to_json st)]
+  `Assoc [("name", `String name); ("type", sizedtype_to_json st)]
 
 let%expect_test "outvar to json pretty" =
   let var x = {expr= Var x; emeta= internal_meta} in

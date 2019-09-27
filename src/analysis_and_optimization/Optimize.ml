@@ -795,8 +795,7 @@ let optimize_ad_levels mir =
     let (module Rev_Flowgraph) = rev_flowgraph in
     let (module Fwd_Flowgraph) = fwd_flowgraph in
     let initial_ad_variables =
-      Set.Poly.of_list
-        (List.map ~f:fst mir.constrained_parameters)
+      Set.Poly.of_list (List.map ~f:fst mir.constrained_parameters)
     in
     let ad_levels =
       Monotone_framework.autodiff_level_mfp
