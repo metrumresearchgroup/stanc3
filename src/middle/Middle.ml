@@ -5,7 +5,6 @@ include Mir_utils
 open Core_kernel
 module Validation = Validation
 module Pretty = Mir_pretty_printer
-module Utils = Utils
 
 (* -- Locations and spans --------------------------------------------------- *)
 
@@ -166,7 +165,10 @@ let%expect_test "infer type of indexed" =
     vector, matrix[], matrix, vector[], real, real[] |}]
 
 (** [add_index expression index] returns an expression that (additionally)
-    indexes into the input [expression] by [index].*)
+  *  indexes into the input [expression] by [index].
+  * e: mytype_loc_ad with_expr
+  * i: mtype_loc_ad with_expr index
+  *)
 let add_int_index e i =
   let mtype = infer_type_of_indexed e.emeta.mtype [i] in
   let expr =
@@ -176,6 +178,21 @@ let add_int_index e i =
     | _ -> raise_s [%message "These should go away with Ryan's LHS"]
   in
   {expr; emeta= {e.emeta with mtype}}
+
+let%expect_test "adding integer index" =
+  let idx s =
+    Single
+      {expr= Var s; emeta= {mtype= UInt; mloc= no_span; madlevel= DataOnly}}
+  in
+  let decl_var =
+    { expr= Var "test_val"
+    ; emeta= {mloc= no_span; mtype= UArray UInt; madlevel= DataOnly} }
+  in
+  Fmt.(
+    strf "@[%a@]" Pretty.pp_expr_typed_located
+      (add_int_index decl_var (idx "foo")))
+  |> print_endline ;
+  [%expect {| test_val[foo] |}]
 
 (** [mkfor] returns a MIR For statement that iterates over the given expression
     [iteratee]. *)
@@ -189,8 +206,26 @@ let mkfor upper bodyfn iteratee smeta =
   reset () ;
   {stmt= For {loopvar; lower; upper; body= {stmt; smeta}}; smeta}
 
-(** [for_scalar unsizedtype...] generates a For statement that loops
-    over the scalars in the underlying [unsizedtype].
+let%expect_test "making vector for loop" =
+  let bodyfn var =
+    {stmt= NRFunApp (StanLib, "print", [var]); smeta= no_span}
+  in
+  let var_test =
+    {expr= Var "hi"; emeta= {internal_meta with mtype= UVector}}
+  in
+  let int i = {expr= Lit (Int, string_of_int i); emeta= internal_meta} in
+  let dim_test = int 1 in
+  mkfor dim_test bodyfn var_test no_span
+  |> sexp_of_stmt_loc |> Sexp.to_string_hum |> print_endline ;
+  [%expect
+    {|
+    (For (loopvar sym1__) (lower (Lit Int 1)) (upper (Lit Int 1))
+     (body
+      (Block
+       ((NRFunApp StanLib print ((Indexed (Var hi) ((Single (Var sym1__)))))))))) |}]
+
+(** [for_scalar sizedtype bodyfn var smeta] generates a For statement that loops
+    over the scalars in the underlying [sizedtype].
 
     We can call [bodyfn] directly on scalars, make a direct For loop
     around Eigen types, or for Arrays we call mkfor but inserting a
@@ -285,3 +320,15 @@ let rec eigen_size (st : mtype_loc_ad with_expr sizedtype) =
   | SMatrix (d1, d2) -> [d1; d2]
   | SRowVector dim | SVector dim -> [dim]
   | SInt | SReal -> []
+
+let is_user_ident = Fn.non (String.is_suffix ~suffix:"__")
+
+let all_but_last_n l n =
+  List.fold_right l ~init:([], n) ~f:(fun ele (accum, n) ->
+      if n = 0 then (ele :: accum, n) else (accum, n - 1) )
+  |> fst
+
+let%expect_test "all but last n" =
+  let l = all_but_last_n [1; 2; 3; 4] 2 in
+  print_s [%sexp (l : int list)] ;
+  [%expect {| (1 2) |}]

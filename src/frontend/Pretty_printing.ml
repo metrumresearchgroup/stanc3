@@ -75,7 +75,7 @@ and pp_unsizedtype ppf = function
 and pp_unsizedtypes ppf l = Fmt.(list ~sep:comma_no_break pp_unsizedtype) ppf l
 
 and pp_argtype ppf = function
-  | at, ut -> Fmt.append pp_autodifftype pp_unsizedtype ppf (at, ut)
+  | at, ut -> Fmt.pair ~sep:Fmt.nop pp_autodifftype pp_unsizedtype ppf (at, ut)
 
 and pp_returntype ppf = function
   | ReturnType x -> pp_unsizedtype ppf x
@@ -194,7 +194,7 @@ and pp_sizedtype ppf = function
   | Middle.SArray _ -> raise (Errors.FatalError "This should never happen.")
 
 and pp_transformation ppf = function
-  | Identity -> Fmt.pf ppf ""
+  | Middle.Identity -> Fmt.pf ppf ""
   | Lower e -> Fmt.pf ppf "<lower=%a>" pp_expression e
   | Upper e -> Fmt.pf ppf "<upper=%a>" pp_expression e
   | LowerUpper (e1, e2) ->
@@ -249,7 +249,7 @@ and pp_transformed_type ppf (pst, trans) =
     | _ -> Fmt.nop
   in
   match trans with
-  | Identity -> Fmt.pf ppf "%a%a" unsizedtype_fmt () sizes_fmt ()
+  | Middle.Identity -> Fmt.pf ppf "%a%a" unsizedtype_fmt () sizes_fmt ()
   | Lower _ | Upper _ | LowerUpper _ | Offset _ | Multiplier _
    |OffsetMultiplier _ ->
       Fmt.pf ppf "%a%a%a" unsizedtype_fmt () pp_transformation trans sizes_fmt
