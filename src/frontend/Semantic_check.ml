@@ -107,6 +107,14 @@ let probability_distribution_name_variants id =
       [name; drop_suffix name 5 ^ "_lpdf"; drop_suffix name 5 ^ "_log"]
     else if is_suffix ~suffix:"_lpdf" name then
       [name; drop_suffix name 5 ^ "_lpmf"; drop_suffix name 5 ^ "_log"]
+    else if is_suffix ~suffix:"_lupdf" name then
+      [ drop_suffix name 6 ^ "_lpdf"
+      ; drop_suffix name 6 ^ "_lpmf"
+      ; drop_suffix name 6 ^ "_log" ]
+    else if is_suffix ~suffix:"_lupmf" name then
+      [ drop_suffix name 6 ^ "_lpmf"
+      ; drop_suffix name 6 ^ "_lupdf"
+      ; drop_suffix name 6 ^ "_log" ]
     else if is_suffix ~suffix:"_lcdf" name then
       [name; drop_suffix name 5 ^ "_cdf_log"]
     else if is_suffix ~suffix:"_lccdf" name then
@@ -228,12 +236,31 @@ let semantic_check_fn_map_rect ~loc id es =
         Semantic_error.invalid_map_rect_fn loc arg1.name |> error
     | _ -> ok ())
 
+(* _lupdf and _lupmf are surface syntax only, corresponding with
+   unnormalized math distributions *)
+let is_real_valued_distribution_name s =
+  List.exists ["_lpdf"; "_lupdf"] ~f:(fun suffix -> String.is_suffix s ~suffix)
+
+let is_lp_distribution_name s =
+  is_real_valued_distribution_name s
+  || List.exists ["_lpmf"; "_lupmf"] ~f:(fun suffix ->
+         String.is_suffix s ~suffix )
+
+let is_distribution_name s =
+  is_lp_distribution_name s
+  || List.exists ["_lcdf"; "_lccdf"] ~f:(fun suffix ->
+         String.is_suffix s ~suffix )
+
+let is_user_defined_distribution_name s =
+  is_distribution_name s
+  || String.is_suffix s ~suffix:"_log"
+     && s <> "multiply_log"
+     && s <> "binomial_coefficient_log"
+
 let semantic_check_fn_conditioning ~loc id =
   Validate.(
-    if
-      List.exists ["_lpdf"; "_lpmf"; "_lcdf"; "_lccdf"] ~f:(fun x ->
-          String.is_suffix id.name ~suffix:x )
-    then Semantic_error.conditioning_required loc |> error
+    if is_distribution_name id.name then
+      Semantic_error.conditioning_required loc |> error
     else ok ())
 
 (** `Target+=` can only be used in model and functions
@@ -424,11 +451,7 @@ let semantic_check_variable loc id =
 
 let semantic_check_conddist_name ~loc id =
   Validate.(
-    if
-      List.exists
-        ~f:(fun x -> String.is_suffix id.name ~suffix:x)
-        ["_lpdf"; "_lpmf"; "_lcdf"; "_lccdf"]
-    then ok ()
+    if is_distribution_name id.name then ok ()
     else Semantic_error.conditional_notation_not_allowed loc |> error)
 
 (* -- Array Expressions ----------------------------------------------------- *)
@@ -953,10 +976,8 @@ let semantic_check_incr_logprob ~loc ~cf e =
 
 let semantic_check_sampling_pdf_pmf id =
   Validate.(
-    if
-      String.(
-        is_suffix id.name ~suffix:"_lpdf" || is_suffix id.name ~suffix:"_lpmf")
-    then error @@ Semantic_error.invalid_sampling_pdf_or_pmf id.id_loc
+    if is_lp_distribution_name id.name then
+      error @@ Semantic_error.invalid_sampling_pdf_or_pmf id.id_loc
     else ok ())
 
 let semantic_check_sampling_cdf_ccdf ~loc id =
@@ -978,7 +999,7 @@ let semantic_check_sampling_distribution ~loc id arguments =
   let name = id.name
   and argumenttypes = List.map ~f:arg_type arguments
   and is_real_rt = function ReturnType UReal -> true | _ -> false in
-  let is_reat_rt_for_suffix suffix =
+  let is_real_rt_for_suffix suffix =
     stan_math_returntype (name ^ suffix) argumenttypes
     |> Option.value_map ~default:false ~f:is_real_rt
   and valid_arg_types_for_suffix suffix =
@@ -989,9 +1010,9 @@ let semantic_check_sampling_distribution ~loc id arguments =
   in
   Validate.(
     if
-      is_reat_rt_for_suffix "_lpdf"
-      || is_reat_rt_for_suffix "_lpmf"
-      || is_reat_rt_for_suffix "_log"
+      is_real_rt_for_suffix "_lpdf"
+      || is_real_rt_for_suffix "_lpmf"
+      || is_real_rt_for_suffix "_log"
          && name <> "binomial_coefficient"
          && name <> "multiply"
       || valid_arg_types_for_suffix "_lpdf"
@@ -1004,7 +1025,7 @@ let cumulative_density_is_defined id arguments =
   let name = id.name
   and argumenttypes = List.map ~f:arg_type arguments
   and is_real_rt = function ReturnType UReal -> true | _ -> false in
-  let is_reat_rt_for_suffix suffix =
+  let is_real_rt_for_suffix suffix =
     stan_math_returntype (name ^ suffix) argumenttypes
     |> Option.value_map ~default:false ~f:is_real_rt
   and valid_arg_types_for_suffix suffix =
@@ -1013,13 +1034,13 @@ let cumulative_density_is_defined id arguments =
         check_compatible_arguments_mod_conv name listedtypes argumenttypes
     | _ -> false
   in
-  ( is_reat_rt_for_suffix "_lcdf"
+  ( is_real_rt_for_suffix "_lcdf"
   || valid_arg_types_for_suffix "_lcdf"
-  || is_reat_rt_for_suffix "_cdf_log"
+  || is_real_rt_for_suffix "_cdf_log"
   || valid_arg_types_for_suffix "_cdf_log" )
-  && ( is_reat_rt_for_suffix "_lccdf"
+  && ( is_real_rt_for_suffix "_lccdf"
      || valid_arg_types_for_suffix "_lccdf"
-     || is_reat_rt_for_suffix "_ccdf_log"
+     || is_real_rt_for_suffix "_ccdf_log"
      || valid_arg_types_for_suffix "_ccdf_log" )
 
 let semantic_check_sampling_cdf_defined ~loc id truncation args =
@@ -1429,12 +1450,7 @@ and semantic_check_fundef_decl ~loc id body =
 
 and semantic_check_fundef_dist_rt ~loc id return_ty =
   Validate.(
-    let is_dist =
-      List.exists
-        ~f:(fun x -> String.is_suffix id.name ~suffix:x)
-        ["_log"; "_lpdf"; "_lpmf"; "_lcdf"; "_lccdf"]
-    in
-    if is_dist then
+    if is_user_defined_distribution_name id.name then
       match return_ty with
       | ReturnType UReal -> ok ()
       | _ -> error @@ Semantic_error.non_real_prob_fn_def loc
@@ -1452,7 +1468,7 @@ and semantic_check_pdf_fundef_first_arg_ty ~loc id arg_tys =
           true
       | _ -> false
     in
-    if String.is_suffix id.name ~suffix:"_lpdf" then
+    if is_real_valued_distribution_name id.name then
       List.hd arg_tys
       |> Option.value_map
            ~default:
