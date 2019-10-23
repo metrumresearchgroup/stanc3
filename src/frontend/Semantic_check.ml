@@ -39,6 +39,7 @@ type originblock =
   | TParam
   | Model
   | GQuant
+[@@deriving sexp]
 
 (** Print all the signatures of a stan math operator, for the purposes of error messages. *)
 let check_that_all_functions_have_definition = ref true
@@ -679,6 +680,8 @@ and semantic_check_expression cf ({emeta; expr} : Ast.untyped_expression) :
   | Indexed (e, indices) -> semantic_check_indexed ~loc:emeta.loc ~cf e indices
 
 and semantic_check_funapp ~is_cond_dist id es cf emeta =
+  print_endline id.name ;
+  if is_cond_dist then print_endline "is cond dist" ;
   let name_check =
     if is_cond_dist then semantic_check_conddist_name
     else semantic_check_fn_conditioning

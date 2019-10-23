@@ -11,6 +11,7 @@ type 'a state =
   ; readonly: (string, unit) Hashtbl.t
   ; isunassigned: (string, unit) Hashtbl.t
   ; globals: (string, unit) Hashtbl.t }
+[@@deriving sexp_of]
 
 let initialize () =
   { table= String.Table.create ()

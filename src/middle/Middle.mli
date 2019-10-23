@@ -151,3 +151,4 @@ val distribution_suffices : string list
 val is_distribution_name : ?infix:string -> string -> bool
 val proportional_to_distribution_infix : string
 val infer_type_of_indexed : unsizedtype -> 'a index list -> unsizedtype
+val trans_unnormalized_dist_name : string -> string

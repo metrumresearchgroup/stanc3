@@ -241,7 +241,17 @@ let remove_propto_infix suffix ~name =
   |> String.chop_suffix ~suffix:(proportional_to_distribution_infix ^ suffix)
   |> Option.map ~f:(fun x -> x ^ suffix)
 
+let trans_lupdf fname =
+  let try_replacing_suffix suffix suffix' s =
+    if String.is_suffix s ~suffix then
+      String.chop_suffix_exn ~suffix s ^ suffix'
+    else s
+  in
+  try_replacing_suffix "_lupdf" "_lpdf" fname
+  |> try_replacing_suffix "_lupmf" "_lpmf"
+
 let stdlib_distribution_name s =
+  let s = trans_lupdf s in
   List.map ~f:(remove_propto_infix ~name:s) distribution_suffices
   |> List.filter_opt |> List.hd |> Option.value ~default:s
 

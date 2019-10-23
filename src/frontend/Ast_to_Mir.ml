@@ -10,6 +10,15 @@ let trans_fn_kind = function
   | Ast.StanLib -> StanLib
   | UserDefined -> UserDefined
 
+let trans_lupdf fname =
+  let try_replacing_suffix suffix suffix' s =
+    if String.is_suffix s ~suffix then
+      String.chop_suffix_exn ~suffix s ^ suffix'
+    else s
+  in
+  try_replacing_suffix "_lupdf" "_lpdf" fname
+  |> try_replacing_suffix "_lupmf" "_lpmf"
+
 let rec op_to_funapp op args =
   let argtypes =
     List.map ~f:(fun x -> (x.Ast.emeta.Ast.ad_level, x.emeta.type_)) args
@@ -44,7 +53,7 @@ and trans_expr {Ast.expr; Ast.emeta} =
         | RealNumeral x -> Lit (Real, x)
         | FunApp (fn_kind, {name; _}, args)
          |CondDistApp (fn_kind, {name; _}, args) ->
-            FunApp (trans_fn_kind fn_kind, name, trans_exprs args)
+            FunApp (trans_fn_kind fn_kind, trans_lupdf name, trans_exprs args)
         | GetLP | GetTarget -> FunApp (StanLib, "target", [])
         | ArrayExpr eles ->
             FunApp

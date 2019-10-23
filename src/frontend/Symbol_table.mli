@@ -41,3 +41,5 @@ val is_global : 'a state -> string -> bool
 
 val unsafe_clear_symbol_table : 'a state -> unit
 (** Used to clear the whole symbol table *)
+
+val sexp_of_state : ('a -> Core_kernel.Sexp.t) -> 'a state -> Core_kernel.Sexp.t
