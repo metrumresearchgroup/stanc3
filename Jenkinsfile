@@ -65,17 +65,18 @@ pipeline {
                 sh 'printenv'
                 sh """
                     eval \$(opam env)
-                    make format  || 
+                    make format  ||
                     (
                         set +x &&
                         echo "The source code was not formatted. Please run 'make format; dune promote' and push the changes." &&
-                        echo "Please consider installing a pre-commit git hook for formatting with the above command." &&
+                        echo "Please consider installing the pre-commit git hook for formatting with the above command." &&
+                        echo "Our hook can be installed with bash ./scripts/hooks/install_hooks.sh" &&
                         exit 1;
                     )
                 """
             }
             post { always { runShell("rm -rf ./*") }}
-        }        
+        }
         stage("Test") {
             parallel {
                 stage("Dune tests") {
@@ -176,12 +177,29 @@ pipeline {
                     }
                     post { always { runShell("rm -rf ./*") }}
                 }
+                stage("stancjs tests") {
+                    agent {
+                        dockerfile {
+                            filename 'docker/debian/Dockerfile'
+                            //Forces image to ignore entrypoint
+                            args "-u root --entrypoint=\'\'"
+                        }
+                    }
+                    steps {
+                        sh 'printenv'
+                        runShell("""
+                            eval \$(opam env)
+                            dune build @runjstest
+                        """)
+                    }
+                    post { always { runShell("rm -rf ./*") }}
+                }
             }
         }
         stage("Build and test static release binaries") {
-            when { anyOf { buildingTag(); branch 'master' } }
             failFast true
             parallel {
+
                 stage("Build & test Mac OS X binary") {
                     agent { label "osx && ocaml" }
                     steps {
@@ -253,19 +271,39 @@ pipeline {
                     }
                     post {always { runShell("rm -rf ./*")}}
                 }
+
+                // Cross compiling for windows on debian
                 stage("Build & test static Windows binary") {
-                    agent { label "WSL" }
+                    agent {
+                        dockerfile {
+                            filename 'docker/debian-windows/Dockerfile'
+                            label 'linux-ec2'
+                            //Forces image to ignore entrypoint
+                            args "-u 1000 --entrypoint=\'\'"
+                        }
+                    }
                     steps {
-                        bat "bash -cl \"cd test/integration\""
-                        bat "bash -cl \"find . -type f -name \"*.expected\" -print0 | xargs -0 dos2unix\""
-                        bat "bash -cl \"cd ..\""
-                        bat "bash -cl \"eval \$(opam env) make clean; dune subst; dune build -x windows; dune runtest --verbose\""
-                        bat """bash -cl "rm -rf bin/*; mkdir -p bin; mv _build/default.windows/src/stanc/stanc.exe bin/windows-stanc" """
-                        bat "bash -cl \"mv _build/default.windows/src/stan2tfp/stan2tfp.exe bin/windows-stan2tfp\""
+
+                        runShell("""
+                            eval \$(opam env)
+                            dune subst
+                            dune build -x windows
+                        """)
+
+                        echo runShell("""
+                            eval \$(opam env)
+                            time dune runtest --verbose
+                        """)
+
+                        sh "mkdir -p bin && mv _build/default.windows/src/stanc/stanc.exe bin/windows-stanc"
+                        sh "mv _build/default.windows/src/stan2tfp/stan2tfp.exe bin/windows-stan2tfp"
+
                         stash name:'windows-exe', includes:'bin/*'
                     }
+                    post {always { runShell("rm -rf ./*")}}
                 }
             }
+
         }
         stage("Release tag and publish binaries") {
             when { anyOf { buildingTag(); branch 'master' } }

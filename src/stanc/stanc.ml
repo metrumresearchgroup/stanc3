@@ -111,27 +111,42 @@ let options =
     ; ( "--print-cpp"
       , Arg.Set print_model_cpp
       , " If set, output the generated C++ Stan model class to stdout." )
-    ; ( "--allow_undefined"
+    ; ( "--allow-undefined"
       , Arg.Clear Semantic_check.check_that_all_functions_have_definition
       , " Do not fail if a function is declared but not defined" )
-    ; ( "--include_paths"
+    ; ( "--allow_undefined"
+      , Arg.Clear Semantic_check.check_that_all_functions_have_definition
+      , " Deprecated. Same as --allow-undefined." )
+    ; ( "--include-paths"
       , Arg.String
           (fun str ->
             Preprocessor.include_paths := String.split_on_chars ~on:[','] str
             )
       , " Takes a comma-separated list of directories that may contain a file \
          in an #include directive (default = \"\")" )
+    ; ( "--include_paths"
+      , Arg.String
+          (fun str ->
+            Preprocessor.include_paths :=
+              !Preprocessor.include_paths @ String.split_on_chars ~on:[','] str
+            )
+      , " Deprecated. Same as --include-paths." )
     ; ( "--use-opencl"
       , Arg.Set Transform_Mir.use_opencl
       , " If set, try to use matrix_cl signatures." ) ]
 
+let print_deprecated_arg_warning =
+  (* is_prefix is used to also cover the --include-paths=... *)
+  let arg_is_used arg =
+    Array.mem ~equal:(fun x y -> String.is_prefix ~prefix:x y) Sys.argv arg
+  in
+  if arg_is_used "--allow_undefined" then
+    eprintf "--allow_undefined is deprecated. Please use --allow-undefined.\n" ;
+  if arg_is_used "--include_paths" then
+    eprintf "--include_paths is deprecated. Please use --include-paths.\n"
+
 let model_file_err () =
   Arg.usage options ("Please specify one model_file.\n\n" ^ usage) ;
-  exit 127
-
-let model_file_start_char_err () =
-  eprintf "%s"
-    "Model name must not start with a number or symbol other than underscore.\n" ;
   exit 127
 
 let add_file filename =
@@ -183,11 +198,18 @@ let use_file filename =
     if !print_model_cpp then print_endline cpp )
 
 let remove_dotstan s = String.drop_suffix s 5
-let model_name_check_regex = Str.regexp "^[a-zA-Z_].*$"
+
+let mangle =
+  String.concat_map ~f:(fun c ->
+      Char.(
+        if is_alphanum c || c = '_' then to_string c
+        else match c with '-' -> "_" | _ -> "x" ^ Int.to_string (to_int c)) )
 
 let main () =
   (* Parse the arguments. *)
   Arg.parse options add_file usage ;
+  print_deprecated_arg_warning ;
+  (* print_deprecated_arg_warning options; *)
   (* Deal with multiple modalities *)
   if !dump_stan_math_sigs then (
     Stan_math_signatures.pretty_print_all_math_sigs Format.std_formatter () ;
@@ -196,10 +218,10 @@ let main () =
   if !model_file = "" then model_file_err () ;
   if !Semantic_check.model_name = "" then
     Semantic_check.model_name :=
-      remove_dotstan List.(hd_exn (rev (String.split !model_file ~on:'/')))
-      ^ "_model" ;
-  if not (Str.string_match model_name_check_regex !Semantic_check.model_name 0)
-  then model_file_start_char_err () ;
+      mangle
+        (remove_dotstan List.(hd_exn (rev (String.split !model_file ~on:'/'))))
+      ^ "_model"
+  else Semantic_check.model_name := mangle !Semantic_check.model_name ;
   if !output_file = "" then output_file := remove_dotstan !model_file ^ ".hpp" ;
   use_file !model_file
 

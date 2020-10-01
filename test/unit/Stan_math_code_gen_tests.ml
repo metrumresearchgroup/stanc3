@@ -9,7 +9,7 @@ let%expect_test "udf" =
     Stmt.Fixed.{pattern= stmt; meta= Locations.no_span_num}
   in
   let w e = Expr.{Fixed.pattern= e; meta= Typed.Meta.empty} in
-  let pp_fun_def_w_rs a b = pp_fun_def a b String.Set.empty in
+  let pp_fun_def_w_rs a b = pp_fun_def a b String.Set.empty String.Set.empty in
   { fdrt= None
   ; fdname= "sars"
   ; fdargs= [(DataOnly, "x", UMatrix); (AutoDiffable, "y", URowVector)]
@@ -18,6 +18,7 @@ let%expect_test "udf" =
         (Some
            (w @@ FunApp (StanLib, "add", [w @@ Var "x"; w @@ Lit (Int, "1")])))
       |> with_no_loc |> List.return |> Stmt.Fixed.Pattern.Block |> with_no_loc
+      |> Some
   ; fdloc= Location_span.empty }
   |> strf "@[<v>%a" pp_fun_def_w_rs
   |> print_endline ;

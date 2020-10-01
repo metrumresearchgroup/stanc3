@@ -26,7 +26,7 @@ let transform_program (mir : Program.Typed.t)
   let transformed_prog_body = transform packed_prog_body in
   let transformed_functions =
     List.map mir.functions_block ~f:(fun fs ->
-        {fs with fdbody= transform fs.fdbody} )
+        {fs with fdbody= Option.map ~f:transform fs.fdbody} )
   in
   match transformed_prog_body with
   | { pattern=
@@ -59,15 +59,9 @@ let transform_program_blockwise (mir : Program.Typed.t)
         raise
           (Failure "Something went wrong with program transformation packing!")
   in
-  (* Right now, we have an implicit constraint where if fdbody = Skip, the
-     fun_def is a function declaration. When that's the case we don't want
-     to change it from Skip.*)
-  let non_decl_functions =
-    List.filter ~f:(fun def -> def.fdbody.pattern <> Skip) mir.functions_block
-  in
   let transformed_functions =
-    List.map non_decl_functions ~f:(fun fs ->
-        {fs with fdbody= transform (Some fs) fs.fdbody} )
+    List.map mir.functions_block ~f:(fun fs ->
+        {fs with fdbody= Option.map ~f:(transform (Some fs)) fs.fdbody} )
   in
   { mir with
     functions_block= transformed_functions
@@ -127,13 +121,13 @@ let subst_args_stmt args es =
    then to check if that flag is set after each loop. Then, if a 'return' break
    is called from an inner loop, there's a cascade of breaks all the way out of
    the dummy loop. *)
-let handle_early_returns opt_triple b =
+let handle_early_returns opt_var b =
   let returned = Gensym.generate ~prefix:"inline_" () in
   let f = function
     | Stmt.Fixed.Pattern.Return opt_ret -> (
-      match (opt_triple, opt_ret) with
+      match (opt_var, opt_ret) with
       | None, None -> Stmt.Fixed.Pattern.Break
-      | Some (Some _, _, name), Some e ->
+      | Some name, Some e ->
           SList
             [ Stmt.Fixed.
                 { pattern=
@@ -151,7 +145,18 @@ let handle_early_returns opt_triple b =
                 { pattern= Assignment ((name, Expr.Typed.type_of e, []), e)
                 ; meta= Location_span.empty }
             ; {pattern= Break; meta= Location_span.empty} ]
-      | _, _ -> raise_s [%sexp ("" : string)] )
+      | Some _, None ->
+          raise_s
+            [%message
+              ( "Function should return a value but found an empty return \
+                 statement."
+                : string )]
+      | None, Some _ ->
+          raise_s
+            [%message
+              ( "Expected a void function but found a non-empty return \
+                 statement."
+                : string )] )
     | Stmt.Fixed.Pattern.For _ as loop ->
         Stmt.Fixed.Pattern.SList
           [ Stmt.Fixed.{pattern= loop; meta= Location_span.empty}
@@ -227,7 +232,7 @@ let rec inline_function_expression adt fim (Expr.Fixed.({pattern; _}) as e) =
       | None -> (d_list, s_list, {e with pattern= FunApp (t, s, es)})
       | Some (rt, args, b) ->
           let x = Gensym.generate ~prefix:"inline_" () in
-          let handle = handle_early_returns (Some (rt, adt, x)) in
+          let handle = handle_early_returns (Some x) in
           let d_list2, s_list2, (e : Expr.Typed.t) =
             ( [ Stmt.Fixed.Pattern.Decl
                   {decl_adtype= adt; decl_id= x; decl_type= Option.value_exn rt}
@@ -426,8 +431,8 @@ let create_function_inline_map adt l =
     else
       let accum' =
         match fdbody with
-        | Stmt.Fixed.({pattern= Stmt.Fixed.Pattern.Skip; _}) -> accum
-        | _ -> (
+        | None -> accum
+        | Some fdbody -> (
             let data =
               ( Option.map ~f:(fun x -> Type.Unsized x) fdrt
               , List.map ~f:(fun (_, name, _) -> name) fdargs
