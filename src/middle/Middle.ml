@@ -12,4 +12,5 @@ module Type = Type
 module Stmt = Stmt
 module Program = Program
 module Stan_math_signatures = Stan_math_signatures
+module Torsten = Torsten
 module Utils = Utils

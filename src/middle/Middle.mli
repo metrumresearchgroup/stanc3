@@ -12,4 +12,5 @@ module Type : module type of Type
 module Stmt : module type of Stmt
 module Program : module type of Program
 module Stan_math_signatures : module type of Stan_math_signatures
+module Torsten : module type of Torsten
 module Utils : module type of Utils
