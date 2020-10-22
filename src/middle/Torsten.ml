@@ -69,6 +69,21 @@ let rec pmx_solve add_func name args_list =
   | [] -> ()
   | head::tail -> add_func(name, UnsizedType.ReturnType UMatrix, pmx_ode_func @ pmx_event_args @ head); pmx_solve add_func name tail
 
+let rec pmx_solve_group add_func name args_list =
+  let pmx_event_args = [ (UnsizedType.DataOnly, UnsizedType.UInt)                        (* nCmt *)
+                       ; (UnsizedType.AutoDiffable, UnsizedType.UArray UInt)            (* length *)
+                       ; (UnsizedType.AutoDiffable, UnsizedType.UArray UReal)            (* time *)
+                       ; (UnsizedType.AutoDiffable, UnsizedType.UArray UReal)            (* amt *)
+                       ; (UnsizedType.AutoDiffable, UnsizedType.UArray UReal)            (* rate *)
+                       ; (UnsizedType.AutoDiffable, UnsizedType.UArray UReal)            (* ii *)
+                       ; (UnsizedType.DataOnly, UnsizedType.UArray UInt)                 (* evid *)
+                       ; (UnsizedType.DataOnly, UnsizedType.UArray UInt)                 (* cmt *)
+                       ; (UnsizedType.DataOnly, UnsizedType.UArray UInt)                 (* addl *)
+                       ; (UnsizedType.DataOnly, UnsizedType.UArray UInt) ] in            (* ss *)
+  match args_list with
+  | [] -> ()
+  | head::tail -> add_func(name, UnsizedType.ReturnType UMatrix, pmx_ode_func @ pmx_event_args @ head); pmx_solve_group add_func name tail
+
 let (pmx_solve_args, pmx_group_args, pmx_solve_cpt_args) =
   let (pmx_param_1d, pmx_param_2d) = ( [(UnsizedType.AutoDiffable, (UnsizedType.UArray UReal))], [(UnsizedType.AutoDiffable, (UnsizedType.UArray (UArray UReal)))] ) in
   let (pmx_r_data, pmx_i_data) = ( [(UnsizedType.DataOnly, (UnsizedType.UArray (UArray UReal)))], [(UnsizedType.DataOnly, (UnsizedType.UArray (UArray UInt)))] ) in
@@ -104,7 +119,7 @@ let add_torsten_qualified add_func =
   List.iter ~f:(fun sol -> pmx_solve add_func sol pmx_solve_args) sol_names;
 
   let sol_names = List.map ~f:(fun sol -> "pmx_solve_group_" ^ sol) ["adams"; "bdf"; "rk45"] in
-  List.iter ~f:(fun sol -> pmx_solve add_func sol pmx_group_args) sol_names;
+  List.iter ~f:(fun sol -> pmx_solve_group add_func sol pmx_group_args) sol_names;
 
   let sol_names = List.map ~f:(fun sol -> "pmx_solve_" ^ sol) ["onecpt"; "twocpt"] in
   List.iter ~f:(fun sol -> pmx_solve add_func sol pmx_solve_cpt_args) sol_names;
