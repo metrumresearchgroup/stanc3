@@ -55,6 +55,19 @@ let rec cart_prod_list l =
         let tail_product = cart_prod_list tl in
         aux ~acc:[] l1 tail_product
 
+let rec pmx_solve_cpt add_func name args_list =
+  let pmx_event_args = [ (UnsizedType.AutoDiffable, UnsizedType.UArray UReal)            (* time *)
+                       ; (UnsizedType.AutoDiffable, UnsizedType.UArray UReal)            (* amt *)
+                       ; (UnsizedType.AutoDiffable, UnsizedType.UArray UReal)            (* rate *)
+                       ; (UnsizedType.AutoDiffable, UnsizedType.UArray UReal)            (* ii *)
+                       ; (UnsizedType.DataOnly, UnsizedType.UArray UInt)                 (* evid *)
+                       ; (UnsizedType.DataOnly, UnsizedType.UArray UInt)                 (* cmt *)
+                       ; (UnsizedType.DataOnly, UnsizedType.UArray UInt)                 (* addl *)
+                       ; (UnsizedType.DataOnly, UnsizedType.UArray UInt) ] in            (* ss *)
+  match args_list with
+  | [] -> ()
+  | head::tail -> add_func(name, UnsizedType.ReturnType UMatrix, pmx_event_args @ head); pmx_solve_cpt add_func name tail
+
 let rec pmx_solve add_func name args_list =
   let pmx_event_args = [ (UnsizedType.DataOnly, UnsizedType.UInt)                        (* nCmt *)
                        ; (UnsizedType.AutoDiffable, UnsizedType.UArray UReal)            (* time *)
@@ -122,7 +135,7 @@ let add_torsten_qualified add_func =
   List.iter ~f:(fun sol -> pmx_solve_group add_func sol pmx_group_args) sol_names;
 
   let sol_names = List.map ~f:(fun sol -> "pmx_solve_" ^ sol) ["onecpt"; "twocpt"] in
-  List.iter ~f:(fun sol -> pmx_solve add_func sol pmx_solve_cpt_args) sol_names;
+  List.iter ~f:(fun sol -> pmx_solve_cpt add_func sol pmx_solve_cpt_args) sol_names;
 
 (* pmx_solve_linode *)
   add_func
