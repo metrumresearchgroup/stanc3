@@ -27,7 +27,7 @@ let nest_unsized_array basic_type n =
        TRANSFORMEDPARAMETERSBLOCK MODELBLOCK GENERATEDQUANTITIESBLOCK
 %token LBRACE RBRACE LPAREN RPAREN LBRACK RBRACK LABRACK RABRACK COMMA SEMICOLON
        BAR
-%token RETURN IF ELSE WHILE FOR IN BREAK CONTINUE
+%token RETURN IF ELSE WHILE FOR IN BREAK CONTINUE PROFILE
 %token VOID INT REAL VECTOR ROWVECTOR ARRAY MATRIX ORDERED POSITIVEORDERED SIMPLEX
        UNITVECTOR CHOLESKYFACTORCORR CHOLESKYFACTORCOV CORRMATRIX COVMATRIX
 %token LOWER UPPER OFFSET MULTIPLIER
@@ -49,7 +49,7 @@ let nest_unsized_array basic_type n =
    "a thing that will never parse". This is useful in a few places. For example,
    when we the parser to differentiate between different failing states for
    error message purposes, we can partially accept one of them and then fail by
-   requiring an UNREACHABLE token. That's the approach taken in decl_identifier.
+   requiring an UNREACHABLE token.
  *)
 %token UNREACHABLE
 
@@ -105,28 +105,28 @@ function_block:
 
 data_block:
   | DATABLOCK LBRACE tvd=list(top_var_decl_no_assign) RBRACE
-    { grammar_logger "data_block" ; tvd }
+    { grammar_logger "data_block" ; List.concat tvd }
 
 transformed_data_block:
   | TRANSFORMEDDATABLOCK LBRACE tvds=list(top_vardecl_or_statement) RBRACE
-    {  grammar_logger "transformed_data_block" ;  tvds }
+    {  grammar_logger "transformed_data_block" ; List.concat tvds }
     (* NOTE: this allows mixing of statements and top_var_decls *)
 
 parameters_block:
   | PARAMETERSBLOCK LBRACE tvd=list(top_var_decl_no_assign) RBRACE
-    { grammar_logger "parameters_block" ; tvd }
+    { grammar_logger "parameters_block" ; List.concat tvd }
 
 transformed_parameters_block:
   | TRANSFORMEDPARAMETERSBLOCK LBRACE tvds=list(top_vardecl_or_statement) RBRACE
-    { grammar_logger "transformed_parameters_block" ; tvds }
+    { grammar_logger "transformed_parameters_block" ; List.concat tvds }
 
 model_block:
   | MODELBLOCK LBRACE vds=list(vardecl_or_statement) RBRACE
-    { grammar_logger "model_block" ; vds  }
+    { grammar_logger "model_block" ; List.concat vds  }
 
 generated_quantities_block:
   | GENERATEDQUANTITIESBLOCK LBRACE tvds=list(top_vardecl_or_statement) RBRACE
-    { grammar_logger "generated_quantities_block" ; tvds }
+    { grammar_logger "generated_quantities_block" ; List.concat tvds }
 
 (* function definitions *)
 identifier:
@@ -140,46 +140,39 @@ identifier:
 
 decl_identifier:
   | id=identifier { id }
-  (* The only purpose of the UNREACHABLE rules is to improve the syntax
-     error messages when a user tries to use a keyword as a variable name.
-     The rule can never actually be built, but it provides a parser state
-     that's distinct from the use of other non-identifiers, so we can assign
-     it a different message in the .messages file.
-   *)
-  | FUNCTIONBLOCK UNREACHABLE
-  | DATABLOCK UNREACHABLE
-  | PARAMETERSBLOCK UNREACHABLE
-  | MODELBLOCK UNREACHABLE
-  | RETURN UNREACHABLE
-  | IF UNREACHABLE
-  | ELSE UNREACHABLE
-  | WHILE UNREACHABLE
-  | FOR UNREACHABLE
-  | IN UNREACHABLE
-  | BREAK UNREACHABLE
-  | CONTINUE UNREACHABLE
-  | VOID UNREACHABLE
-  | INT UNREACHABLE
-  | REAL UNREACHABLE
-  | VECTOR UNREACHABLE
-  | ROWVECTOR UNREACHABLE
-  | MATRIX UNREACHABLE
-  | ORDERED UNREACHABLE
-  | POSITIVEORDERED UNREACHABLE
-  | SIMPLEX UNREACHABLE
-  | UNITVECTOR UNREACHABLE
-  | CHOLESKYFACTORCORR UNREACHABLE
-  | CHOLESKYFACTORCOV UNREACHABLE
-  | CORRMATRIX UNREACHABLE
-  | COVMATRIX UNREACHABLE
-  | PRINT UNREACHABLE
-  | REJECT UNREACHABLE
-  | TARGET UNREACHABLE
-  | GETLP UNREACHABLE
-    {
-      raise (Failure "This should be unreachable; the UNREACHABLE token should \
-                      never be produced")
-    }
+  (* Keywords cannot be identifiers but
+     semantic check produces a better error message. *)
+  | FUNCTIONBLOCK { build_id "functions" $loc }
+  | DATABLOCK { build_id "data" $loc }
+  | PARAMETERSBLOCK { build_id "parameters" $loc }
+  | MODELBLOCK { build_id "model" $loc }
+  | RETURN { build_id "return" $loc }
+  | IF { build_id "if" $loc }
+  | ELSE { build_id "else" $loc }
+  | WHILE { build_id "while" $loc }
+  | FOR { build_id "for" $loc }
+  | IN { build_id "in" $loc }
+  | BREAK { build_id "break" $loc }
+  | CONTINUE { build_id "continue" $loc }
+  | VOID { build_id "void" $loc }
+  | INT { build_id "int" $loc }
+  | REAL { build_id "real" $loc }
+  | VECTOR { build_id "vector" $loc }
+  | ROWVECTOR { build_id "row_vector" $loc }
+  | MATRIX { build_id "matrix" $loc }
+  | ORDERED { build_id "ordered" $loc }
+  | POSITIVEORDERED { build_id "positive_ordered" $loc }
+  | SIMPLEX { build_id "simplex" $loc }
+  | UNITVECTOR { build_id "unit_vector" $loc }
+  | CHOLESKYFACTORCORR { build_id "cholesky_factor_corr" $loc }
+  | CHOLESKYFACTORCOV { build_id "cholesky_factor_cov" $loc }
+  | CORRMATRIX { build_id "corr_matrix" $loc }
+  | COVMATRIX { build_id "cov_matrix" $loc }
+  | PRINT { build_id "print" $loc }
+  | REJECT { build_id "reject" $loc }
+  | TARGET { build_id "target" $loc }
+  | GETLP { build_id "get_lp" $loc }
+  | PROFILE { build_id "profile" $loc }
 
 function_def:
   | rt=return_type name=decl_identifier LPAREN args=separated_list(COMMA, arg_decl)
@@ -272,7 +265,7 @@ decl(type_rule, rhs):
   | ty=type_rule id=decl_identifier dims=dims rhs_opt=optional_assignment(rhs)
       SEMICOLON
     { (fun ~is_global ->
-      { stmt=
+      [{ stmt=
           VarDecl {
               decl_type= Sized (reducearray (fst ty, dims))
             ; transformation= snd ty
@@ -283,8 +276,9 @@ decl(type_rule, rhs):
       ; smeta= {
           loc= Location_span.of_positions_exn $loc
         }
-    })
+    }])
     }
+
   (* This rule matches non-array declarations and also the new array syntax, e.g:
        array[1,2] int x = ..;
    *)
@@ -296,7 +290,7 @@ decl(type_rule, rhs):
      would occur if "array[x,y,z]" were its own rule without reserving the
      keyword. *)
   | dims_opt=ioption(lhs) ty=type_rule
-      id_rhs=id_and_optional_assignment(rhs) SEMICOLON
+     vs=separated_nonempty_list(COMMA, id_and_optional_assignment(rhs)) SEMICOLON
     { (fun ~is_global ->
       let int_ix ix = match ix with
         | Single e -> Some e
@@ -323,7 +317,7 @@ decl(type_rule, rhs):
         | None -> []
         | _ -> error "Found a declaration following an expression."
       in
-      let (id, rhs_opt) = id_rhs in
+      List.map vs ~f:(fun (id, rhs_opt) ->
           { stmt=
               VarDecl {
                   decl_type= Sized (reducearray (fst ty, dims))
@@ -355,7 +349,7 @@ decl(type_rule, rhs):
                 in
                 Location_span.of_positions_exn (startpos, $endpos)
             }
-          }
+          })
     )}
 
 var_decl:
@@ -755,18 +749,20 @@ nested_statement:
     }
   | FOR LPAREN id=identifier IN e=expression RPAREN s=statement
     {  grammar_logger "foreach_statement" ; ForEach (id, e, s) }
+  | PROFILE LPAREN st=string_literal RPAREN LBRACE l=list(vardecl_or_statement) RBRACE
+    {  grammar_logger "profile_statement" ; Profile (st, List.concat l) }
   | LBRACE l=list(vardecl_or_statement)  RBRACE
-    {  grammar_logger "block_statement" ; Block l } (* NOTE: I am choosing to allow mixing of statements and var_decls *)
+    {  grammar_logger "block_statement" ; Block (List.concat l) } (* NOTE: I am choosing to allow mixing of statements and var_decls *)
 
 (* statement or var decls *)
 vardecl_or_statement:
   | s=statement
-    { grammar_logger "vardecl_or_statement_statement" ; s }
+    { grammar_logger "vardecl_or_statement_statement" ; [s] }
   | v=var_decl
     { grammar_logger "vardecl_or_statement_vardecl" ; v }
 
 top_vardecl_or_statement:
   | s=statement
-    { grammar_logger "top_vardecl_or_statement_statement" ; s }
+    { grammar_logger "top_vardecl_or_statement_statement" ; [s] }
   | v=top_var_decl
     { grammar_logger "top_vardecl_or_statement_top_vardecl" ; v }

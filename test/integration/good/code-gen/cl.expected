@@ -4,46 +4,7 @@
 #include <stan/model/model_header.hpp>
 namespace optimize_glm_model_namespace {
 
-
-inline void validate_positive_index(const char* var_name, const char* expr,
-                                    int val) {
-  if (val < 1) {
-    std::stringstream msg;
-    msg << "Found dimension size less than one in simplex declaration"
-        << "; variable=" << var_name << "; dimension size expression=" << expr
-        << "; expression value=" << val;
-    std::string msg_str(msg.str());
-    throw std::invalid_argument(msg_str.c_str());
-  }
-}
-
-inline void validate_unit_vector_index(const char* var_name, const char* expr,
-                                       int val) {
-  if (val <= 1) {
-    std::stringstream msg;
-    if (val == 1) {
-      msg << "Found dimension size one in unit vector declaration."
-          << " One-dimensional unit vector is discrete"
-          << " but the target distribution must be continuous."
-          << " variable=" << var_name << "; dimension size expression=" << expr;
-    } else {
-      msg << "Found dimension size less than one in unit vector declaration"
-          << "; variable=" << var_name << "; dimension size expression=" << expr
-          << "; expression value=" << val;
-    }
-    std::string msg_str(msg.str());
-    throw std::invalid_argument(msg_str.c_str());
-  }
-}
-
-
-using std::istream;
-using std::string;
-using std::stringstream;
-using std::vector;
-using std::pow;
 using stan::io::dump;
-using stan::math::lgamma;
 using stan::model::model_base_crtp;
 using stan::model::rvalue;
 using stan::model::cons_list;
@@ -55,226 +16,228 @@ using stan::model::index_multi;
 using stan::model::index_omni;
 using stan::model::nil_index_list;
 using namespace stan::math;
-using stan::math::pow; 
 
-static int current_statement__ = 0;
-static const std::vector<string> locations_array__ = {" (found before start of program)",
-                                                      " (in 'optimize_glm.stan', line 27, column 2 to column 20)",
-                                                      " (in 'optimize_glm.stan', line 28, column 2 to column 17)",
-                                                      " (in 'optimize_glm.stan', line 29, column 2 to column 17)",
-                                                      " (in 'optimize_glm.stan', line 30, column 2 to column 22)",
-                                                      " (in 'optimize_glm.stan', line 31, column 2 to column 13)",
-                                                      " (in 'optimize_glm.stan', line 32, column 2 to column 11)",
-                                                      " (in 'optimize_glm.stan', line 33, column 2 to column 19)",
-                                                      " (in 'optimize_glm.stan', line 34, column 2 to column 22)",
-                                                      " (in 'optimize_glm.stan', line 35, column 2 to column 23)",
-                                                      " (in 'optimize_glm.stan', line 39, column 2 to column 64)",
-                                                      " (in 'optimize_glm.stan', line 40, column 2 to column 49)",
-                                                      " (in 'optimize_glm.stan', line 42, column 2 to column 64)",
-                                                      " (in 'optimize_glm.stan', line 43, column 2 to column 49)",
-                                                      " (in 'optimize_glm.stan', line 45, column 2 to column 63)",
-                                                      " (in 'optimize_glm.stan', line 46, column 2 to column 48)",
-                                                      " (in 'optimize_glm.stan', line 48, column 2 to column 63)",
-                                                      " (in 'optimize_glm.stan', line 49, column 2 to column 48)",
-                                                      " (in 'optimize_glm.stan', line 51, column 2 to column 66)",
-                                                      " (in 'optimize_glm.stan', line 52, column 2 to column 51)",
-                                                      " (in 'optimize_glm.stan', line 54, column 2 to column 66)",
-                                                      " (in 'optimize_glm.stan', line 55, column 2 to column 51)",
-                                                      " (in 'optimize_glm.stan', line 57, column 2 to column 70)",
-                                                      " (in 'optimize_glm.stan', line 58, column 2 to column 55)",
-                                                      " (in 'optimize_glm.stan', line 60, column 2 to column 67)",
-                                                      " (in 'optimize_glm.stan', line 61, column 2 to column 52)",
-                                                      " (in 'optimize_glm.stan', line 63, column 2 to column 69)",
-                                                      " (in 'optimize_glm.stan', line 64, column 2 to column 54)",
-                                                      " (in 'optimize_glm.stan', line 66, column 2 to column 66)",
-                                                      " (in 'optimize_glm.stan', line 67, column 2 to column 51)",
-                                                      " (in 'optimize_glm.stan', line 69, column 2 to column 72)",
-                                                      " (in 'optimize_glm.stan', line 70, column 2 to column 57)",
-                                                      " (in 'optimize_glm.stan', line 72, column 2 to column 69)",
-                                                      " (in 'optimize_glm.stan', line 73, column 2 to column 54)",
-                                                      " (in 'optimize_glm.stan', line 75, column 2 to column 63)",
-                                                      " (in 'optimize_glm.stan', line 76, column 2 to column 49)",
-                                                      " (in 'optimize_glm.stan', line 78, column 2 to column 63)",
-                                                      " (in 'optimize_glm.stan', line 79, column 2 to column 49)",
-                                                      " (in 'optimize_glm.stan', line 81, column 2 to column 66)",
-                                                      " (in 'optimize_glm.stan', line 82, column 2 to column 52)",
-                                                      " (in 'optimize_glm.stan', line 84, column 2 to column 66)",
-                                                      " (in 'optimize_glm.stan', line 85, column 2 to column 52)",
-                                                      " (in 'optimize_glm.stan', line 87, column 2 to column 62)",
-                                                      " (in 'optimize_glm.stan', line 88, column 2 to column 48)",
-                                                      " (in 'optimize_glm.stan', line 90, column 2 to column 62)",
-                                                      " (in 'optimize_glm.stan', line 91, column 2 to column 48)",
-                                                      " (in 'optimize_glm.stan', line 93, column 2 to column 69)",
-                                                      " (in 'optimize_glm.stan', line 94, column 2 to column 55)",
-                                                      " (in 'optimize_glm.stan', line 96, column 2 to column 66)",
-                                                      " (in 'optimize_glm.stan', line 97, column 2 to column 52)",
-                                                      " (in 'optimize_glm.stan', line 99, column 2 to column 72)",
-                                                      " (in 'optimize_glm.stan', line 100, column 2 to column 58)",
-                                                      " (in 'optimize_glm.stan', line 102, column 2 to column 69)",
-                                                      " (in 'optimize_glm.stan', line 103, column 2 to column 55)",
-                                                      " (in 'optimize_glm.stan', line 105, column 2 to column 68)",
-                                                      " (in 'optimize_glm.stan', line 106, column 2 to column 54)",
-                                                      " (in 'optimize_glm.stan', line 108, column 2 to column 65)",
-                                                      " (in 'optimize_glm.stan', line 109, column 2 to column 51)",
-                                                      " (in 'optimize_glm.stan', line 111, column 2 to column 59)",
-                                                      " (in 'optimize_glm.stan', line 112, column 2 to column 45)",
-                                                      " (in 'optimize_glm.stan', line 114, column 2 to column 59)",
-                                                      " (in 'optimize_glm.stan', line 115, column 2 to column 45)",
-                                                      " (in 'optimize_glm.stan', line 117, column 2 to column 58)",
-                                                      " (in 'optimize_glm.stan', line 118, column 2 to column 44)",
-                                                      " (in 'optimize_glm.stan', line 120, column 2 to column 58)",
-                                                      " (in 'optimize_glm.stan', line 121, column 2 to column 44)",
-                                                      " (in 'optimize_glm.stan', line 123, column 2 to column 62)",
-                                                      " (in 'optimize_glm.stan', line 124, column 2 to column 48)",
-                                                      " (in 'optimize_glm.stan', line 126, column 2 to column 62)",
-                                                      " (in 'optimize_glm.stan', line 127, column 2 to column 48)",
-                                                      " (in 'optimize_glm.stan', line 129, column 2 to column 65)",
-                                                      " (in 'optimize_glm.stan', line 130, column 2 to column 51)",
-                                                      " (in 'optimize_glm.stan', line 132, column 2 to column 62)",
-                                                      " (in 'optimize_glm.stan', line 133, column 2 to column 48)",
-                                                      " (in 'optimize_glm.stan', line 135, column 2 to column 64)",
-                                                      " (in 'optimize_glm.stan', line 136, column 2 to column 50)",
-                                                      " (in 'optimize_glm.stan', line 138, column 2 to column 61)",
-                                                      " (in 'optimize_glm.stan', line 139, column 2 to column 47)",
-                                                      " (in 'optimize_glm.stan', line 141, column 2 to column 68)",
-                                                      " (in 'optimize_glm.stan', line 142, column 2 to column 54)",
-                                                      " (in 'optimize_glm.stan', line 144, column 2 to column 65)",
-                                                      " (in 'optimize_glm.stan', line 145, column 2 to column 51)",
-                                                      " (in 'optimize_glm.stan', line 147, column 2 to column 71)",
-                                                      " (in 'optimize_glm.stan', line 148, column 2 to column 57)",
-                                                      " (in 'optimize_glm.stan', line 150, column 2 to column 71)",
-                                                      " (in 'optimize_glm.stan', line 151, column 2 to column 57)",
-                                                      " (in 'optimize_glm.stan', line 153, column 2 to column 70)",
-                                                      " (in 'optimize_glm.stan', line 154, column 2 to column 56)",
-                                                      " (in 'optimize_glm.stan', line 156, column 2 to column 70)",
-                                                      " (in 'optimize_glm.stan', line 157, column 2 to column 56)",
-                                                      " (in 'optimize_glm.stan', line 159, column 2 to column 74)",
-                                                      " (in 'optimize_glm.stan', line 160, column 2 to column 60)",
-                                                      " (in 'optimize_glm.stan', line 162, column 2 to column 74)",
-                                                      " (in 'optimize_glm.stan', line 163, column 2 to column 60)",
-                                                      " (in 'optimize_glm.stan', line 165, column 2 to column 77)",
-                                                      " (in 'optimize_glm.stan', line 166, column 2 to column 63)",
-                                                      " (in 'optimize_glm.stan', line 168, column 2 to column 74)",
-                                                      " (in 'optimize_glm.stan', line 169, column 2 to column 60)",
-                                                      " (in 'optimize_glm.stan', line 171, column 2 to column 76)",
-                                                      " (in 'optimize_glm.stan', line 172, column 2 to column 62)",
-                                                      " (in 'optimize_glm.stan', line 174, column 2 to column 73)",
-                                                      " (in 'optimize_glm.stan', line 175, column 2 to column 59)",
-                                                      " (in 'optimize_glm.stan', line 177, column 2 to column 80)",
-                                                      " (in 'optimize_glm.stan', line 178, column 2 to column 66)",
-                                                      " (in 'optimize_glm.stan', line 180, column 2 to column 77)",
-                                                      " (in 'optimize_glm.stan', line 181, column 2 to column 63)",
-                                                      " (in 'optimize_glm.stan', line 183, column 2 to column 62)",
-                                                      " (in 'optimize_glm.stan', line 184, column 2 to column 48)",
-                                                      " (in 'optimize_glm.stan', line 186, column 2 to column 62)",
-                                                      " (in 'optimize_glm.stan', line 187, column 2 to column 48)",
-                                                      " (in 'optimize_glm.stan', line 189, column 2 to column 68)",
-                                                      " (in 'optimize_glm.stan', line 190, column 2 to column 54)",
-                                                      " (in 'optimize_glm.stan', line 192, column 2 to column 65)",
-                                                      " (in 'optimize_glm.stan', line 193, column 2 to column 51)",
-                                                      " (in 'optimize_glm.stan', line 195, column 2 to column 62)",
-                                                      " (in 'optimize_glm.stan', line 196, column 2 to column 48)",
-                                                      " (in 'optimize_glm.stan', line 198, column 2 to column 62)",
-                                                      " (in 'optimize_glm.stan', line 199, column 2 to column 48)",
-                                                      " (in 'optimize_glm.stan', line 201, column 2 to column 68)",
-                                                      " (in 'optimize_glm.stan', line 202, column 2 to column 54)",
-                                                      " (in 'optimize_glm.stan', line 204, column 2 to column 65)",
-                                                      " (in 'optimize_glm.stan', line 205, column 2 to column 51)",
-                                                      " (in 'optimize_glm.stan', line 207, column 2 to column 65)",
-                                                      " (in 'optimize_glm.stan', line 208, column 2 to column 51)",
-                                                      " (in 'optimize_glm.stan', line 210, column 2 to column 65)",
-                                                      " (in 'optimize_glm.stan', line 211, column 2 to column 51)",
-                                                      " (in 'optimize_glm.stan', line 213, column 2 to column 63)",
-                                                      " (in 'optimize_glm.stan', line 214, column 2 to column 49)",
-                                                      " (in 'optimize_glm.stan', line 216, column 2 to column 63)",
-                                                      " (in 'optimize_glm.stan', line 217, column 2 to column 49)",
-                                                      " (in 'optimize_glm.stan', line 219, column 2 to column 69)",
-                                                      " (in 'optimize_glm.stan', line 220, column 2 to column 55)",
-                                                      " (in 'optimize_glm.stan', line 222, column 2 to column 66)",
-                                                      " (in 'optimize_glm.stan', line 223, column 2 to column 53)",
-                                                      " (in 'optimize_glm.stan', line 225, column 2 to column 66)",
-                                                      " (in 'optimize_glm.stan', line 226, column 2 to column 52)",
-                                                      " (in 'optimize_glm.stan', line 228, column 2 to column 66)",
-                                                      " (in 'optimize_glm.stan', line 229, column 2 to column 52)",
-                                                      " (in 'optimize_glm.stan', line 231, column 2 to column 68)",
-                                                      " (in 'optimize_glm.stan', line 232, column 2 to column 54)",
-                                                      " (in 'optimize_glm.stan', line 234, column 2 to column 68)",
-                                                      " (in 'optimize_glm.stan', line 235, column 2 to column 54)",
-                                                      " (in 'optimize_glm.stan', line 237, column 2 to column 74)",
-                                                      " (in 'optimize_glm.stan', line 238, column 2 to column 60)",
-                                                      " (in 'optimize_glm.stan', line 240, column 2 to column 71)",
-                                                      " (in 'optimize_glm.stan', line 241, column 2 to column 57)",
-                                                      " (in 'optimize_glm.stan', line 243, column 2 to column 71)",
-                                                      " (in 'optimize_glm.stan', line 244, column 2 to column 57)",
-                                                      " (in 'optimize_glm.stan', line 246, column 2 to column 71)",
-                                                      " (in 'optimize_glm.stan', line 247, column 2 to column 57)",
-                                                      " (in 'optimize_glm.stan', line 249, column 2 to column 77)",
-                                                      " (in 'optimize_glm.stan', line 250, column 2 to column 63)",
-                                                      " (in 'optimize_glm.stan', line 252, column 2 to column 74)",
-                                                      " (in 'optimize_glm.stan', line 253, column 2 to column 60)",
-                                                      " (in 'optimize_glm.stan', line 255, column 2 to column 69)",
-                                                      " (in 'optimize_glm.stan', line 256, column 2 to column 55)",
-                                                      " (in 'optimize_glm.stan', line 258, column 2 to column 69)",
-                                                      " (in 'optimize_glm.stan', line 259, column 2 to column 55)",
-                                                      " (in 'optimize_glm.stan', line 261, column 2 to column 75)",
-                                                      " (in 'optimize_glm.stan', line 262, column 2 to column 61)",
-                                                      " (in 'optimize_glm.stan', line 264, column 2 to column 72)",
-                                                      " (in 'optimize_glm.stan', line 265, column 2 to column 58)",
-                                                      " (in 'optimize_glm.stan', line 267, column 2 to column 72)",
-                                                      " (in 'optimize_glm.stan', line 268, column 2 to column 58)",
-                                                      " (in 'optimize_glm.stan', line 270, column 2 to column 72)",
-                                                      " (in 'optimize_glm.stan', line 271, column 2 to column 58)",
-                                                      " (in 'optimize_glm.stan', line 273, column 2 to column 78)",
-                                                      " (in 'optimize_glm.stan', line 274, column 2 to column 64)",
-                                                      " (in 'optimize_glm.stan', line 276, column 2 to column 75)",
-                                                      " (in 'optimize_glm.stan', line 277, column 2 to column 61)",
-                                                      " (in 'optimize_glm.stan', line 279, column 2 to column 73)",
-                                                      " (in 'optimize_glm.stan', line 280, column 2 to column 59)",
-                                                      " (in 'optimize_glm.stan', line 282, column 2 to column 76)",
-                                                      " (in 'optimize_glm.stan', line 283, column 2 to column 62)",
-                                                      " (in 'optimize_glm.stan', line 285, column 2 to column 69)",
-                                                      " (in 'optimize_glm.stan', line 286, column 2 to column 54)",
-                                                      " (in 'optimize_glm.stan', line 2, column 2 to column 17)",
-                                                      " (in 'optimize_glm.stan', line 3, column 2 to column 17)",
-                                                      " (in 'optimize_glm.stan', line 4, column 9 to column 10)",
-                                                      " (in 'optimize_glm.stan', line 4, column 12 to column 13)",
-                                                      " (in 'optimize_glm.stan', line 4, column 2 to column 19)",
-                                                      " (in 'optimize_glm.stan', line 5, column 9 to column 10)",
-                                                      " (in 'optimize_glm.stan', line 5, column 12 to column 13)",
-                                                      " (in 'optimize_glm.stan', line 5, column 2 to column 24)",
-                                                      " (in 'optimize_glm.stan', line 6, column 9 to column 10)",
-                                                      " (in 'optimize_glm.stan', line 6, column 2 to column 18)",
-                                                      " (in 'optimize_glm.stan', line 7, column 13 to column 14)",
-                                                      " (in 'optimize_glm.stan', line 7, column 2 to column 23)",
-                                                      " (in 'optimize_glm.stan', line 8, column 13 to column 14)",
-                                                      " (in 'optimize_glm.stan', line 8, column 2 to column 16)",
-                                                      " (in 'optimize_glm.stan', line 9, column 14 to column 15)",
-                                                      " (in 'optimize_glm.stan', line 9, column 2 to column 17)",
-                                                      " (in 'optimize_glm.stan', line 10, column 2 to column 12)",
-                                                      " (in 'optimize_glm.stan', line 11, column 2 to column 13)",
-                                                      " (in 'optimize_glm.stan', line 15, column 2 to column 20)",
-                                                      " (in 'optimize_glm.stan', line 16, column 2 to column 20)",
-                                                      " (in 'optimize_glm.stan', line 17, column 9 to column 10)",
-                                                      " (in 'optimize_glm.stan', line 17, column 12 to column 13)",
-                                                      " (in 'optimize_glm.stan', line 17, column 2 to column 22)",
-                                                      " (in 'optimize_glm.stan', line 18, column 9 to column 10)",
-                                                      " (in 'optimize_glm.stan', line 18, column 2 to column 21)",
-                                                      " (in 'optimize_glm.stan', line 19, column 13 to column 14)",
-                                                      " (in 'optimize_glm.stan', line 19, column 2 to column 26)",
-                                                      " (in 'optimize_glm.stan', line 20, column 16 to column 17)",
-                                                      " (in 'optimize_glm.stan', line 20, column 2 to column 19)",
-                                                      " (in 'optimize_glm.stan', line 21, column 17 to column 18)",
-                                                      " (in 'optimize_glm.stan', line 21, column 2 to column 20)",
-                                                      " (in 'optimize_glm.stan', line 22, column 2 to column 15)",
-                                                      " (in 'optimize_glm.stan', line 23, column 2 to column 16)",
-                                                      " (in 'optimize_glm.stan', line 27, column 9 to column 10)",
-                                                      " (in 'optimize_glm.stan', line 28, column 9 to column 10)",
-                                                      " (in 'optimize_glm.stan', line 29, column 9 to column 10)",
-                                                      " (in 'optimize_glm.stan', line 33, column 9 to column 10)",
-                                                      " (in 'optimize_glm.stan', line 33, column 12 to column 13)",
-                                                      " (in 'optimize_glm.stan', line 34, column 9 to column 10)",
-                                                      " (in 'optimize_glm.stan', line 34, column 12 to column 13)",
-                                                      " (in 'optimize_glm.stan', line 35, column 13 to column 14)"};
+
+stan::math::profile_map profiles__;
+static int current_statement__= 0;
+static const std::vector<std::string> locations_array__ = 
+{" (found before start of program)",
+ " (in 'optimize_glm.stan', line 27, column 2 to column 20)",
+ " (in 'optimize_glm.stan', line 28, column 2 to column 17)",
+ " (in 'optimize_glm.stan', line 29, column 2 to column 17)",
+ " (in 'optimize_glm.stan', line 30, column 2 to column 22)",
+ " (in 'optimize_glm.stan', line 31, column 2 to column 13)",
+ " (in 'optimize_glm.stan', line 32, column 2 to column 11)",
+ " (in 'optimize_glm.stan', line 33, column 2 to column 19)",
+ " (in 'optimize_glm.stan', line 34, column 2 to column 22)",
+ " (in 'optimize_glm.stan', line 35, column 2 to column 23)",
+ " (in 'optimize_glm.stan', line 39, column 2 to column 64)",
+ " (in 'optimize_glm.stan', line 40, column 2 to column 49)",
+ " (in 'optimize_glm.stan', line 42, column 2 to column 64)",
+ " (in 'optimize_glm.stan', line 43, column 2 to column 49)",
+ " (in 'optimize_glm.stan', line 45, column 2 to column 63)",
+ " (in 'optimize_glm.stan', line 46, column 2 to column 48)",
+ " (in 'optimize_glm.stan', line 48, column 2 to column 63)",
+ " (in 'optimize_glm.stan', line 49, column 2 to column 48)",
+ " (in 'optimize_glm.stan', line 51, column 2 to column 66)",
+ " (in 'optimize_glm.stan', line 52, column 2 to column 51)",
+ " (in 'optimize_glm.stan', line 54, column 2 to column 66)",
+ " (in 'optimize_glm.stan', line 55, column 2 to column 51)",
+ " (in 'optimize_glm.stan', line 57, column 2 to column 70)",
+ " (in 'optimize_glm.stan', line 58, column 2 to column 55)",
+ " (in 'optimize_glm.stan', line 60, column 2 to column 67)",
+ " (in 'optimize_glm.stan', line 61, column 2 to column 52)",
+ " (in 'optimize_glm.stan', line 63, column 2 to column 69)",
+ " (in 'optimize_glm.stan', line 64, column 2 to column 54)",
+ " (in 'optimize_glm.stan', line 66, column 2 to column 66)",
+ " (in 'optimize_glm.stan', line 67, column 2 to column 51)",
+ " (in 'optimize_glm.stan', line 69, column 2 to column 72)",
+ " (in 'optimize_glm.stan', line 70, column 2 to column 57)",
+ " (in 'optimize_glm.stan', line 72, column 2 to column 69)",
+ " (in 'optimize_glm.stan', line 73, column 2 to column 54)",
+ " (in 'optimize_glm.stan', line 75, column 2 to column 63)",
+ " (in 'optimize_glm.stan', line 76, column 2 to column 49)",
+ " (in 'optimize_glm.stan', line 78, column 2 to column 63)",
+ " (in 'optimize_glm.stan', line 79, column 2 to column 49)",
+ " (in 'optimize_glm.stan', line 81, column 2 to column 66)",
+ " (in 'optimize_glm.stan', line 82, column 2 to column 52)",
+ " (in 'optimize_glm.stan', line 84, column 2 to column 66)",
+ " (in 'optimize_glm.stan', line 85, column 2 to column 52)",
+ " (in 'optimize_glm.stan', line 87, column 2 to column 62)",
+ " (in 'optimize_glm.stan', line 88, column 2 to column 48)",
+ " (in 'optimize_glm.stan', line 90, column 2 to column 62)",
+ " (in 'optimize_glm.stan', line 91, column 2 to column 48)",
+ " (in 'optimize_glm.stan', line 93, column 2 to column 69)",
+ " (in 'optimize_glm.stan', line 94, column 2 to column 55)",
+ " (in 'optimize_glm.stan', line 96, column 2 to column 66)",
+ " (in 'optimize_glm.stan', line 97, column 2 to column 52)",
+ " (in 'optimize_glm.stan', line 99, column 2 to column 72)",
+ " (in 'optimize_glm.stan', line 100, column 2 to column 58)",
+ " (in 'optimize_glm.stan', line 102, column 2 to column 69)",
+ " (in 'optimize_glm.stan', line 103, column 2 to column 55)",
+ " (in 'optimize_glm.stan', line 105, column 2 to column 68)",
+ " (in 'optimize_glm.stan', line 106, column 2 to column 54)",
+ " (in 'optimize_glm.stan', line 108, column 2 to column 65)",
+ " (in 'optimize_glm.stan', line 109, column 2 to column 51)",
+ " (in 'optimize_glm.stan', line 111, column 2 to column 59)",
+ " (in 'optimize_glm.stan', line 112, column 2 to column 45)",
+ " (in 'optimize_glm.stan', line 114, column 2 to column 59)",
+ " (in 'optimize_glm.stan', line 115, column 2 to column 45)",
+ " (in 'optimize_glm.stan', line 117, column 2 to column 58)",
+ " (in 'optimize_glm.stan', line 118, column 2 to column 44)",
+ " (in 'optimize_glm.stan', line 120, column 2 to column 58)",
+ " (in 'optimize_glm.stan', line 121, column 2 to column 44)",
+ " (in 'optimize_glm.stan', line 123, column 2 to column 62)",
+ " (in 'optimize_glm.stan', line 124, column 2 to column 48)",
+ " (in 'optimize_glm.stan', line 126, column 2 to column 62)",
+ " (in 'optimize_glm.stan', line 127, column 2 to column 48)",
+ " (in 'optimize_glm.stan', line 129, column 2 to column 65)",
+ " (in 'optimize_glm.stan', line 130, column 2 to column 51)",
+ " (in 'optimize_glm.stan', line 132, column 2 to column 62)",
+ " (in 'optimize_glm.stan', line 133, column 2 to column 48)",
+ " (in 'optimize_glm.stan', line 135, column 2 to column 64)",
+ " (in 'optimize_glm.stan', line 136, column 2 to column 50)",
+ " (in 'optimize_glm.stan', line 138, column 2 to column 61)",
+ " (in 'optimize_glm.stan', line 139, column 2 to column 47)",
+ " (in 'optimize_glm.stan', line 141, column 2 to column 68)",
+ " (in 'optimize_glm.stan', line 142, column 2 to column 54)",
+ " (in 'optimize_glm.stan', line 144, column 2 to column 65)",
+ " (in 'optimize_glm.stan', line 145, column 2 to column 51)",
+ " (in 'optimize_glm.stan', line 147, column 2 to column 71)",
+ " (in 'optimize_glm.stan', line 148, column 2 to column 57)",
+ " (in 'optimize_glm.stan', line 150, column 2 to column 71)",
+ " (in 'optimize_glm.stan', line 151, column 2 to column 57)",
+ " (in 'optimize_glm.stan', line 153, column 2 to column 70)",
+ " (in 'optimize_glm.stan', line 154, column 2 to column 56)",
+ " (in 'optimize_glm.stan', line 156, column 2 to column 70)",
+ " (in 'optimize_glm.stan', line 157, column 2 to column 56)",
+ " (in 'optimize_glm.stan', line 159, column 2 to column 74)",
+ " (in 'optimize_glm.stan', line 160, column 2 to column 60)",
+ " (in 'optimize_glm.stan', line 162, column 2 to column 74)",
+ " (in 'optimize_glm.stan', line 163, column 2 to column 60)",
+ " (in 'optimize_glm.stan', line 165, column 2 to column 77)",
+ " (in 'optimize_glm.stan', line 166, column 2 to column 63)",
+ " (in 'optimize_glm.stan', line 168, column 2 to column 74)",
+ " (in 'optimize_glm.stan', line 169, column 2 to column 60)",
+ " (in 'optimize_glm.stan', line 171, column 2 to column 76)",
+ " (in 'optimize_glm.stan', line 172, column 2 to column 62)",
+ " (in 'optimize_glm.stan', line 174, column 2 to column 73)",
+ " (in 'optimize_glm.stan', line 175, column 2 to column 59)",
+ " (in 'optimize_glm.stan', line 177, column 2 to column 80)",
+ " (in 'optimize_glm.stan', line 178, column 2 to column 66)",
+ " (in 'optimize_glm.stan', line 180, column 2 to column 77)",
+ " (in 'optimize_glm.stan', line 181, column 2 to column 63)",
+ " (in 'optimize_glm.stan', line 183, column 2 to column 62)",
+ " (in 'optimize_glm.stan', line 184, column 2 to column 48)",
+ " (in 'optimize_glm.stan', line 186, column 2 to column 62)",
+ " (in 'optimize_glm.stan', line 187, column 2 to column 48)",
+ " (in 'optimize_glm.stan', line 189, column 2 to column 68)",
+ " (in 'optimize_glm.stan', line 190, column 2 to column 54)",
+ " (in 'optimize_glm.stan', line 192, column 2 to column 65)",
+ " (in 'optimize_glm.stan', line 193, column 2 to column 51)",
+ " (in 'optimize_glm.stan', line 195, column 2 to column 62)",
+ " (in 'optimize_glm.stan', line 196, column 2 to column 48)",
+ " (in 'optimize_glm.stan', line 198, column 2 to column 62)",
+ " (in 'optimize_glm.stan', line 199, column 2 to column 48)",
+ " (in 'optimize_glm.stan', line 201, column 2 to column 68)",
+ " (in 'optimize_glm.stan', line 202, column 2 to column 54)",
+ " (in 'optimize_glm.stan', line 204, column 2 to column 65)",
+ " (in 'optimize_glm.stan', line 205, column 2 to column 51)",
+ " (in 'optimize_glm.stan', line 207, column 2 to column 65)",
+ " (in 'optimize_glm.stan', line 208, column 2 to column 51)",
+ " (in 'optimize_glm.stan', line 210, column 2 to column 65)",
+ " (in 'optimize_glm.stan', line 211, column 2 to column 51)",
+ " (in 'optimize_glm.stan', line 213, column 2 to column 63)",
+ " (in 'optimize_glm.stan', line 214, column 2 to column 49)",
+ " (in 'optimize_glm.stan', line 216, column 2 to column 63)",
+ " (in 'optimize_glm.stan', line 217, column 2 to column 49)",
+ " (in 'optimize_glm.stan', line 219, column 2 to column 69)",
+ " (in 'optimize_glm.stan', line 220, column 2 to column 55)",
+ " (in 'optimize_glm.stan', line 222, column 2 to column 66)",
+ " (in 'optimize_glm.stan', line 223, column 2 to column 53)",
+ " (in 'optimize_glm.stan', line 225, column 2 to column 66)",
+ " (in 'optimize_glm.stan', line 226, column 2 to column 52)",
+ " (in 'optimize_glm.stan', line 228, column 2 to column 66)",
+ " (in 'optimize_glm.stan', line 229, column 2 to column 52)",
+ " (in 'optimize_glm.stan', line 231, column 2 to column 68)",
+ " (in 'optimize_glm.stan', line 232, column 2 to column 54)",
+ " (in 'optimize_glm.stan', line 234, column 2 to column 68)",
+ " (in 'optimize_glm.stan', line 235, column 2 to column 54)",
+ " (in 'optimize_glm.stan', line 237, column 2 to column 74)",
+ " (in 'optimize_glm.stan', line 238, column 2 to column 60)",
+ " (in 'optimize_glm.stan', line 240, column 2 to column 71)",
+ " (in 'optimize_glm.stan', line 241, column 2 to column 57)",
+ " (in 'optimize_glm.stan', line 243, column 2 to column 71)",
+ " (in 'optimize_glm.stan', line 244, column 2 to column 57)",
+ " (in 'optimize_glm.stan', line 246, column 2 to column 71)",
+ " (in 'optimize_glm.stan', line 247, column 2 to column 57)",
+ " (in 'optimize_glm.stan', line 249, column 2 to column 77)",
+ " (in 'optimize_glm.stan', line 250, column 2 to column 63)",
+ " (in 'optimize_glm.stan', line 252, column 2 to column 74)",
+ " (in 'optimize_glm.stan', line 253, column 2 to column 60)",
+ " (in 'optimize_glm.stan', line 255, column 2 to column 69)",
+ " (in 'optimize_glm.stan', line 256, column 2 to column 55)",
+ " (in 'optimize_glm.stan', line 258, column 2 to column 69)",
+ " (in 'optimize_glm.stan', line 259, column 2 to column 55)",
+ " (in 'optimize_glm.stan', line 261, column 2 to column 75)",
+ " (in 'optimize_glm.stan', line 262, column 2 to column 61)",
+ " (in 'optimize_glm.stan', line 264, column 2 to column 72)",
+ " (in 'optimize_glm.stan', line 265, column 2 to column 58)",
+ " (in 'optimize_glm.stan', line 267, column 2 to column 72)",
+ " (in 'optimize_glm.stan', line 268, column 2 to column 58)",
+ " (in 'optimize_glm.stan', line 270, column 2 to column 72)",
+ " (in 'optimize_glm.stan', line 271, column 2 to column 58)",
+ " (in 'optimize_glm.stan', line 273, column 2 to column 78)",
+ " (in 'optimize_glm.stan', line 274, column 2 to column 64)",
+ " (in 'optimize_glm.stan', line 276, column 2 to column 75)",
+ " (in 'optimize_glm.stan', line 277, column 2 to column 61)",
+ " (in 'optimize_glm.stan', line 279, column 2 to column 73)",
+ " (in 'optimize_glm.stan', line 280, column 2 to column 59)",
+ " (in 'optimize_glm.stan', line 282, column 2 to column 76)",
+ " (in 'optimize_glm.stan', line 283, column 2 to column 62)",
+ " (in 'optimize_glm.stan', line 285, column 2 to column 69)",
+ " (in 'optimize_glm.stan', line 286, column 2 to column 54)",
+ " (in 'optimize_glm.stan', line 2, column 2 to column 17)",
+ " (in 'optimize_glm.stan', line 3, column 2 to column 17)",
+ " (in 'optimize_glm.stan', line 4, column 9 to column 10)",
+ " (in 'optimize_glm.stan', line 4, column 12 to column 13)",
+ " (in 'optimize_glm.stan', line 4, column 2 to column 19)",
+ " (in 'optimize_glm.stan', line 5, column 9 to column 10)",
+ " (in 'optimize_glm.stan', line 5, column 12 to column 13)",
+ " (in 'optimize_glm.stan', line 5, column 2 to column 24)",
+ " (in 'optimize_glm.stan', line 6, column 9 to column 10)",
+ " (in 'optimize_glm.stan', line 6, column 2 to column 18)",
+ " (in 'optimize_glm.stan', line 7, column 13 to column 14)",
+ " (in 'optimize_glm.stan', line 7, column 2 to column 23)",
+ " (in 'optimize_glm.stan', line 8, column 13 to column 14)",
+ " (in 'optimize_glm.stan', line 8, column 2 to column 16)",
+ " (in 'optimize_glm.stan', line 9, column 14 to column 15)",
+ " (in 'optimize_glm.stan', line 9, column 2 to column 17)",
+ " (in 'optimize_glm.stan', line 10, column 2 to column 12)",
+ " (in 'optimize_glm.stan', line 11, column 2 to column 13)",
+ " (in 'optimize_glm.stan', line 15, column 2 to column 20)",
+ " (in 'optimize_glm.stan', line 16, column 2 to column 20)",
+ " (in 'optimize_glm.stan', line 17, column 9 to column 10)",
+ " (in 'optimize_glm.stan', line 17, column 12 to column 13)",
+ " (in 'optimize_glm.stan', line 17, column 2 to column 22)",
+ " (in 'optimize_glm.stan', line 18, column 9 to column 10)",
+ " (in 'optimize_glm.stan', line 18, column 2 to column 21)",
+ " (in 'optimize_glm.stan', line 19, column 13 to column 14)",
+ " (in 'optimize_glm.stan', line 19, column 2 to column 26)",
+ " (in 'optimize_glm.stan', line 20, column 16 to column 17)",
+ " (in 'optimize_glm.stan', line 20, column 2 to column 19)",
+ " (in 'optimize_glm.stan', line 21, column 17 to column 18)",
+ " (in 'optimize_glm.stan', line 21, column 2 to column 20)",
+ " (in 'optimize_glm.stan', line 22, column 2 to column 15)",
+ " (in 'optimize_glm.stan', line 23, column 2 to column 16)",
+ " (in 'optimize_glm.stan', line 27, column 9 to column 10)",
+ " (in 'optimize_glm.stan', line 28, column 9 to column 10)",
+ " (in 'optimize_glm.stan', line 29, column 9 to column 10)",
+ " (in 'optimize_glm.stan', line 33, column 9 to column 10)",
+ " (in 'optimize_glm.stan', line 33, column 12 to column 13)",
+ " (in 'optimize_glm.stan', line 34, column 9 to column 10)",
+ " (in 'optimize_glm.stan', line 34, column 12 to column 13)",
+ " (in 'optimize_glm.stan', line 35, column 13 to column 14)"};
 
 
 
@@ -308,15 +271,12 @@ class optimize_glm_model final : public model_base_crtp<optimize_glm_model> {
   matrix_cl<double> y_vi_d_td_opencl__;
  
  public:
-  ~optimize_glm_model() final { }
+  ~optimize_glm_model() { }
   
-  std::string model_name() const final { return "optimize_glm_model"; }
+  inline std::string model_name() const final { return "optimize_glm_model"; }
 
-  std::vector<std::string> model_compile_info() const {
-    std::vector<std::string> stanc_info;
-    stanc_info.push_back("stanc_version = %%NAME%%3 %%VERSION%%");
-    stanc_info.push_back("stancflags = --print-cpp --use-opencl");
-    return stanc_info;
+  inline std::vector<std::string> model_compile_info() const noexcept {
+    return std::vector<std::string>{"stanc_version = %%NAME%%3 %%VERSION%%", "stancflags = --print-cpp --use-opencl"};
   }
   
   
@@ -331,7 +291,6 @@ class optimize_glm_model final : public model_base_crtp<optimize_glm_model> {
     (void) function__;  // suppress unused var warning
     local_scalar_t__ DUMMY_VAR__(std::numeric_limits<double>::quiet_NaN());
     (void) DUMMY_VAR__;  // suppress unused var warning
-    
     try {
       int pos__;
       pos__ = std::numeric_limits<int>::min();
@@ -597,20 +556,19 @@ class optimize_glm_model final : public model_base_crtp<optimize_glm_model> {
       throw std::runtime_error("*** IF YOU SEE THIS, PLEASE REPORT A BUG ***"); 
     }
   }
-  template <bool propto__, bool jacobian__, typename T__>
-  inline T__ log_prob(std::vector<T__>& params_r__,
-                      std::vector<int>& params_i__,
-                      std::ostream* pstream__ = nullptr) const {
+  template <bool propto__, bool jacobian__, typename VecR, typename VecI, stan::require_vector_like_t<VecR>* = nullptr, stan::require_vector_like_vt<std::is_integral, VecI>* = nullptr>
+  inline stan::scalar_type_t<VecR> log_prob_impl(VecR& params_r__,
+                                                 VecI& params_i__,
+                                                 std::ostream* pstream__ = nullptr) const {
+    using T__ = stan::scalar_type_t<VecR>;
     using local_scalar_t__ = T__;
     T__ lp__(0.0);
     stan::math::accumulator<T__> lp_accum__;
-    static const char* function__ = "optimize_glm_model_namespace::log_prob";
-(void) function__;  // suppress unused var warning
-
     stan::io::reader<local_scalar_t__> in__(params_r__, params_i__);
     local_scalar_t__ DUMMY_VAR__(std::numeric_limits<double>::quiet_NaN());
     (void) DUMMY_VAR__;  // suppress unused var warning
-
+    static const char* function__ = "optimize_glm_model_namespace::log_prob";
+    (void) function__;  // suppress unused var warning
     
     try {
       Eigen::Matrix<local_scalar_t__, -1, 1> alpha_v;
@@ -1310,29 +1268,24 @@ class optimize_glm_model final : public model_base_crtp<optimize_glm_model> {
     }
     lp_accum__.add(lp__);
     return lp_accum__.sum();
-    } // log_prob() 
+    } // log_prob_impl() 
     
-  template <typename RNG>
-  inline void write_array(RNG& base_rng__, std::vector<double>& params_r__,
-                          std::vector<int>& params_i__,
-                          std::vector<double>& vars__,
-                          bool emit_transformed_parameters__ = true,
-                          bool emit_generated_quantities__ = true,
-                          std::ostream* pstream__ = nullptr) const {
+  template <typename RNG, typename VecR, typename VecI, typename VecVar, stan::require_vector_like_vt<std::is_floating_point, VecR>* = nullptr, stan::require_vector_like_vt<std::is_integral, VecI>* = nullptr, stan::require_std_vector_vt<std::is_floating_point, VecVar>* = nullptr>
+  inline void write_array_impl(RNG& base_rng__, VecR& params_r__,
+                               VecI& params_i__, VecVar& vars__,
+                               const bool emit_transformed_parameters__ = true,
+                               const bool emit_generated_quantities__ = true,
+                               std::ostream* pstream__ = nullptr) const {
     using local_scalar_t__ = double;
     vars__.resize(0);
     stan::io::reader<local_scalar_t__> in__(params_r__, params_i__);
-    static const char* function__ = "optimize_glm_model_namespace::write_array";
-(void) function__;  // suppress unused var warning
-
-    (void) function__;  // suppress unused var warning
-
     double lp__ = 0.0;
     (void) lp__;  // dummy to suppress unused var warning
     stan::math::accumulator<double> lp_accum__;
     local_scalar_t__ DUMMY_VAR__(std::numeric_limits<double>::quiet_NaN());
     (void) DUMMY_VAR__;  // suppress unused var warning
-
+    static const char* function__ = "optimize_glm_model_namespace::write_array";
+    (void) function__;  // suppress unused var warning
     
     try {
       Eigen::Matrix<double, -1, 1> alpha_v;
@@ -1424,13 +1377,12 @@ class optimize_glm_model final : public model_base_crtp<optimize_glm_model> {
       // Next line prevents compiler griping about no return
       throw std::runtime_error("*** IF YOU SEE THIS, PLEASE REPORT A BUG ***"); 
     }
-    } // write_array() 
+    } // write_array_impl() 
     
-  inline void transform_inits(const stan::io::var_context& context__,
-                              std::vector<int>& params_i__,
-                              std::vector<double>& vars__,
-                              std::ostream* pstream__) const
-    final {
+  template <typename VecVar, typename VecI, stan::require_std_vector_t<VecVar>* = nullptr, stan::require_vector_like_vt<std::is_integral, VecI>* = nullptr>
+  inline void transform_inits_impl(const stan::io::var_context& context__,
+                                   VecI& params_i__, VecVar& vars__,
+                                   std::ostream* pstream__ = nullptr) const {
     using local_scalar_t__ = double;
     vars__.clear();
     vars__.reserve(num_params_r__);
@@ -1611,7 +1563,7 @@ class optimize_glm_model final : public model_base_crtp<optimize_glm_model> {
       // Next line prevents compiler griping about no return
       throw std::runtime_error("*** IF YOU SEE THIS, PLEASE REPORT A BUG ***"); 
     }
-    } // transform_inits() 
+    } // transform_inits_impl() 
     
   inline void get_param_names(std::vector<std::string>& names__) const {
     
@@ -1627,8 +1579,7 @@ class optimize_glm_model final : public model_base_crtp<optimize_glm_model> {
     names__.emplace_back("X_rv_p");
     } // get_param_names() 
     
-  inline void get_dims(std::vector<std::vector<size_t>>& dimss__) const
-    final {
+  inline void get_dims(std::vector<std::vector<size_t>>& dimss__) const {
     dimss__.clear();
     dimss__.emplace_back(std::vector<size_t>{static_cast<size_t>(k)});
     
@@ -1751,13 +1702,13 @@ class optimize_glm_model final : public model_base_crtp<optimize_glm_model> {
     } // unconstrained_param_names() 
     
   inline std::string get_constrained_sizedtypes() const {
-    stringstream s__;
+    std::stringstream s__;
     s__ << "[{\"name\":\"alpha_v\",\"type\":{\"name\":\"vector\",\"length\":" << k << "},\"block\":\"parameters\"},{\"name\":\"beta\",\"type\":{\"name\":\"vector\",\"length\":" << k << "},\"block\":\"parameters\"},{\"name\":\"cuts\",\"type\":{\"name\":\"vector\",\"length\":" << k << "},\"block\":\"parameters\"},{\"name\":\"sigma\",\"type\":{\"name\":\"real\"},\"block\":\"parameters\"},{\"name\":\"alpha\",\"type\":{\"name\":\"real\"},\"block\":\"parameters\"},{\"name\":\"phi\",\"type\":{\"name\":\"real\"},\"block\":\"parameters\"},{\"name\":\"X_p\",\"type\":{\"name\":\"matrix\",\"rows\":" << n << ",\"cols\":" << k << "},\"block\":\"parameters\"},{\"name\":\"beta_m\",\"type\":{\"name\":\"matrix\",\"rows\":" << n << ",\"cols\":" << k << "},\"block\":\"parameters\"},{\"name\":\"X_rv_p\",\"type\":{\"name\":\"vector\",\"length\":" << n << "},\"block\":\"parameters\"}]";
     return s__.str();
     } // get_constrained_sizedtypes() 
     
   inline std::string get_unconstrained_sizedtypes() const {
-    stringstream s__;
+    std::stringstream s__;
     s__ << "[{\"name\":\"alpha_v\",\"type\":{\"name\":\"vector\",\"length\":" << k << "},\"block\":\"parameters\"},{\"name\":\"beta\",\"type\":{\"name\":\"vector\",\"length\":" << k << "},\"block\":\"parameters\"},{\"name\":\"cuts\",\"type\":{\"name\":\"vector\",\"length\":" << k << "},\"block\":\"parameters\"},{\"name\":\"sigma\",\"type\":{\"name\":\"real\"},\"block\":\"parameters\"},{\"name\":\"alpha\",\"type\":{\"name\":\"real\"},\"block\":\"parameters\"},{\"name\":\"phi\",\"type\":{\"name\":\"real\"},\"block\":\"parameters\"},{\"name\":\"X_p\",\"type\":{\"name\":\"matrix\",\"rows\":" << n << ",\"cols\":" << k << "},\"block\":\"parameters\"},{\"name\":\"beta_m\",\"type\":{\"name\":\"matrix\",\"rows\":" << n << ",\"cols\":" << k << "},\"block\":\"parameters\"},{\"name\":\"X_rv_p\",\"type\":{\"name\":\"vector\",\"length\":" << n << "},\"block\":\"parameters\"}]";
     return s__.str();
     } // get_unconstrained_sizedtypes() 
@@ -1765,44 +1716,63 @@ class optimize_glm_model final : public model_base_crtp<optimize_glm_model> {
   
     // Begin method overload boilerplate
     template <typename RNG>
-    inline void write_array(RNG& base_rng__,
-                     Eigen::Matrix<double,Eigen::Dynamic,1>& params_r,
-                     Eigen::Matrix<double,Eigen::Dynamic,1>& vars,
-                     bool emit_transformed_parameters__ = true,
-                     bool emit_generated_quantities__ = true,
-                     std::ostream* pstream = nullptr) const {
-      std::vector<double> params_r_vec(params_r.size());
-      for (int i = 0; i < params_r.size(); ++i)
-        params_r_vec[i] = params_r(i);
-      std::vector<double> vars_vec;
-      std::vector<int> params_i_vec;
-      write_array(base_rng__, params_r_vec, params_i_vec, vars_vec,
-          emit_transformed_parameters__, emit_generated_quantities__, pstream);
+    inline void write_array(RNG& base_rng,
+                            Eigen::Matrix<double,Eigen::Dynamic,1>& params_r,
+                            Eigen::Matrix<double,Eigen::Dynamic,1>& vars,
+                            const bool emit_transformed_parameters = true,
+                            const bool emit_generated_quantities = true,
+                            std::ostream* pstream = nullptr) const {
+      std::vector<double> vars_vec(vars.size());
+      std::vector<int> params_i;
+      write_array_impl(base_rng, params_r, params_i, vars_vec,
+          emit_transformed_parameters, emit_generated_quantities, pstream);
       vars.resize(vars_vec.size());
-      for (int i = 0; i < vars.size(); ++i)
-        vars(i) = vars_vec[i];
+      for (int i = 0; i < vars.size(); ++i) {
+        vars.coeffRef(i) = vars_vec[i];
+      }
+    }
+
+    template <typename RNG>
+    inline void write_array(RNG& base_rng, std::vector<double>& params_r,
+                            std::vector<int>& params_i,
+                            std::vector<double>& vars,
+                            bool emit_transformed_parameters = true,
+                            bool emit_generated_quantities = true,
+                            std::ostream* pstream = nullptr) const {
+      write_array_impl(base_rng, params_r, params_i, vars, emit_transformed_parameters, emit_generated_quantities, pstream);
     }
 
     template <bool propto__, bool jacobian__, typename T_>
     inline T_ log_prob(Eigen::Matrix<T_,Eigen::Dynamic,1>& params_r,
-               std::ostream* pstream = nullptr) const {
-      std::vector<T_> vec_params_r;
-      vec_params_r.reserve(params_r.size());
-      for (int i = 0; i < params_r.size(); ++i)
-        vec_params_r.push_back(params_r(i));
-      std::vector<int> vec_params_i;
-      return log_prob<propto__,jacobian__,T_>(vec_params_r, vec_params_i, pstream);
+                       std::ostream* pstream = nullptr) const {
+      Eigen::Matrix<int, -1, 1> params_i;
+      return log_prob_impl<propto__, jacobian__>(params_r, params_i, pstream);
     }
+
+    template <bool propto__, bool jacobian__, typename T__>
+    inline T__ log_prob(std::vector<T__>& params_r,
+                        std::vector<int>& params_i,
+                        std::ostream* pstream = nullptr) const {
+      return log_prob_impl<propto__, jacobian__>(params_r, params_i, pstream);
+    }
+
 
     inline void transform_inits(const stan::io::var_context& context,
                          Eigen::Matrix<double, Eigen::Dynamic, 1>& params_r,
-                         std::ostream* pstream__ = nullptr) const {
-      std::vector<double> params_r_vec;
-      std::vector<int> params_i_vec;
-      transform_inits(context, params_i_vec, params_r_vec, pstream__);
+                         std::ostream* pstream = nullptr) const final {
+      std::vector<double> params_r_vec(params_r.size());
+      std::vector<int> params_i;
+      transform_inits_impl(context, params_i, params_r_vec, pstream);
       params_r.resize(params_r_vec.size());
-      for (int i = 0; i < params_r.size(); ++i)
-        params_r(i) = params_r_vec[i];
+      for (int i = 0; i < params_r.size(); ++i) {
+        params_r.coeffRef(i) = params_r_vec[i];
+      }
+    }
+    inline void transform_inits(const stan::io::var_context& context,
+                                std::vector<int>& params_i,
+                                std::vector<double>& vars,
+                                std::ostream* pstream = nullptr) const final {
+      transform_inits_impl(context, params_i, vars, pstream);
     }
 
 };
@@ -1818,6 +1788,10 @@ stan::model::model_base& new_model(
         std::ostream* msg_stream) {
   stan_model* m = new stan_model(data_context, seed, msg_stream);
   return *m;
+}
+
+stan::math::profile_map& get_stan_profile_data() {
+  return optimize_glm_model_namespace::profiles__;
 }
 
 #endif

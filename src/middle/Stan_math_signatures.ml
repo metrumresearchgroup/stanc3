@@ -185,6 +185,7 @@ let distributions =
   ; (full_lpdf, "cauchy", [DVReal; DVReal; DVReal])
   ; (full_lpdf, "chi_square", [DVReal; DVReal])
   ; ([Lpdf], "dirichlet", [DVectors; DVectors])
+  ; (full_lpmf, "discrete_range", [DVInt; DVInt; DVInt])
   ; (full_lpdf, "double_exponential", [DVReal; DVReal; DVReal])
   ; (full_lpdf, "exp_mod_normal", [DVReal; DVReal; DVReal; DVReal])
   ; (full_lpdf, "exponential", [DVReal; DVReal])
@@ -305,6 +306,18 @@ let is_stan_math_function_name name =
   let name = Utils.stdlib_distribution_name name in
   Hashtbl.mem stan_math_signatures name
 
+let dist_name_suffix udf_names name =
+  let is_udf_name s = List.exists ~f:(fun (n, _) -> n = s) udf_names in
+  match
+    Utils.distribution_suffices
+    |> List.filter ~f:(fun sfx ->
+           is_stan_math_function_name (name ^ sfx) || is_udf_name (name ^ sfx)
+       )
+    |> List.hd
+  with
+  | Some hd -> hd
+  | None -> raise_s [%message "Couldn't find distribution " name]
+
 let assignmentoperator_to_stan_math_fn = function
   | Operator.Plus -> Some "assign_add"
   | Minus -> Some "assign_subtract"
@@ -370,9 +383,9 @@ let pretty_print_math_sigs = Fmt.strf "@[<v>@,%a@]" pp_math_sigs
 let pretty_print_all_math_sigs ppf () =
   let open Fmt in
   let pp_sig ppf (name, (rt, args)) =
-    pf ppf "%a %s(@[<hov 2>%a@])" UnsizedType.pp_returntype rt name
+    pf ppf "%s(@[<hov 2>%a@]) => %a" name
       (list ~sep:comma UnsizedType.pp)
-      (List.map ~f:snd args)
+      (List.map ~f:snd args) UnsizedType.pp_returntype rt
   in
   let pp_sigs_for_name ppf name =
     (list ~sep:cut pp_sig) ppf
@@ -882,6 +895,7 @@ let () =
   add_nullary "e" ;
   add_unqualified ("eigenvalues_sym", ReturnType UVector, [UMatrix]) ;
   add_unqualified ("eigenvectors_sym", ReturnType UMatrix, [UMatrix]) ;
+  add_unqualified ("generalized_inverse", ReturnType UMatrix, [UMatrix]) ;
   add_unqualified ("qr_Q", ReturnType UMatrix, [UMatrix]) ;
   add_unqualified ("qr_R", ReturnType UMatrix, [UMatrix]) ;
   add_unqualified ("qr_thin_Q", ReturnType UMatrix, [UMatrix]) ;
@@ -1212,6 +1226,10 @@ let () =
   add_binary_vec "lbeta" ;
   add_binary "lchoose" ;
   add_binary_vec_real_int "ldexp" ;
+  add_qualified
+    ( "linspaced_int_array"
+    , ReturnType (UArray UInt)
+    , [(DataOnly, UInt); (DataOnly, UInt); (DataOnly, UInt)] ) ;
   add_qualified
     ( "linspaced_array"
     , ReturnType (UArray UReal)
@@ -1698,6 +1716,9 @@ let () =
   add_unqualified ("sum", ReturnType UReal, [UVector]) ;
   add_unqualified ("sum", ReturnType UReal, [URowVector]) ;
   add_unqualified ("sum", ReturnType UReal, [UMatrix]) ;
+  add_unqualified ("svd_U", ReturnType UMatrix, [UMatrix]) ;
+  add_unqualified ("svd_V", ReturnType UMatrix, [UMatrix]) ;
+  add_unqualified ("symmetrize_from_lower_tri", ReturnType UMatrix, [UMatrix]) ;
   add_unqualified ("tail", ReturnType URowVector, [URowVector; UInt]) ;
   add_unqualified ("tail", ReturnType UVector, [UVector; UInt]) ;
   List.iter
@@ -1774,3 +1795,7 @@ let () =
   Hashtbl.iteri manual_stan_math_signatures ~f:(fun ~key ~data ->
       List.iter data ~f:(fun data ->
           Hashtbl.add_multi stan_math_signatures ~key ~data ) )
+
+let%expect_test "dist name suffix" =
+  dist_name_suffix [] "normal" |> print_endline ;
+  [%expect {| _lpdf |}]
