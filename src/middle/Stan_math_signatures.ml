@@ -1843,6 +1843,10 @@ let () =
   add_unqualified ("zeros_array", ReturnType (UArray UReal), [UInt]) ;
   add_unqualified ("zeros_row_vector", ReturnType URowVector, [UInt]) ;
   add_unqualified ("zeros_vector", ReturnType UVector, [UInt]) ;
+
+  (* add Torsten func signitures *)
+  Torsten.add_torsten_qualified add_qualified ;
+
   Hashtbl.iteri manual_stan_math_signatures ~f:(fun ~key ~data ->
       List.iter data ~f:(fun data ->
           Hashtbl.add_multi stan_math_signatures ~key ~data ) )

@@ -6,7 +6,8 @@ let pmx_ode_func = [ ( UnsizedType.AutoDiffable
                            ; (UnsizedType.AutoDiffable, UArray UReal)
                            ; (UnsizedType.AutoDiffable, UArray UReal)
                            ; (DataOnly, UArray UReal); (DataOnly, UArray UInt) ]
-                         , ReturnType (UArray UReal) ) ) ]
+                         , ReturnType (UArray UReal)
+                         , FnPlain) ) ]
 
 let pmx_coupled_ode_func = [ ( UnsizedType.AutoDiffable
                              , UnsizedType.UFun
@@ -15,7 +16,8 @@ let pmx_coupled_ode_func = [ ( UnsizedType.AutoDiffable
                                    ; (UnsizedType.AutoDiffable, UArray UReal)
                                    ; (UnsizedType.AutoDiffable, UArray UReal)
                                    ; (DataOnly, UArray UReal); (DataOnly, UArray UInt) ]
-                                 , ReturnType (UArray UReal) ) ) ]
+                                 , ReturnType (UArray UReal)
+                                 , FnPlain) ) ]
 
 let pmx_integrate_ode_arg = [ (UnsizedType.AutoDiffable, UnsizedType.UArray UReal) (* y0 *)
                             ; (UnsizedType.AutoDiffable, UReal)        (* t0 *)
@@ -232,9 +234,4 @@ let add_torsten_qualified add_func =
       ; (AutoDiffable, UArray UReal)       (* x *)
       ; (AutoDiffable, UArray UReal) ] )   (* y *)
 
-let () =
-  add_torsten_qualified Stan_math_signatures.add_qualified
-
-(* end of torsten sig helpers *)
-
-       
+(* end of torsten signatures *)
