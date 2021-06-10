@@ -3,10 +3,10 @@ open Core_kernel
 let pmx_ode_func = [ ( UnsizedType.AutoDiffable
                      , UnsizedType.UFun
                          ( [ (UnsizedType.AutoDiffable, UnsizedType.UReal)
-                           ; (UnsizedType.AutoDiffable, UArray UReal)
+                           ; (UnsizedType.AutoDiffable, UnsizedType.UVector)
                            ; (UnsizedType.AutoDiffable, UArray UReal)
                            ; (DataOnly, UArray UReal); (DataOnly, UArray UInt) ]
-                         , ReturnType (UArray UReal)
+                         , ReturnType UnsizedType.UVector
                          , FnPlain) ) ]
 
 let pmx_coupled_ode_func = [ ( UnsizedType.AutoDiffable
