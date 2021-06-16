@@ -1,23 +1,41 @@
 open Core_kernel
 
+(* old ODE RHS def *)
 let pmx_ode_func = [ ( UnsizedType.AutoDiffable
                      , UnsizedType.UFun
                          ( [ (UnsizedType.AutoDiffable, UnsizedType.UReal)
-                           ; (UnsizedType.AutoDiffable, UnsizedType.UVector)
+                           ; (UnsizedType.AutoDiffable, UnsizedType.UArray UReal)
                            ; (UnsizedType.AutoDiffable, UArray UReal)
                            ; (DataOnly, UArray UReal); (DataOnly, UArray UInt) ]
-                         , ReturnType UnsizedType.UVector
+                         , ReturnType (UnsizedType.UArray UReal)
                          , FnPlain) ) ]
+
+(* new ODE RHS def *)
+let pmx_solve_ode_func = [ ( UnsizedType.AutoDiffable
+                           , UnsizedType.UFun
+                               ( [ (UnsizedType.AutoDiffable, UnsizedType.UReal)
+                                 ; (UnsizedType.AutoDiffable, UnsizedType.UVector)
+                                 ; (UnsizedType.AutoDiffable, UArray UReal)
+                                 ; (DataOnly, UArray UReal); (DataOnly, UArray UInt) ]
+                               , ReturnType UnsizedType.UVector
+                               , FnPlain) ) ]
 
 let pmx_coupled_ode_func = [ ( UnsizedType.AutoDiffable
                              , UnsizedType.UFun
                                  ( [ (UnsizedType.AutoDiffable, UnsizedType.UReal)
-                                   ; (UnsizedType.AutoDiffable, UArray UReal)
-                                   ; (UnsizedType.AutoDiffable, UArray UReal)
+                                   ; (UnsizedType.AutoDiffable, UnsizedType.UVector)
+                                   ; (UnsizedType.AutoDiffable, UnsizedType.UVector)
                                    ; (UnsizedType.AutoDiffable, UArray UReal)
                                    ; (DataOnly, UArray UReal); (DataOnly, UArray UInt) ]
-                                 , ReturnType (UArray UReal)
+                                 , ReturnType UnsizedType.UVector
                                  , FnPlain) ) ]
+
+let pmx_variadic_ode_fns =
+  String.Set.of_list
+    [  "pmx_ode_bdf_ctrol"; "pmx_ode_rk45_ctrl"; "pmx_ode_adams_ctrl"; "pmx_ode_bdf"; "pmx_ode_rk45"
+     ; "pmx_ode_adams"; "pmx_ode_ckrk"; "pmx_ode_ckrk_ctrl" ]
+let pmx_ode_control_suffix = "_ctrl"
+let is_pmx_variadic_ode_fn f = Set.mem pmx_variadic_ode_fns f
 
 let pmx_integrate_ode_arg = [ (UnsizedType.AutoDiffable, UnsizedType.UArray UReal) (* y0 *)
                             ; (UnsizedType.AutoDiffable, UReal)        (* t0 *)
@@ -39,10 +57,6 @@ let pmx_integrate_ode_group_arg = [ (UnsizedType.AutoDiffable, (UnsizedType.UArr
                                   ; (UnsizedType.AutoDiffable, (UnsizedType.UArray (UnsizedType.UArray UReal))) (* theta *)
                                   ; (DataOnly, (UnsizedType.UArray (UnsizedType.UArray UReal)))     (* x_r *)
                                   ; (DataOnly, (UnsizedType.UArray (UnsizedType.UArray UInt))) ]    (* x_i *)
-
-let rec pmx_ode add_func name args_list = match args_list with
-  | [] -> ()
-  | head::tail -> add_func(name, UnsizedType.ReturnType (UArray (UArray UReal)), pmx_ode_func@head); pmx_ode add_func name tail
 
 let rec pmx_ode_group add_func name args_list = match args_list with
   | [] -> ()
@@ -91,7 +105,7 @@ let rec pmx_solve add_func name args_list =
                        ; (UnsizedType.DataOnly, UnsizedType.UArray UInt) ] in            (* ss *)
   match args_list with
   | [] -> ()
-  | head::tail -> add_func(name, UnsizedType.ReturnType UMatrix, pmx_ode_func @ pmx_event_args @ head); pmx_solve add_func name tail
+  | head::tail -> add_func(name, UnsizedType.ReturnType UMatrix, pmx_solve_ode_func @ pmx_event_args @ head); pmx_solve add_func name tail
 
 let rec pmx_solve_coupled add_func name args_list =
   let pmx_event_args = [ (UnsizedType.DataOnly, UnsizedType.UInt)                        (* nCmt *)
@@ -120,7 +134,7 @@ let rec pmx_solve_group add_func name args_list =
                        ; (UnsizedType.DataOnly, UnsizedType.UArray UInt) ] in            (* ss *)
   match args_list with
   | [] -> ()
-  | head::tail -> add_func(name, UnsizedType.ReturnType UMatrix, pmx_ode_func @ pmx_event_args @ head); pmx_solve_group add_func name tail
+  | head::tail -> add_func(name, UnsizedType.ReturnType UMatrix, pmx_solve_ode_func @ pmx_event_args @ head); pmx_solve_group add_func name tail
 
 let (pmx_solve_args, pmx_group_args, pmx_solve_cpt_args) =
   let (pmx_param_1d, pmx_param_2d) = ( [(UnsizedType.AutoDiffable, (UnsizedType.UArray UReal))], [(UnsizedType.AutoDiffable, (UnsizedType.UArray (UArray UReal)))] ) in
@@ -154,9 +168,6 @@ let pmx_solve_coupled_args =
 
 (* torsten functions *)
 let add_torsten_qualified add_func =
-
-  let sol_names = List.map ~f:(fun sol -> "pmx_integrate_ode_" ^ sol) ["adams"; "bdf"; "rk45"] in
-  List.iter ~f:(fun sol -> pmx_ode add_func sol [pmx_integrate_ode_arg @ pmx_integrate_ode_tol ; pmx_integrate_ode_arg ]) sol_names;
 
   let sol_names = List.map ~f:(fun sol -> "pmx_integrate_ode_group_" ^ sol) ["adams"; "bdf"; "rk45"] in
   List.iter ~f:(fun sol -> pmx_ode_group add_func sol [pmx_integrate_ode_group_arg @ pmx_integrate_ode_tol ; pmx_integrate_ode_group_arg ]) sol_names;

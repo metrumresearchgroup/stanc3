@@ -188,11 +188,14 @@ let is_reduce_sum_fn f = Set.mem reduce_sum_functions f
 let is_variadic_ode_nonadjoint_fn f = Set.mem variadic_ode_nonadjoint_fns f
 
 let is_variadic_ode_fn f =
-  Set.mem variadic_ode_nonadjoint_fns f || f = variadic_ode_adjoint_fn
+  Set.mem variadic_ode_nonadjoint_fns f || f = variadic_ode_adjoint_fn ||
+    Set.mem Torsten.pmx_variadic_ode_fns f
 
 let is_variadic_ode_nonadjoint_tol_fn f =
-  is_variadic_ode_nonadjoint_fn f
-  && String.is_suffix f ~suffix:ode_tolerances_suffix
+  (is_variadic_ode_nonadjoint_fn f
+   && String.is_suffix f ~suffix:ode_tolerances_suffix) ||
+    (Torsten.is_pmx_variadic_ode_fn f
+     && String.is_suffix f ~suffix:Torsten.pmx_ode_control_suffix)
 
 let distributions =
   [ (full_lpmf, "beta_binomial", [DVInt; DVInt; DVReal; DVReal])
