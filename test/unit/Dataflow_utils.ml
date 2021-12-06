@@ -2,6 +2,7 @@ open Frontend
 open Middle
 open Analysis_and_optimization.Dataflow_utils
 open Core_kernel
+open Core_kernel.Poly
 open Analysis_and_optimization.Dataflow_types
 
 let mir_of_string s =
@@ -27,8 +28,7 @@ let%expect_test "Loop test" =
       build_statement_map
         (fun {pattern; _} -> pattern)
         (fun {meta; _} -> meta)
-        {meta= Location_span.empty; pattern= block})
-  in
+        {meta= Location_span.empty; pattern= block}) in
   let exits, preds = build_predecessor_graph statement_map in
   print_s
     [%sexp
@@ -72,7 +72,7 @@ let%expect_test "Loop test" =
        (5
         ((NRFunApp (CompilerInternal FnPrint)
           (((pattern
-             (FunApp (StanLib Plus__ FnPlain)
+             (FunApp (StanLib Plus__ FnPlain AoS)
               (((pattern (Lit Int 3))
                 (meta ((type_ UInt) (loc <opaque>) (adlevel DataOnly))))
                ((pattern (Lit Int 4))
@@ -121,8 +121,7 @@ let%expect_test "Loop passthrough" =
       build_statement_map
         (fun {pattern; _} -> pattern)
         (fun {meta; _} -> meta)
-        {meta= Location_span.empty; pattern= block})
-  in
+        {meta= Location_span.empty; pattern= block}) in
   let exits, _ = build_predecessor_graph statement_map in
   print_s [%sexp (exits : label Set.Poly.t)] ;
   [%expect {|
@@ -183,7 +182,9 @@ let%expect_test "Statement label map example" =
   [%expect
     {|
       ((1 (Block (2))) (2 (Block (3 4 5)))
-       (3 (Decl (decl_adtype AutoDiffable) (decl_id i) (decl_type (Sized SInt))))
+       (3
+        (Decl (decl_adtype AutoDiffable) (decl_id i) (decl_type (Sized SInt))
+         (initialize true)))
        (4
         (Assignment (i UInt ())
          ((pattern (Lit Int 0))
@@ -191,7 +192,7 @@ let%expect_test "Statement label map example" =
        (5
         (IfElse
          ((pattern
-           (FunApp (StanLib Less__ FnPlain)
+           (FunApp (StanLib Less__ FnPlain AoS)
             (((pattern (Var i))
               (meta ((type_ UInt) (loc <opaque>) (adlevel DataOnly))))
              ((pattern (Lit Int 0))
@@ -217,7 +218,7 @@ let%expect_test "Statement label map example" =
        (11
         (IfElse
          ((pattern
-           (FunApp (StanLib Greater__ FnPlain)
+           (FunApp (StanLib Greater__ FnPlain AoS)
             (((pattern (Var j))
               (meta ((type_ UInt) (loc <opaque>) (adlevel DataOnly))))
              ((pattern (Lit Int 9))
@@ -230,18 +231,18 @@ let%expect_test "Statement label map example" =
          ((pattern
            (EAnd
             ((pattern
-              (FunApp (StanLib Greater__ FnPlain)
+              (FunApp (StanLib Greater__ FnPlain AoS)
                (((pattern (Var j))
                  (meta ((type_ UInt) (loc <opaque>) (adlevel DataOnly))))
                 ((pattern (Lit Int 8))
                  (meta ((type_ UInt) (loc <opaque>) (adlevel DataOnly)))))))
              (meta ((type_ UInt) (loc <opaque>) (adlevel DataOnly))))
             ((pattern
-              (FunApp (StanLib Less__ FnPlain)
+              (FunApp (StanLib Less__ FnPlain AoS)
                (((pattern (Var i))
                  (meta ((type_ UInt) (loc <opaque>) (adlevel DataOnly))))
                 ((pattern
-                  (FunApp (StanLib PMinus__ FnPlain)
+                  (FunApp (StanLib PMinus__ FnPlain AoS)
                    (((pattern (Lit Int 1))
                      (meta ((type_ UInt) (loc <opaque>) (adlevel DataOnly)))))))
                  (meta ((type_ UInt) (loc <opaque>) (adlevel DataOnly)))))))
@@ -252,7 +253,7 @@ let%expect_test "Statement label map example" =
        (17
         (IfElse
          ((pattern
-           (FunApp (StanLib Greater__ FnPlain)
+           (FunApp (StanLib Greater__ FnPlain AoS)
             (((pattern (Var j))
               (meta ((type_ UInt) (loc <opaque>) (adlevel DataOnly))))
              ((pattern (Lit Int 5))
@@ -265,7 +266,7 @@ let%expect_test "Statement label map example" =
          (((pattern (Lit Str Badger))
            (meta ((type_ UReal) (loc <opaque>) (adlevel DataOnly))))
           ((pattern
-            (FunApp (StanLib Plus__ FnPlain)
+            (FunApp (StanLib Plus__ FnPlain AoS)
              (((pattern (Var i))
                (meta ((type_ UInt) (loc <opaque>) (adlevel DataOnly))))
               ((pattern (Var j))
@@ -306,8 +307,7 @@ let%test "Reconstructed recursive statement" =
   let stmt =
     build_recursive_statement
       (fun pattern meta -> Stmt.Fixed.{pattern; meta})
-      example1_statement_map 1
-  in
+      example1_statement_map 1 in
   stmt = example1_program
 
 let example3_program =
@@ -390,9 +390,9 @@ let%expect_test "Controlflow graph example 3" =
 
 let%expect_test "Predecessor graph example 3" =
   (* TODO: this is still wrong. The correct answer is
-      ((6) ((1 ()) (2 (1)) (3 (2)) (4 (3 5)) (5 (4)) (6 (5))))
-  Similarly for for-loops.
-  ) *)
+         ((6) ((1 ()) (2 (1)) (3 (2)) (4 (3 5)) (5 (4)) (6 (5))))
+     Similarly for for-loops.
+     ) *)
   let exits, preds = build_predecessor_graph example3_statement_map in
   print_s
     [%sexp
@@ -491,10 +491,10 @@ let%expect_test "Controlflow graph example 4" =
 let%expect_test "Predecessor graph example 4" =
   let exits, preds = build_predecessor_graph example4_statement_map in
   (* TODO: this is still wrong. The correct answer is
-  ( (7) ( (1 ()) (2 (1)) (3 (2)) (4 (3 6)) (5 (4)) (6 (5)) (7 ()) ) )
-  or a very conservative approximation
-  ( (7) ( (1 ()) (2 (1)) (3 (2)) (4 (3 6 7)) (5 (4)) (6 (5)) (7 (6)) ) )
-   *)
+     ( (7) ( (1 ()) (2 (1)) (3 (2)) (4 (3 6)) (5 (4)) (6 (5)) (7 ()) ) )
+     or a very conservative approximation
+     ( (7) ( (1 ()) (2 (1)) (3 (2)) (4 (3 6 7)) (5 (4)) (6 (5)) (7 (6)) ) )
+  *)
   print_s
     [%sexp
       ((exits, preds) : label Set.Poly.t * (label, label Set.Poly.t) Map.Poly.t)] ;
@@ -598,9 +598,9 @@ let%expect_test "Controlflow graph example 5" =
 let%expect_test "Predecessor graph example 5" =
   let exits, preds = build_predecessor_graph example5_statement_map in
   (* TODO: this is still very very conservative (e.g. I'd hope for
-  (8) ((1 ())) (2 (1)) (3 (2)) (4 (3)) (5 (4)) (6 (5)) (7 ()) (8 (6))
-  but maybe that's too much to ask for
-  ) *)
+     (8) ((1 ())) (2 (1)) (3 (2)) (4 (3)) (5 (4)) (6 (5)) (7 ()) (8 (6))
+     but maybe that's too much to ask for
+     ) *)
   print_s
     [%sexp
       ((exits, preds) : label Set.Poly.t * (label, label Set.Poly.t) Map.Poly.t)] ;

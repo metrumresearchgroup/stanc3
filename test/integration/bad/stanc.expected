@@ -514,6 +514,9 @@ Semantic error in 'declare-define-var-vec-1.stan', line 6, column 2 to column 23
    -------------------------------------------------
 
 Ill-typed arguments supplied to assignment operator =: lhs has type vector and rhs has type row_vector
+  $ ../../../../install/default/bin/stanc empty.stan
+Warning: Empty file 'empty.stan' detected; this is a valid stan model but
+    likely unintended!
   $ ../../../../install/default/bin/stanc err-bare-type-close-square.stan
 Syntax error in 'err-bare-type-close-square.stan', line 2, column 8 to column 11, parsing error:
    -------------------------------------------------
@@ -729,7 +732,10 @@ Syntax error in 'err-if-else.stan', line 3, column 8 to column 9, parsing error:
 
 Expected ")" after test expression of conditional control flow construct.
   $ ../../../../install/default/bin/stanc err-incr-log-prob-scope.stan
-Warning in 'err-incr-log-prob-scope.stan', line 4, column 2: increment_log_prob(...); is deprecated and will be removed in the future. Use target += ...; instead.Semantic error in 'err-incr-log-prob-scope.stan', line 4, column 2 to column 24:
+Warning in 'err-incr-log-prob-scope.stan', line 4, column 2: increment_log_prob(...);
+    is deprecated and will be removed in Stan 2.32.0. Use target += ...;
+    instead. This can be done automatically with stanc --print-canonical
+Semantic error in 'err-incr-log-prob-scope.stan', line 4, column 2 to column 24:
    -------------------------------------------------
      2:    real x;
      3:    x = 2.0;
@@ -769,6 +775,9 @@ Ill-typed arguments supplied to infix operator -. Available signatures:
 (real, vector) => vector
 (vector, real) => vector
 (vector, vector) => vector
+(complex, real) => complex
+(complex, complex) => complex
+(complex, complex) => complex
 (real, row_vector) => row_vector
 (row_vector, real) => row_vector
 (row_vector, row_vector) => row_vector
@@ -971,7 +980,7 @@ Syntax error in 'functions-bad0.stan', line 2, column 11 to column 15, parsing e
      4:    }
    -------------------------------------------------
 
-(Non-void) type expected in function argument declaration.
+An argument declaration (unsized and unconstrained type followed by identifier) is expected.
   $ ../../../../install/default/bin/stanc functions-bad1.stan
 Semantic error in 'functions-bad1.stan', line 6, column 7 to column 11:
    -------------------------------------------------
@@ -997,7 +1006,10 @@ Semantic error in 'functions-bad11.stan', line 3, column 4 to column 20:
 
 Target can only be accessed in the model block or in definitions of functions with the suffix _lp.
   $ ../../../../install/default/bin/stanc functions-bad12.stan
-Warning in 'functions-bad12.stan', line 3, column 4: increment_log_prob(...); is deprecated and will be removed in the future. Use target += ...; instead.Semantic error in 'functions-bad12.stan', line 3, column 4 to column 42:
+Warning in 'functions-bad12.stan', line 3, column 4: increment_log_prob(...);
+    is deprecated and will be removed in Stan 2.32.0. Use target += ...;
+    instead. This can be done automatically with stanc --print-canonical
+Semantic error in 'functions-bad12.stan', line 3, column 4 to column 42:
    -------------------------------------------------
      1:  functions {
      2:    void badlp(real x) {
@@ -1033,8 +1045,13 @@ Semantic error in 'functions-bad14.stan', line 5, column 6 to column 9:
 
 Identifier 'abc' is already in use.
   $ ../../../../install/default/bin/stanc functions-bad15.stan
-Warning in 'functions-bad15.stan', line 3, column 4: increment_log_prob(...); is deprecated and will be removed in the future. Use target += ...; instead.
-Warning in 'functions-bad15.stan', line 10, column 2: increment_log_prob(...); is deprecated and will be removed in the future. Use target += ...; instead.Semantic error in 'functions-bad15.stan', line 10, column 21 to column 38:
+Warning in 'functions-bad15.stan', line 3, column 4: increment_log_prob(...);
+    is deprecated and will be removed in Stan 2.32.0. Use target += ...;
+    instead. This can be done automatically with stanc --print-canonical
+Warning in 'functions-bad15.stan', line 10, column 2: increment_log_prob(...);
+    is deprecated and will be removed in Stan 2.32.0. Use target += ...;
+    instead. This can be done automatically with stanc --print-canonical
+Semantic error in 'functions-bad15.stan', line 10, column 21 to column 38:
    -------------------------------------------------
      8:  }
      9:  model {
@@ -1091,16 +1108,17 @@ Semantic error in 'functions-bad19.stan', line 4, column 2 to line 6, column 3:
 
 Function 'my_fun3' has already been declared to have type (data real) => real
   $ ../../../../install/default/bin/stanc functions-bad2.stan
-Semantic error in 'functions-bad2.stan', line 2, column 2 to column 22:
+Semantic error in 'functions-bad2.stan', line 8, column 7 to column 13:
    -------------------------------------------------
-     1:  functions {
-     2:    real barfoo(real x);
-           ^
-     3:    // error not defining barfoo
-     4:  }
+     6:    }
+     7:    
+     8:    real barfoo(real x);
+                ^
+     9:    // error not defining barfoo
+    10:  }
    -------------------------------------------------
 
-Some function is declared without specifying a definition.
+Function is declared without specifying a definition.
   $ ../../../../install/default/bin/stanc functions-bad20.stan
 Semantic error in 'functions-bad20.stan', line 4, column 2 to line 6, column 3:
    -------------------------------------------------
@@ -1124,9 +1142,13 @@ Semantic error in 'functions-bad21.stan', line 13, column 11 to column 21:
     15:  }
    -------------------------------------------------
 
-Ill-typed arguments supplied to function 'my_fun3'. Available signatures:
+Ill-typed arguments supplied to function 'my_fun3':
+(real)
+Available signatures:
 (data real) => real
-Instead supplied arguments of incompatible type: real.
+  The first argument must be data-only. (Local variables are assumed to
+  depend on parameters; same goes for function inputs unless they are marked
+  with the keyword 'data'.)
   $ ../../../../install/default/bin/stanc functions-bad22-ode.stan
 Semantic error in 'functions-bad22-ode.stan', line 15, column 11 to column 82:
    -------------------------------------------------
@@ -1138,10 +1160,21 @@ Semantic error in 'functions-bad22-ode.stan', line 15, column 11 to column 82:
     17:  
    -------------------------------------------------
 
-Ill-typed arguments supplied to function 'integrate_ode_rk45'. Available signatures: 
-((real, array[] real, array[] real, data array[] real, data array[] int) => array[] real, array[] real, real, array[] real, array[] real, data array[] real, data array[] int) => array[,] real
-((real, array[] real, array[] real, data array[] real, data array[] int) => array[] real, array[] real, real, array[] real, array[] real, data array[] real, data array[] int, data real, data real, data real) => array[,] real
-Instead supplied arguments of incompatible type: (real, array[] real, array[] real, array[] real, array[] int) => array[] real, array[] real, real, array[] real, array[] real, array[] real, array[] int.
+Ill-typed arguments supplied to function 'integrate_ode_rk45':
+(<F1>, array[] real, real, array[] real, array[] real, array[] real,
+ array[] int)
+where F1 = (real, array[] real, array[] real, array[] real, array[] int) => array[] real
+Available signatures:
+(<F2>, array[] real, real, array[] real, array[] real, data array[] real,
+ data array[] int) => array[,] real
+where F2 = (real, array[] real, array[] real, data array[] real,
+            data array[] int) => array[] real
+  The 6th argument must be data-only. (Local variables are assumed to depend
+  on parameters; same goes for function inputs unless they are marked with
+  the keyword 'data'.)
+(<F2>, array[] real, real, array[] real, array[] real, data array[] real,
+ data array[] int, data real, data real, data real) => array[,] real
+  Expected 10 arguments but found 7 arguments.
   $ ../../../../install/default/bin/stanc functions-bad23.stan
 Semantic error in 'functions-bad23.stan', line 3, column 4 to column 11:
    -------------------------------------------------
@@ -1258,7 +1291,10 @@ Semantic error in 'get-lp-target-data.stan', line 2, column 19 to column 27:
 
 Target can only be accessed in the model block or in definitions of functions with the suffix _lp.
   $ ../../../../install/default/bin/stanc get_lp_bad_scope1.stan
-Warning in 'get_lp_bad_scope1.stan', line 3, column 6: get_lp() function is deprecated. It will be removed in a future release. Use target() instead.Semantic error in 'get_lp_bad_scope1.stan', line 3, column 6 to column 14:
+Warning in 'get_lp_bad_scope1.stan', line 3, column 6: get_lp() function is
+    deprecated. It will be removed in Stan 2.32.0. Use target() instead. This
+    can be done automatically with stanc --print-canonical
+Semantic error in 'get_lp_bad_scope1.stan', line 3, column 6 to column 14:
    -------------------------------------------------
      1:  transformed data {
      2:    real y;
@@ -1270,7 +1306,10 @@ Warning in 'get_lp_bad_scope1.stan', line 3, column 6: get_lp() function is depr
 
 Target can only be accessed in the model block or in definitions of functions with the suffix _lp.
   $ ../../../../install/default/bin/stanc get_lp_bad_scope2.stan
-Warning in 'get_lp_bad_scope2.stan', line 3, column 15: get_lp() function is deprecated. It will be removed in a future release. Use target() instead.Semantic error in 'get_lp_bad_scope2.stan', line 3, column 15 to column 23:
+Warning in 'get_lp_bad_scope2.stan', line 3, column 15: get_lp() function is
+    deprecated. It will be removed in Stan 2.32.0. Use target() instead. This
+    can be done automatically with stanc --print-canonical
+Semantic error in 'get_lp_bad_scope2.stan', line 3, column 15 to column 23:
    -------------------------------------------------
      1:  functions {
      2:    real foo(real x) {
@@ -1431,6 +1470,7 @@ Ill-typed arguments supplied to infix operator +. Available signatures:
 (real, vector) => vector
 (vector, real) => vector
 (vector, vector) => vector
+(complex, complex) => complex
 (real, row_vector) => row_vector
 (row_vector, real) => row_vector
 (row_vector, row_vector) => row_vector
@@ -1455,6 +1495,8 @@ Ill-typed arguments supplied to infix operator /. Available signatures:
 (int, int) => int
 (real, real) => real
 (vector, real) => vector
+(complex, real) => complex
+(complex, complex) => complex
 (row_vector, real) => row_vector
 (matrix, real) => matrix
 Instead supplied arguments of incompatible type: array[] int, matrix.
@@ -1475,6 +1517,8 @@ Ill-typed arguments supplied to infix operator /. Available signatures:
 (int, int) => int
 (real, real) => real
 (vector, real) => vector
+(complex, real) => complex
+(complex, complex) => complex
 (row_vector, real) => row_vector
 (matrix, real) => matrix
 Instead supplied arguments of incompatible type: array[] int, matrix.
@@ -1615,6 +1659,7 @@ Ill-typed arguments supplied to prefix operator -. Available signatures:
 (int) => int
 (real) => real
 (vector) => vector
+(complex) => complex
 (row_vector) => row_vector
 (matrix) => matrix
 Instead supplied argument of incompatible type: array[] int.
@@ -1648,6 +1693,8 @@ Ill-typed arguments supplied to infix operator *. Available signatures:
 (real, vector) => vector
 (vector, real) => vector
 (matrix, vector) => vector
+(complex, real) => complex
+(complex, complex) => complex
 (real, row_vector) => row_vector
 (row_vector, real) => row_vector
 (row_vector, matrix) => row_vector
@@ -1672,6 +1719,9 @@ Ill-typed arguments supplied to infix operator -. Available signatures:
 (real, vector) => vector
 (vector, real) => vector
 (vector, vector) => vector
+(complex, real) => complex
+(complex, complex) => complex
+(complex, complex) => complex
 (real, row_vector) => row_vector
 (row_vector, real) => row_vector
 (row_vector, row_vector) => row_vector
@@ -1759,72 +1809,20 @@ Semantic error in 'propto-bad1.stan', line 2, column 14 to column 37:
      3:  }
    -------------------------------------------------
 
-Ill-typed arguments supplied to function 'normal_lupdf'. Available signatures: 
+Ill-typed arguments supplied to function 'normal_lupdf':
+(int, array[] int, int)
+Available signatures:
 (real, real, real) => real
-(real, real, vector) => real
-(real, real, row_vector) => real
+  The second argument must be real but got array[] int
 (real, real, array[] real) => real
+  The second argument must be real but got array[] int
+(real, real, vector) => real
+  The second argument must be real but got array[] int
+(real, real, row_vector) => real
+  The second argument must be real but got array[] int
 (real, vector, real) => real
-(real, vector, vector) => real
-(real, vector, row_vector) => real
-(real, vector, array[] real) => real
-(real, row_vector, real) => real
-(real, row_vector, vector) => real
-(real, row_vector, row_vector) => real
-(real, row_vector, array[] real) => real
-(real, array[] real, real) => real
-(real, array[] real, vector) => real
-(real, array[] real, row_vector) => real
-(real, array[] real, array[] real) => real
-(vector, real, real) => real
-(vector, real, vector) => real
-(vector, real, row_vector) => real
-(vector, real, array[] real) => real
-(vector, vector, real) => real
-(vector, vector, vector) => real
-(vector, vector, row_vector) => real
-(vector, vector, array[] real) => real
-(vector, row_vector, real) => real
-(vector, row_vector, vector) => real
-(vector, row_vector, row_vector) => real
-(vector, row_vector, array[] real) => real
-(vector, array[] real, real) => real
-(vector, array[] real, vector) => real
-(vector, array[] real, row_vector) => real
-(vector, array[] real, array[] real) => real
-(row_vector, real, real) => real
-(row_vector, real, vector) => real
-(row_vector, real, row_vector) => real
-(row_vector, real, array[] real) => real
-(row_vector, vector, real) => real
-(row_vector, vector, vector) => real
-(row_vector, vector, row_vector) => real
-(row_vector, vector, array[] real) => real
-(row_vector, row_vector, real) => real
-(row_vector, row_vector, vector) => real
-(row_vector, row_vector, row_vector) => real
-(row_vector, row_vector, array[] real) => real
-(row_vector, array[] real, real) => real
-(row_vector, array[] real, vector) => real
-(row_vector, array[] real, row_vector) => real
-(row_vector, array[] real, array[] real) => real
-(array[] real, real, real) => real
-(array[] real, real, vector) => real
-(array[] real, real, row_vector) => real
-(array[] real, real, array[] real) => real
-(array[] real, vector, real) => real
-(array[] real, vector, vector) => real
-(array[] real, vector, row_vector) => real
-(array[] real, vector, array[] real) => real
-(array[] real, row_vector, real) => real
-(array[] real, row_vector, vector) => real
-(array[] real, row_vector, row_vector) => real
-(array[] real, row_vector, array[] real) => real
-(array[] real, array[] real, real) => real
-(array[] real, array[] real, vector) => real
-(array[] real, array[] real, row_vector) => real
-(array[] real, array[] real, array[] real) => real
-Instead supplied arguments of incompatible type: int, array[] int, int.
+  The second argument must be vector but got array[] int
+(Additional signatures omitted)
   $ ../../../../install/default/bin/stanc real-pdf.stan
 Semantic error in 'real-pdf.stan', line 2, column 2 to line 4, column 3:
    -------------------------------------------------
@@ -2057,8 +2055,22 @@ Semantic error in 'row_vector_expr_bad2.stan', line 5, column 25 to column 26:
    -------------------------------------------------
 
 Row_vector expression must have all int or real entries. Found type row_vector.
+  $ ../../../../install/default/bin/stanc shadow.stan
+Semantic error in 'shadow.stan', line 2, column 7 to column 12:
+   -------------------------------------------------
+     1:  functions {
+     2:     int log10(int x) {
+                ^
+     3:      return 1;
+     4:     }
+   -------------------------------------------------
+
+Identifier 'log10' clashes with Stan Math library function.
   $ ../../../../install/default/bin/stanc signature_function_known.stan
-Warning in 'signature_function_known.stan', line 8, column 2: increment_log_prob(...); is deprecated and will be removed in the future. Use target += ...; instead.Semantic error in 'signature_function_known.stan', line 8, column 21 to column 50:
+Warning in 'signature_function_known.stan', line 8, column 2: increment_log_prob(...);
+    is deprecated and will be removed in Stan 2.32.0. Use target += ...;
+    instead. This can be done automatically with stanc --print-canonical
+Semantic error in 'signature_function_known.stan', line 8, column 21 to column 50:
    -------------------------------------------------
      6:  }
      7:  model {
@@ -2067,18 +2079,25 @@ Warning in 'signature_function_known.stan', line 8, column 2: increment_log_prob
      9:  }
    -------------------------------------------------
 
-Ill-typed arguments supplied to function 'bernoulli_logit_log'. Available signatures: 
+Ill-typed arguments supplied to function 'bernoulli_logit_log':
+(vector, vector)
+Available signatures:
 (int, real) => real
-(int, vector) => real
-(int, row_vector) => real
+  The first argument must be int but got vector
 (int, array[] real) => real
+  The first argument must be int but got vector
+(int, vector) => real
+  The first argument must be int but got vector
+(int, row_vector) => real
+  The first argument must be int but got vector
 (array[] int, real) => real
-(array[] int, vector) => real
-(array[] int, row_vector) => real
-(array[] int, array[] real) => real
-Instead supplied arguments of incompatible type: vector, vector.
+  The first argument must be array[] int but got vector
+(Additional signatures omitted)
   $ ../../../../install/default/bin/stanc signature_function_unknown.stan
-Warning in 'signature_function_unknown.stan', line 8, column 2: increment_log_prob(...); is deprecated and will be removed in the future. Use target += ...; instead.Semantic error in 'signature_function_unknown.stan', line 8, column 21 to column 45:
+Warning in 'signature_function_unknown.stan', line 8, column 2: increment_log_prob(...);
+    is deprecated and will be removed in Stan 2.32.0. Use target += ...;
+    instead. This can be done automatically with stanc --print-canonical
+Semantic error in 'signature_function_unknown.stan', line 8, column 21 to column 45:
    -------------------------------------------------
      6:  }
      7:  model {
@@ -2144,6 +2163,18 @@ Semantic error in 'target-reserved.stan', line 2, column 7 to column 13:
    -------------------------------------------------
 
 Identifier 'target' clashes with reserved keyword.
+  $ ../../../../install/default/bin/stanc ternaryif-fntype.stan
+Semantic error in 'ternaryif-fntype.stan', line 13, column 6 to column 28:
+   -------------------------------------------------
+    11:      vector[1] true_states[1];
+    12:      true_states = ode_rk45(
+    13:        t0 < 0 ? rflow : gflow, [1]', t0, {1.}
+               ^
+    14:      );
+    15:  }
+   -------------------------------------------------
+
+Ternary expression cannot have a function type: (real, vector) => vector
   $ ../../../../install/default/bin/stanc tilde-bad.stan
 Semantic error in 'tilde-bad.stan', line 8, column 8 to column 19:
    -------------------------------------------------
@@ -2153,7 +2184,6 @@ Semantic error in 'tilde-bad.stan', line 8, column 8 to column 19:
                  ^
      9:  }
    -------------------------------------------------
-
 
 ~ statement should refer to a distribution without its "_lpdf/_lupdf" or "_lpmf/_lupmf" suffix.
 For example, "target += normal_lpdf(y, 0, 1)" should become "y ~ normal(0, 1)."
@@ -2200,6 +2230,17 @@ Semantic error in 'truncation-bad-type4.stan', line 1, column 8 to column 36:
    -------------------------------------------------
 
 Truncation is only defined if distribution has _lcdf and _lccdf functions implemented with appropriate signature.
+  $ ../../../../install/default/bin/stanc typo.stan
+Semantic error in 'typo.stan', line 2, column 17 to column 34:
+   -------------------------------------------------
+     1:  transformed data {
+     2:     vector[3] x = to_vetor({1,2,3});
+                          ^
+     3:  }
+   -------------------------------------------------
+
+A returning function was expected but an undeclared identifier 'to_vetor' was supplied.
+A similar known identifier is 'to_vector'
   $ ../../../../install/default/bin/stanc validate_add_expression_dimss_bad.stan
 Semantic error in 'validate_add_expression_dimss_bad.stan', line 4, column 6 to column 13:
    -------------------------------------------------

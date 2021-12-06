@@ -1,4 +1,5 @@
-open Core_kernel
+(** MIR types and modules corresponding to the statements of the language *)
+
 open Common
 open Label
 
@@ -7,7 +8,7 @@ module Fixed : sig
     type ('a, 'b) t =
       | Assignment of 'a lvalue * 'a
       | TargetPE of 'a
-      | NRFunApp of Fun_kind.t * 'a list
+      | NRFunApp of 'a Fun_kind.t * 'a list
       | Break
       | Continue
       | Return of 'a option
@@ -21,7 +22,8 @@ module Fixed : sig
       | Decl of
           { decl_adtype: UnsizedType.autodifftype
           ; decl_id: string
-          ; decl_type: 'a Type.t }
+          ; decl_type: 'a Type.t
+          ; initialize: bool }
     [@@deriving sexp, hash, compare]
 
     and 'a lvalue = string * UnsizedType.t * 'a Index.t list
@@ -42,15 +44,15 @@ module NoMeta : sig
 
   include
     Specialized.S
-    with module Meta := Meta
-     and type t = (Expr.NoMeta.Meta.t, Meta.t) Fixed.t
+      with module Meta := Meta
+       and type t = (Expr.NoMeta.Meta.t, Meta.t) Fixed.t
 
   val remove_meta : ('a, 'b) Fixed.t -> t
 end
 
 module Located : sig
   module Meta : sig
-    type t = (Location_span.t sexp_opaque[@compare.ignore])
+    type t = (Location_span.t[@sexp.opaque] [@compare.ignore])
     [@@deriving compare, sexp, hash]
 
     include Specialized.Meta with type t := t
@@ -58,18 +60,18 @@ module Located : sig
 
   include
     Specialized.S
-    with module Meta := Meta
-     and type t =
-                ( Expr.Typed.Meta.t
-                , (Meta.t sexp_opaque[@compare.ignore]) )
-                Fixed.t
+      with module Meta := Meta
+       and type t =
+            ( Expr.Typed.Meta.t
+            , (Meta.t[@sexp.opaque] [@compare.ignore]) )
+            Fixed.t
 
   val loc_of : t -> Location_span.t
 
   module Non_recursive : sig
     type t =
       { pattern: (Expr.Typed.t, int) Fixed.Pattern.t
-      ; meta: Meta.t sexp_opaque [@compare.ignore] }
+      ; meta: (Meta.t[@sexp.opaque] [@compare.ignore]) }
     [@@deriving compare, sexp, hash]
   end
 end
@@ -77,7 +79,7 @@ end
 module Labelled : sig
   module Meta : sig
     type t =
-      { loc: Location_span.t sexp_opaque [@compare.ignore]
+      { loc: (Location_span.t[@sexp.opaque] [@compare.ignore])
       ; label: Int_label.t [@compare.ignore] }
     [@@deriving compare, create, sexp, hash]
 
@@ -86,8 +88,8 @@ module Labelled : sig
 
   include
     Specialized.S
-    with module Meta := Meta
-     and type t = (Expr.Labelled.Meta.t, Meta.t) Fixed.t
+      with module Meta := Meta
+       and type t = (Expr.Labelled.Meta.t, Meta.t) Fixed.t
 
   val loc_of : t -> Location_span.t
   val label_of : t -> Int_label.t
@@ -101,7 +103,7 @@ end
 
 module Numbered : sig
   module Meta : sig
-    type t = (int sexp_opaque[@compare.ignore])
+    type t = (int[@sexp.opaque] [@compare.ignore])
     [@@deriving compare, sexp, hash]
 
     include Specialized.Meta with type t := t
@@ -111,8 +113,8 @@ module Numbered : sig
 
   include
     Specialized.S
-    with module Meta := Meta
-     and type t = (Expr.Typed.Meta.t, Meta.t) Fixed.t
+      with module Meta := Meta
+       and type t = (Expr.Typed.Meta.t, Meta.t) Fixed.t
 end
 
 module Helpers : sig
@@ -120,12 +122,27 @@ module Helpers : sig
     (Expr.Typed.t -> 'a -> Located.t) -> Expr.Typed.t -> 'a -> Located.t
 
   val internal_nrfunapp :
-    Internal_fun.t -> 'a Fixed.First.t list -> 'b -> ('a, 'b) Fixed.t
+       'a Fixed.First.t Internal_fun.t
+    -> 'a Fixed.First.t list
+    -> 'b
+    -> ('a, 'b) Fixed.t
 
   val contains_fn_kind :
-    (Fun_kind.t -> bool) -> ?init:bool -> ('a, 'b) Fixed.t -> bool
+       ('a Fixed.First.t Fun_kind.t -> bool)
+    -> ?init:bool
+    -> ('a, 'b) Fixed.t
+    -> bool
 
-  val mkfor :
+  val mk_for :
+    Expr.Typed.t -> (Expr.Typed.t -> Located.t) -> Location_span.t -> Located.t
+
+  val mk_nested_for :
+       Expr.Typed.t list
+    -> (Expr.Typed.t list -> Located.t)
+    -> Location_span.t
+    -> Located.t
+
+  val mk_for_iteratee :
        Expr.Typed.t
     -> (Expr.Typed.t -> Located.t)
     -> Expr.Typed.t

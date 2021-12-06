@@ -1,11 +1,19 @@
-(** Abstract syntax tree *)
-open Core_kernel
+(** Abstract syntax tree for Stan. Defined with the
+  'two-level types' pattern, where the variant types are not
+  directly recursive, but rather parametric in some other type.
 
+  This type ends up being substituted for the fixpoint of the recursive
+  type itself including metadata. So instead of recursively referencing
+  [expression] you would instead reference type parameter ['e], which will
+  later be filled in with something like [type expr_with_meta = metadata expression]
+*)
+
+open Core_kernel
 open Middle
 
 (** Our type for identifiers, on which we record a location *)
 type identifier =
-  {name: string; id_loc: Location_span.t sexp_opaque [@compare.ignore]}
+  {name: string; id_loc: (Location_span.t[@sexp.opaque] [@compare.ignore])}
 [@@deriving sexp, hash, compare]
 
 (** Indices for array access *)
@@ -33,6 +41,7 @@ type ('e, 'f) expression =
   | Variable of identifier
   | IntNumeral of string
   | RealNumeral of string
+  | ImagNumeral of string
   | FunApp of 'f * identifier * 'e list
   | CondDistApp of 'f * identifier * 'e list
   (* GetLP is deprecated *)
@@ -48,7 +57,7 @@ type ('m, 'f) expr_with = {expr: (('m, 'f) expr_with, 'f) expression; emeta: 'm}
 [@@deriving sexp, compare, map, hash, fold]
 
 (** Untyped expressions, which have location_spans as meta-data *)
-type located_meta = {loc: Location_span.t sexp_opaque [@compare.ignore]}
+type located_meta = {loc: (Location_span.t[@sexp.opaque] [@compare.ignore])}
 [@@deriving sexp, compare, map, hash, fold]
 
 type untyped_expression = (located_meta, unit) expr_with
@@ -57,7 +66,7 @@ type untyped_expression = (located_meta, unit) expr_with
 (** Typed expressions also have meta-data after type checking: a location_span, as well as a type
     and an origin block (lub of the origin blocks of the identifiers in it) *)
 type typed_expr_meta =
-  { loc: Location_span.t sexp_opaque [@compare.ignore]
+  { loc: (Location_span.t[@sexp.opaque] [@compare.ignore])
   ; ad_level: UnsizedType.autodifftype
   ; type_: UnsizedType.t }
 [@@deriving sexp, compare, map, hash, fold]
@@ -72,7 +81,7 @@ let mk_typed_expression ~expr ~loc ~type_ ~ad_level =
 
 let expr_loc_lub exprs =
   match List.map ~f:(fun e -> e.emeta.loc) exprs with
-  | [] -> raise_s [%message "Can't find location lub for empty list"]
+  | [] -> Location_span.empty
   | [hd] -> hd
   | x1 :: tl -> List.fold ~init:x1 ~f:Location_span.merge tl
 
@@ -118,10 +127,7 @@ type typed_lval = (typed_expression, typed_expr_meta) lval_with
     for 'e and 's respectively to get untyped_statement and typed_expression and
     typed_statement to get typed_statement    *)
 type ('e, 's, 'l, 'f) statement =
-  | Assignment of
-      { assign_lhs: 'l
-      ; assign_op: assignmentoperator
-      ; assign_rhs: 'e }
+  | Assignment of {assign_lhs: 'l; assign_op: assignmentoperator; assign_rhs: 'e}
   | NRFunApp of 'f * identifier * 'e list
   | TargetPE of 'e
   (* IncrementLogProb is deprecated *)
@@ -150,7 +156,7 @@ type ('e, 's, 'l, 'f) statement =
   | Block of 's list
   | VarDecl of
       { decl_type: 'e Middle.Type.t
-      ; transformation: 'e Middle.Program.transformation
+      ; transformation: 'e Transformation.t
       ; identifier: identifier
       ; initial_value: 'e option
       ; is_global: bool }
@@ -190,7 +196,7 @@ type untyped_statement =
 let mk_untyped_statement ~stmt ~loc : untyped_statement = {stmt; smeta= {loc}}
 
 type stmt_typed_located_meta =
-  { loc: Middle.Location_span.t sexp_opaque [@compare.ignore]
+  { loc: (Middle.Location_span.t[@sexp.opaque] [@compare.ignore])
   ; return_type: statement_returntype }
 [@@deriving sexp, compare, map, hash]
 
@@ -209,19 +215,31 @@ let mk_typed_statement ~stmt ~loc ~return_type =
 
 (** Program shapes, where we obtain types of programs if we substitute typed or untyped
     statements for 's *)
-type 's program =
-  { functionblock: 's list option
-  ; datablock: 's list option
-  ; transformeddatablock: 's list option
-  ; parametersblock: 's list option
-  ; transformedparametersblock: 's list option
-  ; modelblock: 's list option
-  ; generatedquantitiesblock: 's list option }
+type 's block = {stmts: 's list; xloc: Middle.Location_span.t [@ignore]}
+
+and comment_type =
+  | LineComment of string * Middle.Location_span.t
+  | BlockComment of string list * Middle.Location_span.t
+  | Separator of Middle.Location.t
+      (** Separator records the location of items like commas, operators, and keywords
+          which don't have location information stored in the AST
+          but are useful for placing comments in pretty printing *)
+
+and 's program =
+  { functionblock: 's block option
+  ; datablock: 's block option
+  ; transformeddatablock: 's block option
+  ; parametersblock: 's block option
+  ; transformedparametersblock: 's block option
+  ; modelblock: 's block option
+  ; generatedquantitiesblock: 's block option
+  ; comments: (comment_type list[@sexp.opaque] [@ignore]) }
 [@@deriving sexp, hash, compare, map, fold]
 
+let get_stmts = Option.value_map ~default:[] ~f:(fun x -> x.stmts)
+
 (** Untyped programs (before type checking) *)
-type untyped_program = untyped_statement program
-[@@deriving sexp, compare, map]
+type untyped_program = untyped_statement program [@@deriving sexp, compare, map]
 
 (** Typed programs (after type checking) *)
 type typed_program = typed_statement program [@@deriving sexp, compare, map]
@@ -229,8 +247,8 @@ type typed_program = typed_statement program [@@deriving sexp, compare, map]
 (*========================== Helper functions ===============================*)
 
 (** Forgetful function from typed to untyped expressions *)
-let rec untyped_expression_of_typed_expression
-    ({expr; emeta} : typed_expression) : untyped_expression =
+let rec untyped_expression_of_typed_expression ({expr; emeta} : typed_expression)
+    : untyped_expression =
   { expr=
       map_expression untyped_expression_of_typed_expression (fun _ -> ()) expr
   ; emeta= {loc= emeta.loc} }
@@ -267,8 +285,76 @@ let rec lvalue_of_expr {expr; emeta} =
       ( match expr with
       | Variable s -> LVariable s
       | Indexed (l, i) -> LIndexed (lvalue_of_expr l, i)
-      | _ -> failwith "Trying to convert illegal expression to lval." )
+      | _ ->
+          Common.FatalError.fatal_error_msg
+            [%message "Trying to convert illegal expression to lval."] )
   ; lmeta= emeta }
 
 let rec id_of_lvalue {lval; _} =
   match lval with LVariable s -> s | LIndexed (l, _) -> id_of_lvalue l
+
+(* XXX: the parser produces inaccurate locations: smeta.loc.begin_loc is the last
+        token before the current statement and all the whitespace between two statements
+        appears as if it were part of the second statement.
+        get_first_loc tries to skip the leading whitespace and approximate the location
+        of the first token in the statement.
+    TODO: See if $sloc works better than $loc for this
+*)
+
+let rec get_loc_expr (e : untyped_expression) =
+  match e.expr with
+  | TernaryIf (e, _, _) | BinOp (e, _, _) | PostfixOp (e, _) | Indexed (e, _) ->
+      get_loc_expr e
+  | PrefixOp (_, e) | ArrayExpr (e :: _) | RowVectorExpr (e :: _) | Paren e ->
+      e.emeta.loc.begin_loc
+  | Variable _ | IntNumeral _ | RealNumeral _ | ImagNumeral _ | GetLP
+   |GetTarget
+   |ArrayExpr []
+   |RowVectorExpr [] ->
+      e.emeta.loc.end_loc
+  | FunApp (_, id, _) | CondDistApp (_, id, _) -> id.id_loc.end_loc
+
+let get_loc_dt (t : untyped_expression Type.t) =
+  match t with
+  | Type.Unsized _ | Sized (SInt | SReal | SComplex) -> None
+  | Sized
+      (SVector (_, e) | SRowVector (_, e) | SMatrix (_, e, _) | SArray (_, e))
+    ->
+      Some e.emeta.loc.begin_loc
+
+let get_loc_tf (t : untyped_expression Transformation.t) =
+  match t with
+  | Lower e
+   |Upper e
+   |LowerUpper (e, _)
+   |Offset e
+   |Multiplier e
+   |OffsetMultiplier (e, _) ->
+      Some e.emeta.loc.begin_loc
+  | _ -> None
+
+let get_first_loc (s : untyped_statement) =
+  match s.stmt with
+  | Assignment {assign_lhs; _} -> assign_lhs.lmeta.loc.end_loc
+  | NRFunApp (_, id, _)
+   |For {loop_variable= id; _}
+   |ForEach (id, _, _)
+   |FunDef {funname= id; _} ->
+      id.id_loc.begin_loc
+  | TargetPE e
+   |IncrementLogProb e
+   |Return e
+   |IfThenElse (e, _, _)
+   |While (e, _) ->
+      e.emeta.loc.begin_loc
+  | Profile _ | Block _ -> s.smeta.loc.begin_loc
+  | Tilde {arg; _} -> get_loc_expr arg
+  | Break | Continue | ReturnVoid | Print _ | Reject _ | Skip ->
+      s.smeta.loc.end_loc
+  | VarDecl {decl_type; transformation; identifier; _} -> (
+    match get_loc_dt decl_type with
+    | Some loc -> loc
+    | None -> (
+      match get_loc_tf transformation with
+      | Some loc -> loc
+      | None -> identifier.id_loc.begin_loc ) )

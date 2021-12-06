@@ -10,8 +10,7 @@ transformed data {
     print(mat[indices, :, indices][2,1,1]);
 }
 |}
-  |> typed_ast_of_string_exn
-  |> Fmt.strf "@[<v>%a@]" Pretty_printing.pp_program
+  |> typed_ast_of_string_exn |> Pretty_printing.pretty_print_typed_program
   |> print_endline ;
   [%expect
     {|

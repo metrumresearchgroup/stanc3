@@ -27,10 +27,9 @@ let%expect_test "map_rec_stmt_loc" =
   let f = function
     | Stmt.Fixed.Pattern.NRFunApp (CompilerInternal FnPrint, [s]) ->
         Stmt.Fixed.Pattern.NRFunApp (CompilerInternal FnPrint, [s; s])
-    | x -> x
-  in
+    | x -> x in
   let mir = Program.map Fn.id (map_rec_stmt_loc f) mir in
-  Fmt.strf "@[<v>%a@]" Program.Typed.pp mir |> print_endline ;
+  Fmt.str "@[<v>%a@]" Program.Typed.pp mir |> print_endline ;
   [%expect
     {|
       log_prob {
@@ -68,14 +67,12 @@ let%expect_test "map_rec_state_stmt_loc" =
   let f i = function
     | Stmt.Fixed.Pattern.NRFunApp (CompilerInternal FnPrint, [s]) ->
         Stmt.Fixed.Pattern.(NRFunApp (CompilerInternal FnPrint, [s; s]), i + 1)
-    | x -> (x, i)
-  in
+    | x -> (x, i) in
   let mir_stmt, num =
     (map_rec_state_stmt_loc f 0)
-      Stmt.Fixed.{pattern= SList mir.log_prob; meta= Location_span.empty}
-  in
+      Stmt.Fixed.{pattern= SList mir.log_prob; meta= Location_span.empty} in
   let mir = {mir with log_prob= [mir_stmt]} in
-  Fmt.strf "@[<v>%a@]" Program.Typed.pp mir |> print_endline ;
+  Fmt.str "@[<v>%a@]" Program.Typed.pp mir |> print_endline ;
   print_endline (string_of_int num) ;
   [%expect
     {|
@@ -120,7 +117,7 @@ let%expect_test "inline functions" =
       |}
   in
   let mir = function_inlining mir in
-  Fmt.strf "@[<v>%a@]" Program.Typed.pp mir |> print_endline ;
+  Fmt.str "@[<v>%a@]" Program.Typed.pp mir |> print_endline ;
   [%expect
     {|
       functions {
@@ -184,7 +181,7 @@ let%expect_test "inline functions 2" =
       |}
   in
   let mir = function_inlining mir in
-  Fmt.strf "@[<v>%a@]" Program.Typed.pp mir |> print_endline ;
+  Fmt.str "@[<v>%a@]" Program.Typed.pp mir |> print_endline ;
   [%expect
     {|
       functions {
@@ -271,7 +268,7 @@ let%expect_test "list collapsing" =
              (((pattern
                 (Return
                  (((pattern
-                    (FunApp (StanLib Pow__ FnPlain)
+                    (FunApp (StanLib Pow__ FnPlain AoS)
                      (((pattern (Var z))
                        (meta ((type_ UInt) (loc <opaque>) (adlevel DataOnly))))
                       ((pattern (Lit Int 2))
@@ -286,7 +283,7 @@ let%expect_test "list collapsing" =
          (Block
           (((pattern
              (Decl (decl_adtype DataOnly) (decl_id inline_sym1__)
-              (decl_type (Sized SInt))))
+              (decl_type (Sized SInt)) (initialize true)))
             (meta <opaque>))
            ((pattern
              (Assignment (inline_sym1__ UInt ())
@@ -342,11 +339,11 @@ let%expect_test "list collapsing" =
             (meta <opaque>))
            ((pattern
              (Decl (decl_adtype AutoDiffable) (decl_id inline_sym3__)
-              (decl_type (Unsized UReal))))
+              (decl_type (Unsized UReal)) (initialize false)))
             (meta <opaque>))
            ((pattern
              (Decl (decl_adtype DataOnly) (decl_id inline_sym4__)
-              (decl_type (Sized SInt))))
+              (decl_type (Sized SInt)) (initialize true)))
             (meta <opaque>))
            ((pattern
              (Assignment (inline_sym4__ UInt ())
@@ -372,7 +369,7 @@ let%expect_test "list collapsing" =
                    ((pattern
                      (Assignment (inline_sym3__ UReal ())
                       ((pattern
-                        (FunApp (StanLib Pow__ FnPlain)
+                        (FunApp (StanLib Pow__ FnPlain AoS)
                          (((pattern (Lit Int 53))
                            (meta
                             ((type_ UInt) (loc <opaque>) (adlevel DataOnly))))
@@ -401,7 +398,7 @@ let%expect_test "list collapsing" =
        ((pattern
          (IfElse
           ((pattern
-            (FunApp (StanLib PNot__ FnPlain)
+            (FunApp (StanLib PNot__ FnPlain AoS)
              (((pattern
                 (EOr
                  ((pattern (Var emit_transformed_parameters__))
@@ -415,7 +412,7 @@ let%expect_test "list collapsing" =
        ((pattern
          (IfElse
           ((pattern
-            (FunApp (StanLib PNot__ FnPlain)
+            (FunApp (StanLib PNot__ FnPlain AoS)
              (((pattern (Var emit_generated_quantities__))
                (meta ((type_ UInt) (loc <opaque>) (adlevel DataOnly)))))))
            (meta ((type_ UInt) (loc <opaque>) (adlevel DataOnly))))
@@ -440,7 +437,7 @@ let%expect_test "do not inline recursive functions" =
       |}
   in
   let mir = function_inlining mir in
-  Fmt.strf "@[<v>%a@]" Program.Typed.pp mir |> print_endline ;
+  Fmt.str "@[<v>%a@]" Program.Typed.pp mir |> print_endline ;
   [%expect
     {|
       functions {
@@ -490,7 +487,7 @@ let%expect_test "inline function in for loop" =
       |}
   in
   let mir = function_inlining mir in
-  Fmt.strf "@[<v>%a@]" Program.Typed.pp mir |> print_endline ;
+  Fmt.str "@[<v>%a@]" Program.Typed.pp mir |> print_endline ;
   [%expect
     {|
       functions {
@@ -576,7 +573,7 @@ let%expect_test "inline function in for loop 2" =
       |}
   in
   let mir = function_inlining mir in
-  Fmt.strf "@[<v>%a@]" Program.Typed.pp mir |> print_endline ;
+  Fmt.str "@[<v>%a@]" Program.Typed.pp mir |> print_endline ;
   [%expect
     {|
       functions {
@@ -680,7 +677,7 @@ let%expect_test "inline function in while loop" =
       |}
   in
   let mir = function_inlining mir in
-  Fmt.strf "@[<v>%a@]" Program.Typed.pp mir |> print_endline ;
+  Fmt.str "@[<v>%a@]" Program.Typed.pp mir |> print_endline ;
   [%expect
     {|
       functions {
@@ -753,7 +750,7 @@ let%expect_test "inline function in if then else" =
       |}
   in
   let mir = function_inlining mir in
-  Fmt.strf "@[<v>%a@]" Program.Typed.pp mir |> print_endline ;
+  Fmt.str "@[<v>%a@]" Program.Typed.pp mir |> print_endline ;
   [%expect
     {|
       functions {
@@ -822,7 +819,7 @@ let%expect_test "inline function in ternary if " =
       |}
   in
   let mir = function_inlining mir in
-  Fmt.strf "@[<v>%a@]" Program.Typed.pp mir |> print_endline ;
+  Fmt.str "@[<v>%a@]" Program.Typed.pp mir |> print_endline ;
   [%expect
     {|
       functions {
@@ -911,7 +908,7 @@ let%expect_test "inline function multiple returns " =
       |}
   in
   let mir = function_inlining mir in
-  Fmt.strf "@[<v>%a@]" Program.Typed.pp mir |> print_endline ;
+  Fmt.str "@[<v>%a@]" Program.Typed.pp mir |> print_endline ;
   [%expect
     {|
       functions {
@@ -973,7 +970,7 @@ let%expect_test "inline function indices " =
       |}
   in
   let mir = function_inlining mir in
-  Fmt.strf "@[<v>%a@]" Program.Typed.pp mir |> print_endline ;
+  Fmt.str "@[<v>%a@]" Program.Typed.pp mir |> print_endline ;
   [%expect
     {|
       functions {
@@ -1037,7 +1034,7 @@ let%expect_test "inline function and " =
   in
   (* TODO: these declarations are still in the wrong place *)
   let mir = function_inlining mir in
-  Fmt.strf "@[<v>%a@]" Program.Typed.pp mir |> print_endline ;
+  Fmt.str "@[<v>%a@]" Program.Typed.pp mir |> print_endline ;
   [%expect
     {|
       functions {
@@ -1101,7 +1098,7 @@ let%expect_test "inline function or " =
       |}
   in
   let mir = function_inlining mir in
-  Fmt.strf "@[<v>%a@]" Program.Typed.pp mir |> print_endline ;
+  Fmt.str "@[<v>%a@]" Program.Typed.pp mir |> print_endline ;
   [%expect
     {|
       functions {
@@ -1160,7 +1157,7 @@ let%expect_test "unroll nested loop" =
       |}
   in
   let mir = static_loop_unrolling mir in
-  Fmt.strf "@[<v>%a@]" Program.Typed.pp mir |> print_endline ;
+  Fmt.str "@[<v>%a@]" Program.Typed.pp mir |> print_endline ;
   [%expect
     {|
       log_prob {
@@ -1201,7 +1198,7 @@ let%expect_test "unroll nested loop 2" =
       |}
   in
   let mir = static_loop_unrolling mir in
-  Fmt.strf "@[<v>%a@]" Program.Typed.pp mir |> print_endline ;
+  Fmt.str "@[<v>%a@]" Program.Typed.pp mir |> print_endline ;
   [%expect
     {|
       log_prob {
@@ -1397,7 +1394,7 @@ let%expect_test "unroll nested loop 3" =
       |}
   in
   let mir = static_loop_unrolling mir in
-  Fmt.strf "@[<v>%a@]" Program.Typed.pp mir |> print_endline ;
+  Fmt.str "@[<v>%a@]" Program.Typed.pp mir |> print_endline ;
   [%expect
     {|
       log_prob {
@@ -1492,7 +1489,7 @@ let%expect_test "unroll nested loop with break" =
       |}
   in
   let mir = static_loop_unrolling mir in
-  Fmt.strf "@[<v>%a@]" Program.Typed.pp mir |> print_endline ;
+  Fmt.str "@[<v>%a@]" Program.Typed.pp mir |> print_endline ;
   [%expect
     {|
       log_prob {
@@ -1535,7 +1532,7 @@ let%expect_test "constant propagation" =
       |}
   in
   let mir = constant_propagation mir in
-  Fmt.strf "@[<v>%a@]" Program.Typed.pp mir |> print_endline ;
+  Fmt.str "@[<v>%a@]" Program.Typed.pp mir |> print_endline ;
   [%expect
     {|
     prepare_data {
@@ -1579,7 +1576,7 @@ let%expect_test "constant propagation, local scope" =
       |}
   in
   let mir = constant_propagation mir in
-  Fmt.strf "@[<v>%a@]" Program.Typed.pp mir |> print_endline ;
+  Fmt.str "@[<v>%a@]" Program.Typed.pp mir |> print_endline ;
   [%expect
     {|
     prepare_data {
@@ -1625,7 +1622,7 @@ let%expect_test "constant propagation, model block local scope" =
       |}
   in
   let mir = constant_propagation mir in
-  Fmt.strf "@[<v>%a@]" Program.Typed.pp mir |> print_endline ;
+  Fmt.str "@[<v>%a@]" Program.Typed.pp mir |> print_endline ;
   [%expect
     {|
     log_prob {
@@ -1670,7 +1667,7 @@ let%expect_test "expression propagation" =
       |}
   in
   let mir = expression_propagation mir in
-  Fmt.strf "@[<v>%a@]" Program.Typed.pp mir |> print_endline ;
+  Fmt.str "@[<v>%a@]" Program.Typed.pp mir |> print_endline ;
   [%expect
     {|
       prepare_data {
@@ -1709,7 +1706,7 @@ let%expect_test "copy propagation" =
       |}
   in
   let mir = copy_propagation mir in
-  Fmt.strf "@[<v>%a@]" Program.Typed.pp mir |> print_endline ;
+  Fmt.str "@[<v>%a@]" Program.Typed.pp mir |> print_endline ;
   [%expect
     {|
       log_prob {
@@ -1749,7 +1746,7 @@ let%expect_test "dead code elimination" =
       |}
   in
   let mir = dead_code_elimination mir in
-  Fmt.strf "@[<v>%a@]" Program.Typed.pp mir |> print_endline ;
+  Fmt.str "@[<v>%a@]" Program.Typed.pp mir |> print_endline ;
   [%expect
     {|
       prepare_data {
@@ -1790,7 +1787,7 @@ let%expect_test "dead code elimination decl" =
       |}
   in
   let mir = dead_code_elimination mir in
-  Fmt.strf "@[<v>%a@]" Program.Typed.pp mir |> print_endline ;
+  Fmt.str "@[<v>%a@]" Program.Typed.pp mir |> print_endline ;
   [%expect
     {|
       log_prob {
@@ -1820,7 +1817,7 @@ let%expect_test "dead code elimination, for loop" =
       |}
   in
   let mir = dead_code_elimination mir in
-  Fmt.strf "@[<v>%a@]" Program.Typed.pp mir |> print_endline ;
+  Fmt.str "@[<v>%a@]" Program.Typed.pp mir |> print_endline ;
   [%expect
     {|
       log_prob {
@@ -1851,7 +1848,7 @@ let%expect_test "dead code elimination, while loop" =
       |}
   in
   let mir = dead_code_elimination mir in
-  Fmt.strf "@[<v>%a@]" Program.Typed.pp mir |> print_endline ;
+  Fmt.str "@[<v>%a@]" Program.Typed.pp mir |> print_endline ;
   [%expect
     {|
       log_prob {
@@ -1893,7 +1890,7 @@ let%expect_test "dead code elimination, if then" =
       |}
   in
   let mir = dead_code_elimination mir in
-  Fmt.strf "@[<v>%a@]" Program.Typed.pp mir |> print_endline ;
+  Fmt.str "@[<v>%a@]" Program.Typed.pp mir |> print_endline ;
   [%expect
     {|
       log_prob {
@@ -1928,7 +1925,7 @@ let%expect_test "dead code elimination, nested" =
       |}
   in
   let mir = dead_code_elimination mir in
-  Fmt.strf "@[<v>%a@]" Program.Typed.pp mir |> print_endline ;
+  Fmt.str "@[<v>%a@]" Program.Typed.pp mir |> print_endline ;
   [%expect
     {|
       log_prob {
@@ -1958,7 +1955,7 @@ let%expect_test "partial evaluation" =
       |}
   in
   let mir = partial_evaluation mir in
-  Fmt.strf "@[<v>%a@]" Program.Typed.pp mir |> print_endline ;
+  Fmt.str "@[<v>%a@]" Program.Typed.pp mir |> print_endline ;
   [%expect
     {|
       log_prob {
@@ -1984,10 +1981,9 @@ let%expect_test "partial evaluate reject" =
       model {
         int x = 5 %/% 0;
       }
-      |}
-  in
+      |} in
   let mir = partial_evaluation mir in
-  Fmt.strf "@[<v>%a@]" Program.Typed.pp mir |> print_endline ;
+  Fmt.str "@[<v>%a@]" Program.Typed.pp mir |> print_endline ;
   [%expect
     {|
       log_prob {
@@ -2017,7 +2013,7 @@ let%expect_test "try partially evaluate" =
       |}
   in
   let mir = partial_evaluation mir in
-  Fmt.strf "@[<v>%a@]" Program.Typed.pp mir |> print_endline ;
+  Fmt.str "@[<v>%a@]" Program.Typed.pp mir |> print_endline ;
   [%expect
     {|
       log_prob {
@@ -2049,7 +2045,7 @@ let%expect_test "partially evaluate with equality check" =
       |}
   in
   let mir = partial_evaluation mir in
-  Fmt.strf "@[<v>%a@]" Program.Typed.pp mir |> print_endline ;
+  Fmt.str "@[<v>%a@]" Program.Typed.pp mir |> print_endline ;
   [%expect
     {|
       log_prob {
@@ -2230,7 +2226,7 @@ model {
   in
   let mir = constant_propagation mir in
   let mir = partial_evaluation mir in
-  Fmt.strf "@[<v>%a@]" Program.Typed.pp mir |> print_endline ;
+  Fmt.str "@[<v>%a@]" Program.Typed.pp mir |> print_endline ;
   [%expect
     {|
       log_prob {
@@ -2408,18 +2404,6 @@ model {
         if(PNot__(emit_generated_quantities__)) return;
       }
 
-      transform_inits {
-        data matrix[3, 2] x_matrix;
-        data matrix[2, 4] y_matrix;
-        data matrix[4, 2] z_matrix;
-        data vector[2] x_vector;
-        data vector[3] y_vector;
-        data matrix[2, 2] x_cov;
-        data vector[3] x_cov_free__;
-        x_cov_free__ = (FnUnconstrain cov_matrix)__(x_cov);
-        data real theta_u;
-        data real phi_u;
-      }
 
       output_vars {
         parameters matrix[3, 2] x_matrix; //matrix[3, 2]
@@ -2445,7 +2429,7 @@ let%expect_test "lazy code motion" =
   in
   let mir = lazy_code_motion mir in
   let mir = list_collapsing mir in
-  Fmt.strf "@[<v>%a@]" Program.Typed.pp mir |> print_endline ;
+  Fmt.str "@[<v>%a@]" Program.Typed.pp mir |> print_endline ;
   [%expect
     {|
     log_prob {
@@ -2477,7 +2461,7 @@ let%expect_test "lazy code motion, 2" =
   in
   let mir = lazy_code_motion mir in
   let mir = list_collapsing mir in
-  Fmt.strf "@[<v>%a@]" Program.Typed.pp mir |> print_endline ;
+  Fmt.str "@[<v>%a@]" Program.Typed.pp mir |> print_endline ;
   [%expect
     {|
       log_prob {
@@ -2509,7 +2493,7 @@ let%expect_test "lazy code motion, 3" =
   in
   let mir = lazy_code_motion mir in
   let mir = list_collapsing mir in
-  Fmt.strf "@[<v>%a@]" Program.Typed.pp mir |> print_endline ;
+  Fmt.str "@[<v>%a@]" Program.Typed.pp mir |> print_endline ;
   [%expect
     {|
       log_prob {
@@ -2556,7 +2540,7 @@ let%expect_test "lazy code motion, 4" =
   let mir = list_collapsing mir in
   (* TODO: make sure that these
      temporaries do not get assigned level DataOnly unless appropriate *)
-  Fmt.strf "@[<v>%a@]" Program.Typed.pp mir |> print_endline ;
+  Fmt.str "@[<v>%a@]" Program.Typed.pp mir |> print_endline ;
   [%expect
     {|
       log_prob {
@@ -2618,7 +2602,7 @@ let%expect_test "lazy code motion, 5" =
   in
   let mir = lazy_code_motion mir in
   let mir = list_collapsing mir in
-  Fmt.strf "@[<v>%a@]" Program.Typed.pp mir |> print_endline ;
+  Fmt.str "@[<v>%a@]" Program.Typed.pp mir |> print_endline ;
   [%expect
     {|
       log_prob {
@@ -2675,7 +2659,7 @@ let%expect_test "lazy code motion, 6" =
   in
   let mir = lazy_code_motion mir in
   let mir = list_collapsing mir in
-  Fmt.strf "@[<v>%a@]" Program.Typed.pp mir |> print_endline ;
+  Fmt.str "@[<v>%a@]" Program.Typed.pp mir |> print_endline ;
   [%expect
     {|
       log_prob {
@@ -2729,7 +2713,7 @@ let%expect_test "lazy code motion, 7" =
   in
   let mir = lazy_code_motion mir in
   let mir = list_collapsing mir in
-  Fmt.strf "@[<v>%a@]" Program.Typed.pp mir |> print_endline ;
+  Fmt.str "@[<v>%a@]" Program.Typed.pp mir |> print_endline ;
   [%expect
     {|
       log_prob {
@@ -2788,7 +2772,7 @@ let%expect_test "lazy code motion, 8, _lp functions not optimized" =
   in
   let mir = lazy_code_motion mir in
   let mir = list_collapsing mir in
-  Fmt.strf "@[<v>%a@]" Program.Typed.pp mir |> print_endline ;
+  Fmt.str "@[<v>%a@]" Program.Typed.pp mir |> print_endline ;
   [%expect
     {|
       functions {
@@ -2837,7 +2821,7 @@ let%expect_test "lazy code motion, 9" =
   in
   let mir = lazy_code_motion mir in
   let mir = list_collapsing mir in
-  Fmt.strf "@[<v>%a@]" Program.Typed.pp mir |> print_endline ;
+  Fmt.str "@[<v>%a@]" Program.Typed.pp mir |> print_endline ;
   [%expect
     {|
       log_prob {
@@ -2870,7 +2854,7 @@ let%expect_test "lazy code motion, 10" =
   in
   let mir = lazy_code_motion mir in
   let mir = list_collapsing mir in
-  Fmt.strf "@[<v>%a@]" Program.Typed.pp mir |> print_endline ;
+  Fmt.str "@[<v>%a@]" Program.Typed.pp mir |> print_endline ;
   [%expect
     {|
       log_prob {
@@ -2909,7 +2893,7 @@ let%expect_test "lazy code motion, 11" =
   in
   let mir = lazy_code_motion mir in
   let mir = list_collapsing mir in
-  Fmt.strf "@[<v>%a@]" Program.Typed.pp mir |> print_endline ;
+  Fmt.str "@[<v>%a@]" Program.Typed.pp mir |> print_endline ;
   [%expect
     {|
       log_prob {
@@ -2948,7 +2932,7 @@ let%expect_test "lazy code motion, 12" =
   in
   let mir = lazy_code_motion mir in
   let mir = list_collapsing mir in
-  Fmt.strf "@[<v>%a@]" Program.Typed.pp mir |> print_endline ;
+  Fmt.str "@[<v>%a@]" Program.Typed.pp mir |> print_endline ;
   [%expect
     {|
       log_prob {
@@ -2992,7 +2976,7 @@ let%expect_test "lazy code motion, 13" =
   let mir = one_step_loop_unrolling mir in
   let mir = lazy_code_motion mir in
   let mir = list_collapsing mir in
-  Fmt.strf "@[<v>%a@]" Program.Typed.pp mir |> print_endline ;
+  Fmt.str "@[<v>%a@]" Program.Typed.pp mir |> print_endline ;
   [%expect
     {|
       log_prob {
@@ -3058,7 +3042,7 @@ let%expect_test "cool example: expression propagation + partial evaluation + \
   let mir = lazy_code_motion mir in
   let mir = list_collapsing mir in
   let mir = dead_code_elimination mir in
-  Fmt.strf "@[<v>%a@]" Program.Typed.pp mir |> print_endline ;
+  Fmt.str "@[<v>%a@]" Program.Typed.pp mir |> print_endline ;
   [%expect
     {|
       log_prob {
@@ -3106,8 +3090,7 @@ let%expect_test "block fixing" =
                           , {pattern= SList []; meta= Location_span.empty} )
                     ; meta= Location_span.empty }
                   , None )
-            ; meta= Location_span.empty } ] }
-  in
+            ; meta= Location_span.empty } ] } in
   let mir = block_fixing mir in
   print_s [%sexp (mir : Program.Typed.t)] ;
   [%expect
@@ -3130,7 +3113,7 @@ let%expect_test "block fixing" =
         (((pattern
            (IfElse
             ((pattern
-              (FunApp (StanLib PNot__ FnPlain)
+              (FunApp (StanLib PNot__ FnPlain AoS)
                (((pattern
                   (EOr
                    ((pattern (Var emit_transformed_parameters__))
@@ -3144,7 +3127,7 @@ let%expect_test "block fixing" =
          ((pattern
            (IfElse
             ((pattern
-              (FunApp (StanLib PNot__ FnPlain)
+              (FunApp (StanLib PNot__ FnPlain AoS)
                (((pattern (Var emit_generated_quantities__))
                  (meta ((type_ UInt) (loc <opaque>) (adlevel DataOnly)))))))
              (meta ((type_ UInt) (loc <opaque>) (adlevel DataOnly))))
@@ -3165,7 +3148,7 @@ let%expect_test "one-step loop unrolling" =
       |}
   in
   let mir = one_step_loop_unrolling mir in
-  Fmt.strf "@[<v>%a@]" Program.Typed.pp mir |> print_endline ;
+  Fmt.str "@[<v>%a@]" Program.Typed.pp mir |> print_endline ;
   [%expect
     {|
       prepare_data {
@@ -3232,7 +3215,7 @@ let%expect_test "adlevel_optimization" =
       |}
   in
   let mir = optimize_ad_levels mir in
-  Fmt.strf "@[<v>%a@]" Program.Typed.pp mir |> print_endline ;
+  Fmt.str "@[<v>%a@]" Program.Typed.pp mir |> print_endline ;
   [%expect
     {|
       log_prob {
@@ -3267,9 +3250,6 @@ let%expect_test "adlevel_optimization" =
         if(PNot__(emit_generated_quantities__)) return;
       }
 
-      transform_inits {
-        data real w;
-      }
 
       output_vars {
         parameters real w; //real
@@ -3307,29 +3287,31 @@ let%expect_test "adlevel_optimization expressions" =
   [%expect
     {|
       (((pattern
-         (Decl (decl_adtype AutoDiffable) (decl_id w) (decl_type (Sized SReal))))
+         (Decl (decl_adtype AutoDiffable) (decl_id w) (decl_type (Sized SReal))
+          (initialize true)))
         (meta <opaque>))
        ((pattern
          (Block
           (((pattern
-             (Decl (decl_adtype DataOnly) (decl_id x) (decl_type (Sized SInt))))
+             (Decl (decl_adtype DataOnly) (decl_id x) (decl_type (Sized SInt))
+              (initialize true)))
             (meta <opaque>))
            ((pattern
-             (Decl (decl_adtype AutoDiffable) (decl_id y)
-              (decl_type (Sized SReal))))
+             (Decl (decl_adtype AutoDiffable) (decl_id y) (decl_type (Sized SReal))
+              (initialize true)))
             (meta <opaque>))
            ((pattern
-             (Decl (decl_adtype AutoDiffable) (decl_id z)
-              (decl_type (Sized SReal))))
+             (Decl (decl_adtype AutoDiffable) (decl_id z) (decl_type (Sized SReal))
+              (initialize true)))
             (meta <opaque>))
            ((pattern
              (Decl (decl_adtype DataOnly) (decl_id z_data)
-              (decl_type (Sized SReal))))
+              (decl_type (Sized SReal)) (initialize true)))
             (meta <opaque>))
            ((pattern
              (IfElse
               ((pattern
-                (FunApp (StanLib Greater__ FnPlain)
+                (FunApp (StanLib Greater__ FnPlain AoS)
                  (((pattern (Lit Int 1))
                    (meta ((type_ UInt) (loc <opaque>) (adlevel DataOnly))))
                   ((pattern (Lit Int 2))
@@ -3338,7 +3320,7 @@ let%expect_test "adlevel_optimization expressions" =
               ((pattern
                 (Assignment (y UReal ())
                  ((pattern
-                   (FunApp (StanLib Plus__ FnPlain)
+                   (FunApp (StanLib Plus__ FnPlain AoS)
                     (((pattern (Var y))
                       (meta ((type_ UReal) (loc <opaque>) (adlevel AutoDiffable))))
                      ((pattern (Var x))
@@ -3348,7 +3330,7 @@ let%expect_test "adlevel_optimization expressions" =
               (((pattern
                  (Assignment (y UReal ())
                   ((pattern
-                    (FunApp (StanLib Plus__ FnPlain)
+                    (FunApp (StanLib Plus__ FnPlain AoS)
                      (((pattern (Var y))
                        (meta ((type_ UReal) (loc <opaque>) (adlevel AutoDiffable))))
                       ((pattern (Var w))
@@ -3359,7 +3341,7 @@ let%expect_test "adlevel_optimization expressions" =
            ((pattern
              (IfElse
               ((pattern
-                (FunApp (StanLib Greater__ FnPlain)
+                (FunApp (StanLib Greater__ FnPlain AoS)
                  (((pattern (Lit Int 2))
                    (meta ((type_ UInt) (loc <opaque>) (adlevel DataOnly))))
                   ((pattern (Lit Int 1))
@@ -3375,7 +3357,7 @@ let%expect_test "adlevel_optimization expressions" =
            ((pattern
              (IfElse
               ((pattern
-                (FunApp (StanLib Greater__ FnPlain)
+                (FunApp (StanLib Greater__ FnPlain AoS)
                  (((pattern (Lit Int 3))
                    (meta ((type_ UInt) (loc <opaque>) (adlevel DataOnly))))
                   ((pattern (Lit Int 1))
@@ -3429,7 +3411,7 @@ let%expect_test "adlevel_optimization 2" =
       |}
   in
   let mir = optimize_ad_levels mir in
-  Fmt.strf "@[<v>%a@]" Program.Typed.pp mir |> print_endline ;
+  Fmt.str "@[<v>%a@]" Program.Typed.pp mir |> print_endline ;
   [%expect
     {|
       log_prob {
@@ -3468,11 +3450,21 @@ let%expect_test "adlevel_optimization 2" =
         if(PNot__(emit_generated_quantities__)) return;
       }
 
-      transform_inits {
-        data real w;
-      }
 
       output_vars {
         parameters real w; //real
         transformed_parameters real w_trans; //real
       } |}]
+
+let%expect_test "Mapping acts recursively" =
+  let from = Expr.Helpers.variable "x" in
+  let into = Expr.Helpers.variable "y" in
+  let unpattern p = {Stmt.Fixed.pattern= p; meta= Location_span.empty} in
+  let s =
+    Stmt.Fixed.Pattern.NRFunApp
+      ( CompilerInternal (FnWriteParam {var= from; unconstrain_opt= None})
+      , [from] ) in
+  let m = Expr.Typed.Map.of_alist_exn [(from, into)] in
+  let s' = expr_subst_stmt_base m s in
+  Fmt.str "@[<v>%a@]" Stmt.Located.pp (unpattern s') |> print_endline ;
+  [%expect {| (FnWriteParam(unconstrain_opt())(var y))__(y); |}]

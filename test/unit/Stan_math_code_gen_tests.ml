@@ -6,8 +6,7 @@ open Stan_math_code_gen
 
 let%expect_test "udf" =
   let with_no_loc stmt =
-    Stmt.Fixed.{pattern= stmt; meta= Locations.no_span_num}
-  in
+    Stmt.Fixed.{pattern= stmt; meta= Locations.no_span_num} in
   let w e = Expr.{Fixed.pattern= e; meta= Typed.Meta.empty} in
   let pp_fun_def_w_rs a b = pp_fun_def a b String.Set.empty String.Set.empty in
   { fdrt= None
@@ -19,12 +18,12 @@ let%expect_test "udf" =
         (Some
            ( w
            @@ FunApp
-                (StanLib ("add", FnPlain), [w @@ Var "x"; w @@ Lit (Int, "1")])
-           ))
+                ( StanLib ("add", FnPlain, AoS)
+                , [w @@ Var "x"; w @@ Lit (Int, "1")] ) ) )
       |> with_no_loc |> List.return |> Stmt.Fixed.Pattern.Block |> with_no_loc
       |> Some
   ; fdloc= Location_span.empty }
-  |> strf "@[<v>%a" pp_fun_def_w_rs
+  |> str "@[<v>%a" pp_fun_def_w_rs
   |> print_endline ;
   [%expect
     {|
@@ -44,8 +43,6 @@ let%expect_test "udf" =
         return add(x, 1);
       } catch (const std::exception& e) {
         stan::lang::rethrow_located(e, locations_array__[current_statement__]);
-          // Next line prevents compiler griping about no return
-          throw std::runtime_error("*** IF YOU SEE THIS, PLEASE REPORT A BUG ***");
       }
 
     }
@@ -61,29 +58,26 @@ let%expect_test "udf" =
 
 let%expect_test "udf-expressions" =
   let with_no_loc stmt =
-    Stmt.Fixed.{pattern= stmt; meta= Locations.no_span_num}
-  in
+    Stmt.Fixed.{pattern= stmt; meta= Locations.no_span_num} in
   let w e = Expr.{Fixed.pattern= e; meta= Typed.Meta.empty} in
   let pp_fun_def_w_rs a b = pp_fun_def a b String.Set.empty String.Set.empty in
   { fdrt= Some UMatrix
   ; fdname= "sars"
   ; fdsuffix= FnPlain
   ; fdargs=
-      [ (DataOnly, "x", UMatrix)
-      ; (AutoDiffable, "y", URowVector)
-      ; (AutoDiffable, "z", URowVector)
-      ; (AutoDiffable, "w", UArray UMatrix) ]
+      [ (DataOnly, "x", UMatrix); (AutoDiffable, "y", URowVector)
+      ; (AutoDiffable, "z", URowVector); (AutoDiffable, "w", UArray UMatrix) ]
   ; fdbody=
       Stmt.Fixed.Pattern.Return
         (Some
            ( w
            @@ FunApp
-                (StanLib ("add", FnPlain), [w @@ Var "x"; w @@ Lit (Int, "1")])
-           ))
+                ( StanLib ("add", FnPlain, AoS)
+                , [w @@ Var "x"; w @@ Lit (Int, "1")] ) ) )
       |> with_no_loc |> List.return |> Stmt.Fixed.Pattern.Block |> with_no_loc
       |> Some
   ; fdloc= Location_span.empty }
-  |> strf "@[<v>%a" pp_fun_def_w_rs
+  |> str "@[<v>%a" pp_fun_def_w_rs
   |> print_endline ;
   [%expect
     {|
@@ -110,8 +104,6 @@ let%expect_test "udf-expressions" =
         return add(x, 1);
       } catch (const std::exception& e) {
         stan::lang::rethrow_located(e, locations_array__[current_statement__]);
-          // Next line prevents compiler griping about no return
-          throw std::runtime_error("*** IF YOU SEE THIS, PLEASE REPORT A BUG ***");
       }
 
     }
