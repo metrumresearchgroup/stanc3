@@ -8,7 +8,7 @@ let pmx_ode_func = [ ( UnsizedType.AutoDiffable
                            ; (UnsizedType.AutoDiffable, UArray UReal)
                            ; (DataOnly, UArray UReal); (DataOnly, UArray UInt) ]
                          , ReturnType (UnsizedType.UArray UReal)
-                         , FnPlain) ) ]
+                         , FnPlain, Common.Helpers.AoS) ) ]
 
 (* new ODE RHS def *)
 let pmx_solve_ode_func = [ ( UnsizedType.AutoDiffable
@@ -18,7 +18,7 @@ let pmx_solve_ode_func = [ ( UnsizedType.AutoDiffable
                                  ; (UnsizedType.AutoDiffable, UArray UReal)
                                  ; (DataOnly, UArray UReal); (DataOnly, UArray UInt) ]
                                , ReturnType UnsizedType.UVector
-                               , FnPlain) ) ]
+                               , FnPlain, AoS) ) ]
 
 let pmx_coupled_ode_func = [ ( UnsizedType.AutoDiffable
                              , UnsizedType.UFun
@@ -28,7 +28,7 @@ let pmx_coupled_ode_func = [ ( UnsizedType.AutoDiffable
                                    ; (UnsizedType.AutoDiffable, UArray UReal)
                                    ; (DataOnly, UArray UReal); (DataOnly, UArray UInt) ]
                                  , ReturnType UnsizedType.UVector
-                                 , FnPlain) ) ]
+                                 , FnPlain, AoS) ) ]
 
 let pmx_variadic_ode_fns =
   String.Set.of_list
@@ -60,7 +60,7 @@ let pmx_integrate_ode_group_arg = [ (UnsizedType.AutoDiffable, (UnsizedType.UArr
 
 let rec pmx_ode_group add_func name args_list = match args_list with
   | [] -> ()
-  | head::tail -> add_func(name, UnsizedType.ReturnType UMatrix, pmx_ode_func@head); pmx_ode_group add_func name tail
+  | head::tail -> add_func(name, UnsizedType.ReturnType UMatrix, pmx_ode_func@head, Common.Helpers.AoS); pmx_ode_group add_func name tail
 
 (* from rosettacode.org *)
 let rec cart_prod_list l = 
@@ -91,7 +91,7 @@ let rec pmx_solve_cpt add_func name args_list =
                        ; (UnsizedType.DataOnly, UnsizedType.UArray UInt) ] in            (* ss *)
   match args_list with
   | [] -> ()
-  | head::tail -> add_func(name, UnsizedType.ReturnType UMatrix, pmx_event_args @ head); pmx_solve_cpt add_func name tail
+  | head::tail -> add_func(name, UnsizedType.ReturnType UMatrix, pmx_event_args @ head, Common.Helpers.AoS); pmx_solve_cpt add_func name tail
 
 let rec pmx_solve add_func name args_list =
   let pmx_event_args = [ (UnsizedType.DataOnly, UnsizedType.UInt)                        (* nCmt *)
@@ -105,7 +105,7 @@ let rec pmx_solve add_func name args_list =
                        ; (UnsizedType.DataOnly, UnsizedType.UArray UInt) ] in            (* ss *)
   match args_list with
   | [] -> ()
-  | head::tail -> add_func(name, UnsizedType.ReturnType UMatrix, pmx_solve_ode_func @ pmx_event_args @ head); pmx_solve add_func name tail
+  | head::tail -> add_func(name, UnsizedType.ReturnType UMatrix, pmx_solve_ode_func @ pmx_event_args @ head, Common.Helpers.AoS); pmx_solve add_func name tail
 
 let rec pmx_solve_coupled add_func name args_list =
   let pmx_event_args = [ (UnsizedType.DataOnly, UnsizedType.UInt)                        (* nCmt *)
@@ -119,7 +119,7 @@ let rec pmx_solve_coupled add_func name args_list =
                        ; (UnsizedType.DataOnly, UnsizedType.UArray UInt) ] in            (* ss *)
   match args_list with
   | [] -> ()
-  | head::tail -> add_func(name, UnsizedType.ReturnType UMatrix, pmx_coupled_ode_func @ pmx_event_args @ head); pmx_solve_coupled add_func name tail
+  | head::tail -> add_func(name, UnsizedType.ReturnType UMatrix, pmx_coupled_ode_func @ pmx_event_args @ head, Common.Helpers.AoS); pmx_solve_coupled add_func name tail
 
 let rec pmx_solve_group add_func name args_list =
   let pmx_event_args = [ (UnsizedType.DataOnly, UnsizedType.UInt)                        (* nCmt *)
@@ -134,7 +134,7 @@ let rec pmx_solve_group add_func name args_list =
                        ; (UnsizedType.DataOnly, UnsizedType.UArray UInt) ] in            (* ss *)
   match args_list with
   | [] -> ()
-  | head::tail -> add_func(name, UnsizedType.ReturnType UMatrix, pmx_solve_ode_func @ pmx_event_args @ head); pmx_solve_group add_func name tail
+  | head::tail -> add_func(name, UnsizedType.ReturnType UMatrix, pmx_solve_ode_func @ pmx_event_args @ head, Common.Helpers.AoS); pmx_solve_group add_func name tail
 
 let (pmx_solve_args, pmx_group_args, pmx_solve_cpt_args) =
   let (pmx_param_1d, pmx_param_2d) = ( [(UnsizedType.AutoDiffable, (UnsizedType.UArray UReal))], [(UnsizedType.AutoDiffable, (UnsizedType.UArray (UArray UReal)))] ) in
@@ -178,7 +178,7 @@ let add_torsten_qualified add_func =
   let sol_names = List.map ~f:(fun sol -> "pmx_solve_group_" ^ sol) ["adams"; "bdf"; "rk45"] in
   List.iter ~f:(fun sol -> pmx_solve_group add_func sol pmx_group_args) sol_names;
 
-  let sol_names = List.map ~f:(fun sol -> "pmx_solve_" ^ sol) ["onecpt"; "twocpt"] in
+  let sol_names = List.map ~f:(fun sol -> "pmx_solve_" ^ sol) ["onecpt"; "twocpt"; "onecpt_effcpt"; "twocpt_effcpt"] in
   List.iter ~f:(fun sol -> pmx_solve_cpt add_func sol pmx_solve_cpt_args) sol_names;
 
   let sol_names = List.map ~f:(fun sol -> "pmx_solve_onecpt_" ^ sol) ["bdf"; "rk45"] in
@@ -201,7 +201,7 @@ let add_torsten_qualified add_func =
       ; (DataOnly, UArray UInt)            (* ss *)
       ; (AutoDiffable, UArray UMatrix)     (* pMatrix *)
       ; (AutoDiffable, (UArray (UArray UReal)))       (* biovar *)
-      ; (AutoDiffable, (UArray (UArray UReal))) ] ) ; (* tlag *)
+      ; (AutoDiffable, (UArray (UArray UReal))) ], Common.Helpers.AoS) ; (* tlag *)
   add_func
     ( "pmx_solve_linode"
     , ReturnType UMatrix
@@ -215,7 +215,7 @@ let add_torsten_qualified add_func =
       ; (DataOnly, UArray UInt)            (* ss *)
       ; (AutoDiffable, UMatrix)            (* pMatrix *)
       ; (AutoDiffable, UArray UReal)       (* biovar *)
-      ; (AutoDiffable, UArray UReal) ] ) ; (* tlag *)
+      ; (AutoDiffable, UArray UReal) ], Common.Helpers.AoS) ; (* tlag *)
   add_func
     ( "pmx_solve_linode"
     , ReturnType UMatrix
@@ -229,20 +229,20 @@ let add_torsten_qualified add_func =
       ; (DataOnly, UArray UInt)            (* ss *)
       ; (AutoDiffable, UArray UMatrix)     (* pMatrix *)
       ; (AutoDiffable, UArray UReal)       (* biovar *)
-      ; (AutoDiffable, UArray UReal) ] ) ; (* tlag *)
+      ; (AutoDiffable, UArray UReal) ], Common.Helpers.AoS) ; (* tlag *)
 
 (* linear interpolation *)
   add_func
-    ( "linear_interpolation"
+    ( "pmx_linear_interpolation"
     , ReturnType UReal
     , [ (AutoDiffable, UReal)              (* x_out *)
       ; (AutoDiffable, UArray UReal)       (* x *)
-      ; (AutoDiffable, UArray UReal) ] ) ; (* y *)
+      ; (AutoDiffable, UArray UReal) ], Common.Helpers.AoS) ; (* y *)
   add_func
-    ( "linear_interpolation"
+    ( "pmx_linear_interpolation"
     , ReturnType (UArray UReal)
     , [ (AutoDiffable, UArray UReal)       (* x_out *)
       ; (AutoDiffable, UArray UReal)       (* x *)
-      ; (AutoDiffable, UArray UReal) ] )   (* y *)
+      ; (AutoDiffable, UArray UReal) ], Common.Helpers.AoS)   (* y *)
 
 (* end of torsten signatures *)

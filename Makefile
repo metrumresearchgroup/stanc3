@@ -2,7 +2,11 @@ all:
 	dune build src/stanc/stanc.exe
 
 TEST_DUNES := $(foreach d,$(shell find test/integration -type d),$(d)/dune)
+TEST_TORSTEN := $(foreach d,$(shell find test/integration/good/torsten -type d),$(d)/dune)
 test: $(TEST_DUNES)
+	dune runtest
+
+test_torsten: $(TEST_TORSTEN)
 	dune runtest
 
 format:
