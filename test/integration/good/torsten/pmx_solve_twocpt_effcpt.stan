@@ -1,17 +1,17 @@
 data{
   int<lower = 1> nt;  // number of events
   int<lower = 1> nObs;  // number of observation
-  int<lower = 1> iObs[nObs];  // index of observation
+  array[nObs] int<lower = 1> iObs;  // index of observation
   
   // NONMEM data
-  int<lower = 1> cmt[nt];
-  int evid[nt];
-  int addl[nt];
-  int ss[nt];
-  real amt[nt];
-  real time[nt];
-  real rate[nt];
-  real ii[nt];
+  array[nt] int<lower = 1> cmt;
+  array[nt] int evid;
+  array[nt] int addl;
+  array[nt] int ss;
+  array[nt] real amt;
+  array[nt] real time;
+  array[nt] real rate;
+  array[nt] real ii;
 }
 
 parameters{
@@ -25,7 +25,7 @@ parameters{
 }
 
 transformed parameters{
-  real theta[6];  // ODE parameters
+  array[6] real theta;  // ODE parameters
   row_vector<lower = 0>[nt] cHat;
   matrix<lower = 0>[3, nt] x;
 
