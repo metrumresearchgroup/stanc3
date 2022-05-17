@@ -5,7 +5,6 @@ open Core_kernel
 open Middle
 open Ast
 open Debugging
-open Errors
 
 (* Takes a sized_basic_type and a list of sizes and repeatedly applies then
    SArray constructor, taking sizes off the list *)
@@ -28,28 +27,40 @@ let nest_unsized_array basic_type n =
 let (!=) = Stdlib.(!=)
 %}
 
-%token FUNCTIONBLOCK DATABLOCK TRANSFORMEDDATABLOCK PARAMETERSBLOCK
-       TRANSFORMEDPARAMETERSBLOCK MODELBLOCK GENERATEDQUANTITIESBLOCK
-%token LBRACE RBRACE LPAREN RPAREN LBRACK RBRACK LABRACK RABRACK COMMA SEMICOLON
-       BAR
-%token RETURN IF ELSE WHILE FOR IN BREAK CONTINUE PROFILE
-%token VOID INT REAL COMPLEX VECTOR ROWVECTOR ARRAY MATRIX ORDERED POSITIVEORDERED SIMPLEX
-       UNITVECTOR CHOLESKYFACTORCORR CHOLESKYFACTORCOV CORRMATRIX COVMATRIX
-%token LOWER UPPER OFFSET MULTIPLIER
-%token <string> INTNUMERAL
-%token <string> REALNUMERAL
-%token <string> IMAGNUMERAL
-%token <string> STRINGLITERAL
-%token <string> IDENTIFIER
-%token TARGET
-%token QMARK COLON BANG MINUS PLUS HAT ELTPOW TRANSPOSE TIMES DIVIDE MODULO IDIVIDE
-       LDIVIDE ELTTIMES ELTDIVIDE OR AND EQUALS NEQUALS LEQ GEQ TILDE
-%token ASSIGN PLUSASSIGN MINUSASSIGN TIMESASSIGN DIVIDEASSIGN
-   ELTDIVIDEASSIGN ELTTIMESASSIGN
-%token ARROWASSIGN INCREMENTLOGPROB GETLP (* all of these are deprecated *)
-%token PRINT REJECT
-%token TRUNCATE
-%token EOF
+(* Token definitions. The quoted strings are aliases, used in the examples generated in
+   parser.messages. They have no semantic meaning; see
+   http://gallium.inria.fr/~fpottier/menhir/manual.html#sec%3Atokens
+*)
+%token FUNCTIONBLOCK "functions" DATABLOCK "data"
+       TRANSFORMEDDATABLOCK "transformed data" PARAMETERSBLOCK "parameters"
+       TRANSFORMEDPARAMETERSBLOCK "transformed parameters" MODELBLOCK "model"
+       GENERATEDQUANTITIESBLOCK "generated quantities"
+%token LBRACE "{" RBRACE "}" LPAREN "(" RPAREN ")" LBRACK "[" RBRACK "]"
+       LABRACK "<" RABRACK ">" COMMA "," SEMICOLON ";" BAR "|"
+%token RETURN "return" IF "if" ELSE "else" WHILE "while" FOR "for" IN "in"
+       BREAK "break" CONTINUE "continue" PROFILE "profile"
+%token VOID "void" INT "int" REAL "real" COMPLEX "complex" VECTOR "vector"
+       ROWVECTOR "row_vector" ARRAY "array" MATRIX "matrix" ORDERED "ordered"
+       COMPLEXVECTOR "complex_vector" COMPLEXROWVECTOR "complex_row_vector"
+       POSITIVEORDERED "positive_ordered" SIMPLEX "simplex" UNITVECTOR "unit_vector"
+       CHOLESKYFACTORCORR "cholesky_factor_corr" CHOLESKYFACTORCOV "cholesky_factor_cov"
+       CORRMATRIX "corr_matrix" COVMATRIX "cov_matrix" COMPLEXMATRIX "complex_matrix"
+%token LOWER "lower" UPPER "upper" OFFSET "offset" MULTIPLIER "multiplier"
+%token <string> INTNUMERAL "24"
+%token <string> REALNUMERAL "3.1415"
+%token <string> IMAGNUMERAL "1i"
+%token <string> STRINGLITERAL "\"hello world\""
+%token <string> IDENTIFIER "foo"
+%token TARGET "target"
+%token QMARK "?" COLON ":" BANG "!" MINUS "-" PLUS "+" HAT "^" ELTPOW ".^" TRANSPOSE "'"
+       TIMES "*" DIVIDE "/" MODULO "%" IDIVIDE "%/%" LDIVIDE "\\" ELTTIMES ".*"
+       ELTDIVIDE "./" OR "||" AND "&&" EQUALS "==" NEQUALS "!=" LEQ "<=" GEQ ">=" TILDE "~"
+%token ASSIGN "=" PLUSASSIGN "+=" MINUSASSIGN "-=" TIMESASSIGN "*="
+       DIVIDEASSIGN "/=" ELTDIVIDEASSIGN "./=" ELTTIMESASSIGN ".*="
+%token ARROWASSIGN "<-" INCREMENTLOGPROB "increment_log_prob" GETLP "get_lp" (* all of these are deprecated *)
+%token PRINT "print" REJECT "reject"
+%token TRUNCATE "T"
+%token EOF ""
 
 (* UNREACHABLE tokens will never be produced by the lexer, so we can use them as
    "a thing that will never parse". This is useful in a few places. For example,
@@ -57,7 +68,7 @@ let (!=) = Stdlib.(!=)
    error message purposes, we can partially accept one of them and then fail by
    requiring an UNREACHABLE token.
  *)
-%token UNREACHABLE
+%token UNREACHABLE "<<<<UNREACHABLE>>>"
 
 %right COMMA
 %right QMARK COLON
@@ -71,6 +82,7 @@ let (!=) = Stdlib.(!=)
 %nonassoc unary_over_binary
 %right HAT ELTPOW
 %left TRANSPOSE
+%nonassoc ARRAY (* resolves shift-reduce with array keyword in declarations *)
 %left LBRACK
 %nonassoc below_ELSE
 %nonassoc ELSE
@@ -78,7 +90,6 @@ let (!=) = Stdlib.(!=)
 (* Top level rule *)
 %start <Ast.untyped_program> program functions_only
 %%
-
 
 (* Grammar *)
 
@@ -177,10 +188,14 @@ future_keyword:
   | MULTIPLIER { build_id "multiplier" $loc, "2.32.0" }
   | LOWER { build_id "lower" $loc, "2.32.0" }
   | UPPER { build_id "upper" $loc, "2.32.0" }
-  | ARRAY { build_id "array" $loc, "2.32.0" }
+  | ARRAY
+    { build_id "array" $loc, "2.32.0" }
 
 decl_identifier:
   | id=identifier { id }
+  | id=reserved_word { id }
+
+reserved_word:
   (* Keywords cannot be identifiers but
      semantic check produces a better error message. *)
   | FUNCTIONBLOCK { build_id "functions" $loc }
@@ -202,6 +217,9 @@ decl_identifier:
   | VECTOR { build_id "vector" $loc }
   | ROWVECTOR { build_id "row_vector" $loc }
   | MATRIX { build_id "matrix" $loc }
+  | COMPLEXVECTOR { build_id "complex_vector" $loc }
+  | COMPLEXROWVECTOR { build_id "complex_row_vector" $loc }
+  | COMPLEXMATRIX { build_id "complex_matrix" $loc }
   | ORDERED { build_id "ordered" $loc }
   | POSITIVEORDERED { build_id "positive_ordered" $loc }
   | SIMPLEX { build_id "simplex" $loc }
@@ -238,14 +256,15 @@ arg_decl:
     {  grammar_logger "arg_decl" ;
        match od with None -> (UnsizedType.AutoDiffable, ut, id) | _ -> (DataOnly, ut, id)  }
 
-always(x):
-  | x=x
-    { Some(x) }
-
 unsized_type:
-  | ARRAY n_opt=always(unsized_dims) bt=basic_type
+  | ARRAY n=unsized_dims bt=basic_type
+      {  grammar_logger "unsized_type";
+       nest_unsized_array bt n
+    }
   | bt=basic_type n_opt=option(unsized_dims)
     {  grammar_logger "unsized_type";
+       if Option.is_some n_opt then
+        Input_warnings.array_syntax ~unsized:true $loc;
        nest_unsized_array bt (Option.value n_opt ~default:0)
     }
 
@@ -262,6 +281,12 @@ basic_type:
     {  grammar_logger "basic_type ROWVECTOR" ; UnsizedType.URowVector }
   | MATRIX
     {  grammar_logger "basic_type MATRIX" ; UnsizedType.UMatrix }
+  | COMPLEXVECTOR
+    {  grammar_logger "basic_type COMPLEXVECTOR" ; UnsizedType.UComplexVector }
+  | COMPLEXROWVECTOR
+    {  grammar_logger "basic_type COMPLEXROWVECTOR" ; UnsizedType.UComplexRowVector }
+  | COMPLEXMATRIX
+    {  grammar_logger "basic_type COMPLEXMATRIX" ; UnsizedType.UComplexMatrix }
 
 unsized_dims:
   | LBRACK cs=list(COMMA) RBRACK
@@ -304,11 +329,12 @@ decl(type_rule, rhs):
      We need to match it separately because we won't support multiple inline
      declarations using this form.
 
-     This form is likely TO BE DEPRECIATED in Stan 3
+     This form is deprecated.
    *)
   | ty=type_rule id=decl_identifier dims=dims rhs_opt=optional_assignment(rhs)
       SEMICOLON
-    { (fun ~is_global ->
+    { Input_warnings.array_syntax $loc;
+      (fun ~is_global ->
       [{ stmt=
           VarDecl {
               decl_type= Sized (reducearray (fst ty, dims))
@@ -328,39 +354,10 @@ decl(type_rule, rhs):
    *)
   (* Note that the array dimensions option must be inlined with ioption, else
      it will conflict with first rule. *)
-  (* It's a bit of a hack that "array[x,y,z]" is matched with a lhs rule and
-     then narrowed down by throwing errors. This is done to avoid reserving
-     "array" as a keyword, while also avoiding the reduce-reduce conflict that
-     would occur if "array[x,y,z]" were its own rule without reserving the
-     keyword. *)
-  | dims_opt=ioption(lhs) ty=type_rule
+  | dims_opt=ioption(arr_dims) ty=type_rule
      vs=separated_nonempty_list(COMMA, id_and_optional_assignment(rhs)) SEMICOLON
     { (fun ~is_global ->
-      let int_ix ix = match ix with
-        | Single e -> Some e
-        | _ -> None
-      in
-      let int_ixs ixs =
-        List.fold_left
-          ~init:(Some [])
-          ~f:(Option.map2 ~f:(fun ixs ix -> ix::ixs))
-          (List.map ~f:int_ix
-             (List.rev ixs))
-      in
-      let error message =
-        pp_syntax_error
-          Fmt.stderr
-          (Parsing (message, Location_span.of_positions_exn $loc(dims_opt) ));
-        exit 1
-      in
-      let dims = match dims_opt with
-        | Some ({expr= Indexed ({expr= Variable {name="array"; _}; _}, ixs); _}) ->
-            Input_warnings.drop_array_future () ;
-           (match int_ixs ixs with
-            | Some sizes -> sizes
-            | None -> error "Dimensions should be expressions, not multiple or range indexing.")
-        | None -> []
-        | _ -> error "Found a declaration following an expression."
+      let dims = Option.value ~default:[] dims_opt
       in
       List.map vs ~f:(fun (id, rhs_opt) ->
           { stmt=
@@ -415,6 +412,12 @@ sized_basic_type:
     { grammar_logger "ROWVECTOR_var_type" ; (SizedType.SRowVector (AoS, e) , Identity) }
   | MATRIX LBRACK e1=expression COMMA e2=expression RBRACK
     { grammar_logger "MATRIX_var_type" ; (SizedType.SMatrix (AoS, e1, e2), Identity) }
+  | COMPLEXVECTOR LBRACK e=expression RBRACK
+    { grammar_logger "COMPLEXVECTOR_var_type" ; (SizedType.SComplexVector e, Identity) }
+  | COMPLEXROWVECTOR LBRACK e=expression RBRACK
+    { grammar_logger "COMPLEXROWVECTOR_var_type" ; (SizedType.SComplexRowVector e , Identity) }
+  | COMPLEXMATRIX LBRACK e1=expression COMMA e2=expression RBRACK
+    { grammar_logger "COMPLEXMATRIX_var_type" ; (SizedType.SComplexMatrix (e1, e2), Identity) }
 
 top_var_type:
   | INT r=range_constraint
@@ -429,6 +432,12 @@ top_var_type:
     { grammar_logger "ROWVECTOR_top_var_type" ; (SRowVector (AoS, e), c) }
   | MATRIX c=type_constraint LBRACK e1=expression COMMA e2=expression RBRACK
     { grammar_logger "MATRIX_top_var_type" ; (SMatrix (AoS, e1, e2), c) }
+  | COMPLEXVECTOR c=type_constraint LBRACK e=expression RBRACK
+    { grammar_logger "COMPLEXVECTOR_top_var_type" ; (SComplexVector e, c) }
+  | COMPLEXROWVECTOR c=type_constraint LBRACK e=expression RBRACK
+    { grammar_logger "COMPLEXROWVECTOR_top_var_type" ; (SComplexRowVector e, c) }
+  | COMPLEXMATRIX c=type_constraint LBRACK e1=expression COMMA e2=expression RBRACK
+    { grammar_logger "COMPLEXMATRIX_top_var_type" ; (SComplexMatrix (e1, e2), c) }
   | ORDERED LBRACK e=expression RBRACK
     { grammar_logger "ORDERED_top_var_type" ; (SVector (AoS, e), Ordered) }
   | POSITIVEORDERED LBRACK e=expression RBRACK
@@ -487,9 +496,9 @@ offset_mult:
   | MULTIPLIER ASSIGN e=constr_expression
     { grammar_logger "multiplier" ; Multiplier e }
 
-(* arr_dims:
- *   | ARRAY LBRACK l=separated_nonempty_list(COMMA, expression) RBRACK
- *                { grammar_logger "array dims" ; l  } *)
+arr_dims:
+  | ARRAY LBRACK l=separated_nonempty_list(COMMA, expression) RBRACK
+    { grammar_logger "array dims" ; l  }
 
 dims:
   | LBRACK l=separated_nonempty_list(COMMA, expression) RBRACK
@@ -681,7 +690,7 @@ lhs:
   | id=identifier
     {  grammar_logger "lhs_identifier" ;
        {expr=Variable id
-       ;emeta = { loc=Location_span.of_positions_exn $loc}}
+       ;emeta = {loc=id.id_loc}}
     }
   | l=lhs LBRACK indices=indexes RBRACK
     {  grammar_logger "lhs_index" ;

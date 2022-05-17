@@ -3,7 +3,7 @@ open Frontend
 
 let print_ast_of_string s =
   let ast =
-    Frontend_utils.untyped_ast_of_string s
+    Test_utils.untyped_ast_of_string s
     |> Result.map_error ~f:Errors.to_string
     |> Result.ok_or_failwith in
   print_s [%sexp (ast : Ast.untyped_program)]
@@ -372,7 +372,7 @@ let%expect_test "parse crazy truncation example" =
   print_ast_of_string
     "\n\
     \      model {\n\
-    \        real T[1,1] = {{42.0}};\n\
+    \        array[1,1] real T = {{42.0}};\n\
     \        1 ~ normal(0, 1) T[1, T[1,1]];\n\
     \        print(T[1,1]);\n\
     \      }\n\

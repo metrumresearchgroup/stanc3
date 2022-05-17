@@ -33,37 +33,32 @@ module Fixed = struct
 
     let pp pp_e pp_s ppf = function
       | Assignment ((assignee, _, idcs), rhs) ->
-          Fmt.pf ppf {|@[<h>%a =@ %a;@]|} (Index.pp_indexed pp_e)
-            (assignee, idcs) pp_e rhs
-      | TargetPE expr ->
-          Fmt.pf ppf {|@[<h>%a +=@ %a;@]|} pp_keyword "target" pp_e expr
+          Fmt.pf ppf "@[<h>%a =@ %a;@]" (Index.pp_indexed pp_e) (assignee, idcs)
+            pp_e rhs
+      | TargetPE expr -> Fmt.pf ppf "@[<h>target +=@ %a;@]" pp_e expr
       | NRFunApp (kind, args) ->
-          Fmt.pf ppf {|@[%a%a;@]|} (Fun_kind.pp pp_e) kind
+          Fmt.pf ppf "@[%a%a;@]" (Fun_kind.pp pp_e) kind
             Fmt.(list pp_e ~sep:comma |> parens)
             args
-      | Break -> pp_keyword ppf "break;"
-      | Continue -> pp_keyword ppf "continue;"
-      | Skip -> pp_keyword ppf ";"
-      | Return (Some expr) ->
-          Fmt.pf ppf {|%a %a;|} pp_keyword "return" pp_e expr
-      | Return _ -> pp_keyword ppf "return;"
+      | Break -> Fmt.string ppf "break;"
+      | Continue -> Fmt.string ppf "continue;"
+      | Skip -> Fmt.string ppf ";"
+      | Return (Some expr) -> Fmt.pf ppf "return %a;" pp_e expr
+      | Return _ -> Fmt.string ppf "return;"
       | IfElse (pred, s_true, Some s_false) ->
-          Fmt.pf ppf {|%a(%a) %a %a %a|} pp_builtin_syntax "if" pp_e pred pp_s
-            s_true pp_builtin_syntax "else" pp_s s_false
-      | IfElse (pred, s_true, _) ->
-          Fmt.pf ppf {|%a(%a) %a|} pp_builtin_syntax "if" pp_e pred pp_s s_true
-      | While (pred, stmt) ->
-          Fmt.pf ppf {|%a(%a) %a|} pp_builtin_syntax "while" pp_e pred pp_s stmt
+          Fmt.pf ppf "if(%a) %a else %a" pp_e pred pp_s s_true pp_s s_false
+      | IfElse (pred, s_true, _) -> Fmt.pf ppf "if(%a) %a" pp_e pred pp_s s_true
+      | While (pred, stmt) -> Fmt.pf ppf "while(%a) %a" pp_e pred pp_s stmt
       | For {loopvar; lower; upper; body} ->
-          Fmt.pf ppf {|%a(%s in %a:%a) %a|} pp_builtin_syntax "for" loopvar pp_e
-            lower pp_e upper pp_s body
+          Fmt.pf ppf "for(%s in %a:%a) %a" loopvar pp_e lower pp_e upper pp_s
+            body
       | Profile (_, stmts) ->
-          Fmt.pf ppf {|{@;<1 2>@[<v>%a@]@;}|} Fmt.(list pp_s ~sep:Fmt.cut) stmts
+          Fmt.pf ppf "{@;<1 2>@[<v>%a@]@;}" Fmt.(list pp_s ~sep:cut) stmts
       | Block stmts ->
-          Fmt.pf ppf {|{@;<1 2>@[<v>%a@]@;}|} Fmt.(list pp_s ~sep:Fmt.cut) stmts
-      | SList stmts -> Fmt.(list pp_s ~sep:Fmt.cut |> vbox) ppf stmts
+          Fmt.pf ppf "{@;<1 2>@[<v>%a@]@;}" Fmt.(list pp_s ~sep:cut) stmts
+      | SList stmts -> Fmt.(list pp_s ~sep:cut |> vbox) ppf stmts
       | Decl {decl_adtype; decl_id; decl_type; _} ->
-          Fmt.pf ppf {|%a%a %s;|} UnsizedType.pp_autodifftype decl_adtype
+          Fmt.pf ppf "%a%a %s;" UnsizedType.pp_autodifftype decl_adtype
             (Type.pp pp_e) decl_type decl_id
 
     include Foldable.Make2 (struct
@@ -287,9 +282,9 @@ module Helpers = struct
       Expr.Helpers.internal_funapp FnLength [e] emeta' in
     match Expr.Typed.type_of iteratee with
     | UInt | UReal | UComplex -> bodyfn iteratee
-    | UVector | URowVector ->
+    | UVector | URowVector | UComplexVector | UComplexRowVector ->
         mk_for_iteratee (len iteratee) bodyfn iteratee smeta
-    | UMatrix ->
+    | UMatrix | UComplexMatrix ->
         let emeta = iteratee.meta in
         let emeta' = {emeta with Expr.Typed.Meta.type_= UInt} in
         let rows =
@@ -327,7 +322,7 @@ module Helpers = struct
   let rec for_eigen st bodyfn var smeta =
     match st with
     | SizedType.SInt | SReal | SComplex | SVector _ | SRowVector _ | SMatrix _
-      ->
+     |SComplexVector _ | SComplexRowVector _ | SComplexMatrix _ ->
         bodyfn var
     | SArray (t, d) ->
         mk_for_iteratee d (fun e -> for_eigen t bodyfn e smeta) var smeta
@@ -344,10 +339,18 @@ module Helpers = struct
   let rec for_scalar st bodyfn var smeta =
     match st with
     | SizedType.SInt | SReal | SComplex -> bodyfn var
-    | SVector (_, d) | SRowVector (_, d) -> mk_for_iteratee d bodyfn var smeta
+    | SVector (_, d)
+     |SRowVector (_, d)
+     |SComplexVector d
+     |SComplexRowVector d ->
+        mk_for_iteratee d bodyfn var smeta
     | SMatrix (mem_pattern, d1, d2) ->
         mk_for_iteratee d1
           (fun e -> for_scalar (SRowVector (mem_pattern, d2)) bodyfn e smeta)
+          var smeta
+    | SComplexMatrix (d1, d2) ->
+        mk_for_iteratee d1
+          (fun e -> for_scalar (SComplexRowVector d2) bodyfn e smeta)
           var smeta
     | SArray (t, d) ->
         mk_for_iteratee d (fun e -> for_scalar t bodyfn e smeta) var smeta
@@ -369,6 +372,9 @@ module Helpers = struct
       | SMatrix (mem_pattern, d1, d2) ->
           let bodyfn' var = mk_for_iteratee d1 bodyfn var smeta in
           go (SRowVector (mem_pattern, d2)) bodyfn' var smeta
+      | SComplexMatrix (d1, d2) ->
+          let bodyfn' var = mk_for_iteratee d1 bodyfn var smeta in
+          go (SComplexRowVector d2) bodyfn' var smeta
       | _ -> for_scalar st bodyfn var smeta in
     go st (Fn.compose bodyfn invert_index_order) var smeta
 

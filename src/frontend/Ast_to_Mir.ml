@@ -2,13 +2,6 @@ open Core_kernel
 open Core_kernel.Poly
 open Middle
 
-(* XXX fix exn *)
-let unwrap_return_exn = function
-  | Some (UnsizedType.ReturnType ut) -> ut
-  | x ->
-      Common.FatalError.fatal_error_msg
-        [%message "Unexpected return type " (x : UnsizedType.returntype option)]
-
 let trans_fn_kind kind name =
   let fname = Utils.stdlib_distribution_name name in
   match kind with
@@ -36,14 +29,9 @@ let%expect_test "format_number1" =
   format_number ".123_456" |> print_endline ;
   [%expect ".123456"]
 
-let rec op_to_funapp op args =
-  let argtypes =
-    List.map ~f:(fun x -> (x.Ast.emeta.Ast.ad_level, x.emeta.type_)) args in
-  let type_ =
-    Stan_math_signatures.operator_stan_math_return_type op argtypes
-    |> unwrap_return_exn
-  and loc = Ast.expr_loc_lub args
-  and adlevel = Ast.expr_ad_lub args in
+let rec op_to_funapp op args type_ =
+  let loc = Ast.expr_loc_lub args in
+  let adlevel = Ast.expr_ad_lub args in
   Expr.
     { Fixed.pattern=
         FunApp (StanLib (Operator.to_string op, FnPlain, AoS), trans_exprs args)
@@ -61,8 +49,8 @@ and trans_expr {Ast.expr; Ast.emeta} =
   | Ast.Paren x -> trans_expr x
   | BinOp (lhs, And, rhs) -> EAnd (trans_expr lhs, trans_expr rhs) |> ewrap
   | BinOp (lhs, Or, rhs) -> EOr (trans_expr lhs, trans_expr rhs) |> ewrap
-  | BinOp (lhs, op, rhs) -> op_to_funapp op [lhs; rhs]
-  | PrefixOp (op, e) | Ast.PostfixOp (e, op) -> op_to_funapp op [e]
+  | BinOp (lhs, op, rhs) -> op_to_funapp op [lhs; rhs] emeta.type_
+  | PrefixOp (op, e) | Ast.PostfixOp (e, op) -> op_to_funapp op [e] emeta.type_
   | Ast.TernaryIf (cond, ifb, elseb) ->
       Expr.Fixed.Pattern.TernaryIf
         (trans_expr cond, trans_expr ifb, trans_expr elseb)
@@ -81,6 +69,7 @@ and trans_expr {Ast.expr; Ast.emeta} =
       FunApp (CompilerInternal FnMakeRowVec, trans_exprs eles) |> ewrap
   | Indexed (lhs, indices) ->
       Indexed (trans_expr lhs, List.map ~f:trans_idx indices) |> ewrap
+  | Promotion (e, ty, ad) -> Promotion (trans_expr e, ty, ad) |> ewrap
 
 and trans_idx = function
   | Ast.All -> All
@@ -126,12 +115,12 @@ let truncate_dist ud_dists (id : Ast.identifier) ast_obs ast_args t =
     { Stmt.Fixed.meta= smeta
     ; pattern=
         IfElse
-          ( op_to_funapp cond_op [ast_obs; x]
+          ( op_to_funapp cond_op [ast_obs; x] UInt
           , {Stmt.Fixed.meta= smeta; pattern= TargetPE neg_inf}
           , Some y ) } in
   let targetme loc e =
-    {Stmt.Fixed.meta= loc; pattern= TargetPE (op_to_funapp Operator.PMinus [e])}
-  in
+    { Stmt.Fixed.meta= loc
+    ; pattern= TargetPE (op_to_funapp Operator.PMinus [e] e.emeta.type_) } in
   let funapp meta kind name args =
     { Ast.emeta= meta
     ; expr= Ast.FunApp (kind, {name; id_loc= Location_span.empty}, args) } in
@@ -186,14 +175,6 @@ type transform_action = Check | Constrain | Unconstrain | IgnoreTransform
 
 type decl_context =
   {transform_action: transform_action; dadlevel: UnsizedType.autodifftype}
-
-let constraint_forl = function
-  | Transformation.Identity | Offset _ | Multiplier _ | OffsetMultiplier _
-   |Lower _ | Upper _ | LowerUpper _ ->
-      Stmt.Helpers.for_scalar
-  | Ordered | PositiveOrdered | Simplex | UnitVector | CholeskyCorr
-   |CholeskyCov | Correlation | Covariance ->
-      Stmt.Helpers.for_eigen
 
 let same_shape decl_id decl_var id var meta =
   if UnsizedType.is_scalar_type (Expr.Typed.type_of var) then []
@@ -250,7 +231,8 @@ let param_size transform sizedtype =
     | SizedType.SArray (t, d) -> SizedType.SArray (shrink_eigen f t, d)
     | SVector (mem_pattern, d) | SMatrix (mem_pattern, d, _) ->
         SVector (mem_pattern, f d)
-    | SInt | SReal | SComplex | SRowVector _ ->
+    | SInt | SReal | SComplex | SRowVector _ | SComplexRowVector _
+     |SComplexVector _ | SComplexMatrix _ ->
         Common.FatalError.fatal_error_msg
           [%message
             "Expecting SVector or SMatrix, got " (st : Expr.Typed.t SizedType.t)]
@@ -259,7 +241,8 @@ let param_size transform sizedtype =
     match st with
     | SizedType.SArray (t, d) -> SizedType.SArray (shrink_eigen_mat f t, d)
     | SMatrix (mem_pattern, d1, d2) -> SVector (mem_pattern, f d1 d2)
-    | SInt | SReal | SComplex | SRowVector _ | SVector _ ->
+    | SInt | SReal | SComplex | SRowVector _ | SVector _ | SComplexRowVector _
+     |SComplexVector _ | SComplexMatrix _ ->
         Common.FatalError.fatal_error_msg
           [%message "Expecting SMatrix, got " (st : Expr.Typed.t SizedType.t)]
   in
@@ -291,16 +274,7 @@ let param_size transform sizedtype =
         (fun k -> Expr.Helpers.(binop k Plus (k_choose_2 k)))
         sizedtype
 
-let remove_possibly_exn pst action loc =
-  match pst with
-  | Type.Sized st -> st
-  | Unsized _ ->
-      Common.FatalError.fatal_error_msg
-        [%message
-          "Error extracting sizedtype" ~action ~loc:(loc : Location_span.t)]
-
 let rec check_decl var decl_type' decl_id decl_trans smeta adlevel =
-  let decl_type = remove_possibly_exn decl_type' "check" smeta in
   match decl_trans with
   | Transformation.LowerUpper (lb, ub) ->
       check_decl var decl_type' decl_id (Lower lb) smeta adlevel
@@ -312,7 +286,7 @@ let rec check_decl var decl_type' decl_id decl_trans smeta adlevel =
         Stmt.Helpers.internal_nrfunapp
           (FnCheck {trans= decl_trans; var_name; var= id})
           args smeta in
-      [(constraint_forl decl_trans) decl_type check_id var smeta]
+      [check_id var]
   | _ -> []
 
 let check_sizedtype name =
@@ -336,6 +310,16 @@ let check_sizedtype name =
         let er = trans_expr r in
         let ec = trans_expr c in
         (check r er @ check c ec, SizedType.SMatrix (mem_pattern, er, ec))
+    | SComplexVector s ->
+        let e = trans_expr s in
+        (check s e, SizedType.SComplexVector e)
+    | SComplexRowVector s ->
+        let e = trans_expr s in
+        (check s e, SizedType.SComplexRowVector e)
+    | SComplexMatrix (r, c) ->
+        let er = trans_expr r in
+        let ec = trans_expr c in
+        (check r er @ check c ec, SizedType.SComplexMatrix (er, ec))
     | SArray (t, s) ->
         let e = trans_expr s in
         let ll, t = sizedtype t in
@@ -434,7 +418,8 @@ let rec trans_stmt ud_dists (declc : decl_context) (ts : Ast.typed_statement) =
       let rhs =
         match assign_op with
         | Ast.Assign | Ast.ArrowAssign -> trans_expr assign_rhs
-        | Ast.OperatorAssign op -> op_to_funapp op [assignee; assign_rhs] in
+        | Ast.OperatorAssign op ->
+            op_to_funapp op [assignee; assign_rhs] assignee.emeta.type_ in
       Assignment
         ( ( assign_identifier.Ast.name
           , id_type_
@@ -608,6 +593,12 @@ let trans_sizedtype_decl declc tr name =
     | SRowVector (mem_pattern, s) ->
         let l, s = grab_size FnValidateSize n s in
         (l, SizedType.SRowVector (mem_pattern, s))
+    | SComplexRowVector s ->
+        let l, s = grab_size FnValidateSize n s in
+        (l, SizedType.SComplexRowVector s)
+    | SComplexVector s ->
+        let l, s = grab_size FnValidateSize n s in
+        (l, SizedType.SComplexVector s)
     | SMatrix (mem_pattern, r, c) ->
         let l1, r = grab_size FnValidateSize n r in
         let l2, c = grab_size FnValidateSize (n + 1) c in
@@ -625,6 +616,10 @@ let trans_sizedtype_decl declc tr name =
                 ; meta= r.Expr.Fixed.meta.Expr.Typed.Meta.loc } ]
           | _ -> [] in
         (l1 @ l2 @ cf_cov, SizedType.SMatrix (mem_pattern, r, c))
+    | SComplexMatrix (r, c) ->
+        let l1, r = grab_size FnValidateSize n r in
+        let l2, c = grab_size FnValidateSize (n + 1) c in
+        (l1 @ l2, SizedType.SComplexMatrix (r, c))
     | SArray (t, s) ->
         let l, s = grab_size FnValidateSize n s in
         let ll, t = go (n + 1) t in
@@ -687,7 +682,7 @@ let trans_block ud_dists declc block prog =
                   check_transform_shape decl_id decl_var smeta.loc transform
               | Check ->
                   check_transform_shape decl_id decl_var smeta.loc transform
-                  @ check_decl decl_var (Sized type_) decl_id transform
+                  @ check_decl decl_var (Type.Sized type_) decl_id transform
                       smeta.loc declc.dadlevel
               | IgnoreTransform -> [] in
             (decl :: rhs_assignment) @ constrain_checks
@@ -705,6 +700,22 @@ let stmt_contains_check stmt =
 let migrate_checks_to_end_of_block stmts =
   let checks, not_checks = List.partition_tf ~f:stmt_contains_check stmts in
   not_checks @ checks
+
+let gather_data (p : Ast.typed_program) =
+  let data = Ast.get_stmts p.datablock in
+  List.filter_map data ~f:(function
+    | { stmt=
+          VarDecl
+            { decl_type= Sized sizedtype
+            ; transformation
+            ; identifier= {name; _}
+            ; _ }
+      ; _ } ->
+        Some
+          ( SizedType.map trans_expr sizedtype
+          , Transformation.map trans_expr transformation
+          , name )
+    | _ -> None )
 
 let trans_prog filename (p : Ast.typed_program) : Program.Typed.t =
   let {Ast.functionblock; datablock; transformeddatablock; modelblock; _} = p in

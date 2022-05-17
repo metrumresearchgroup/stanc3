@@ -15,6 +15,7 @@ module Fixed : sig
       | EAnd of 'a * 'a
       | EOr of 'a * 'a
       | Indexed of 'a * 'a Index.t list
+      | Promotion of 'a * UnsizedType.t * UnsizedType.autodifftype
     [@@deriving sexp, hash, compare]
 
     include Pattern.S with type 'a t := 'a t
@@ -51,6 +52,7 @@ module Typed : sig
   val type_of : t -> UnsizedType.t
   val loc_of : t -> Location_span.t
   val adlevel_of : t -> UnsizedType.autodifftype
+  val fun_arg : t -> UnsizedType.autodifftype * UnsizedType.t
 end
 
 module Labelled : sig
@@ -81,12 +83,23 @@ end
 module Helpers : sig
   val int : int -> Typed.t
   val float : float -> Typed.t
+  val complex : float * float -> Typed.t
   val str : string -> Typed.t
   val variable : string -> Typed.t
   val zero : Typed.t
   val one : Typed.t
+  val unary_op : Operator.t -> Typed.t -> Typed.t
   val binop : Typed.t -> Operator.t -> Typed.t -> Typed.t
   val binop_list : Typed.t list -> Operator.t -> default:Typed.t -> Typed.t
+  val row_vector : float list -> Typed.t
+  val vector : float list -> Typed.t
+  val matrix : float list list -> Typed.t
+  val matrix_from_rows : Typed.t list -> Typed.t
+  val complex_row_vector : (float * float) list -> Typed.t
+  val complex_vector : (float * float) list -> Typed.t
+  val complex_matrix_from_rows : Typed.t list -> Typed.t
+  val array_expr : Typed.t list -> Typed.t
+  val try_unpack : Typed.t -> Typed.t list option
   val loop_bottom : Typed.t
 
   val internal_funapp :
