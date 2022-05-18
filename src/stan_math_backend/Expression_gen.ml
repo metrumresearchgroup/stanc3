@@ -8,6 +8,7 @@ let starts_with prefix s = String.is_prefix ~prefix s
 
 let stan_namespace_qualify f =
   if String.is_suffix ~suffix:"functor__" f || String.contains f ':' then f
+  else if String.is_prefix ~prefix:"pmx_" f then "torsten::" ^ f
   else "stan::math::" ^ f
 
 (* retun true if the type of the expression
