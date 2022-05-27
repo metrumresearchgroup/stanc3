@@ -337,7 +337,7 @@ decl(type_rule, rhs):
       (fun ~is_global ->
       [{ stmt=
           VarDecl {
-              decl_type= Sized (reducearray (fst ty, dims))
+              decl_type= (reducearray (fst ty, dims))
             ; transformation= snd ty
             ; identifier= id
             ; initial_value= rhs_opt
@@ -362,7 +362,7 @@ decl(type_rule, rhs):
       List.map vs ~f:(fun (id, rhs_opt) ->
           { stmt=
               VarDecl {
-                  decl_type= Sized (reducearray (fst ty, dims))
+                  decl_type= (reducearray (fst ty, dims))
                 ; transformation= snd ty
                 ; identifier= id
                 ; initial_value= rhs_opt
@@ -407,7 +407,7 @@ sized_basic_type:
   | COMPLEX
     { grammar_logger "COMPLEX_var_type" ; (SizedType.SComplex, Identity) }
   | VECTOR LBRACK e=expression RBRACK
-    { grammar_logger "VECTOR_var_type" ; (SizedType.SVector (Common.Helpers.AoS, e), Identity) }
+    { grammar_logger "VECTOR_var_type" ; (SizedType.SVector (Mem_pattern.AoS, e), Identity) }
   | ROWVECTOR LBRACK e=expression RBRACK
     { grammar_logger "ROWVECTOR_var_type" ; (SizedType.SRowVector (AoS, e) , Identity) }
   | MATRIX LBRACK e1=expression COMMA e2=expression RBRACK
