@@ -1,5 +1,7 @@
 open Core_kernel
 
+open Core_kernel.Poly
+
 (* old ODE RHS def *)
 let pmx_ode_func =
   [ ( UnsizedType.AutoDiffable
