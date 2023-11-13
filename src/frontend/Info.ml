@@ -3,23 +3,23 @@ open Ast
 open Middle
 open Yojson.Basic
 
-let unsized_basetype_json t =
-  let rec type_dims t =
-    match t with
-    | UnsizedType.UInt -> ("int", 0)
-    | UReal -> ("real", 0)
-    | UComplex -> ("complex", 0)
-    | UVector | URowVector -> ("real", 1)
-    | UComplexVector | UComplexRowVector -> ("complex", 1)
-    | UMatrix -> ("real", 2)
-    | UComplexMatrix -> ("complex", 2)
-    | UArray t' ->
-        let type_, dim = type_dims t' in
-        (type_, dim + 1)
-    | UMathLibraryFunction | UFun _ -> assert false in
+let rec unsized_basetype_json t =
   let to_json (type_, dim) : t =
     `Assoc [("type", `String type_); ("dimensions", `Int dim)] in
-  type_dims t |> to_json
+  let internal, dims = UnsizedType.unwind_array_type t in
+  match internal with
+  | UnsizedType.UInt -> to_json ("int", dims)
+  | UReal -> to_json ("real", dims)
+  | UComplex -> to_json ("complex", dims)
+  | UVector | URowVector -> to_json ("real", dims + 1)
+  | UComplexVector | UComplexRowVector -> to_json ("complex", dims + 1)
+  | UMatrix -> to_json ("real", dims + 2)
+  | UComplexMatrix -> to_json ("complex", dims + 2)
+  | UTuple internals ->
+      `Assoc
+        [ ("type", `List (List.map ~f:unsized_basetype_json internals))
+        ; ("dimensions", `Int dims) ]
+  | UMathLibraryFunction | UFun _ | UArray _ -> assert false
 
 let basetype_dims t = SizedType.to_unsized t |> unsized_basetype_json
 
@@ -30,7 +30,11 @@ let get_var_decl {stmts; _} : t =
          match stmt.Ast.stmt with
          | Ast.VarDecl decl ->
              let type_info = basetype_dims decl.decl_type in
-             (decl.identifier.name, type_info) :: acc
+             let decl_info =
+               List.map
+                 ~f:(fun {identifier; _} -> (identifier.name, type_info))
+                 decl.variables in
+             decl_info @ acc
          | _ -> acc )
        stmts )
 
@@ -49,6 +53,8 @@ let rec get_function_calls_stmt ud_dists (funs, distrs) stmt =
   let acc =
     match stmt.stmt with
     | NRFunApp (StanLib _, f, _) -> (Set.add funs f.name, distrs)
+    | Print _ -> (Set.add funs "print", distrs)
+    | Reject _ -> (Set.add funs "reject", distrs)
     | Tilde {distribution; _} ->
         let possible_names =
           List.map ~f:(( ^ ) distribution.name) Utils.distribution_suffices

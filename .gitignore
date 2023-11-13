@@ -9,6 +9,8 @@ math_iface/gen/*
 # ocaml
 _opam
 _build
+_coverage/
+*.coverage
 *.merlin
 stanc.install
 
@@ -35,3 +37,6 @@ test/*.log
 
 # .hpp files in test folder
 test/**/*.hpp
+
+# .omir files in test folder
+test/**/*.omir

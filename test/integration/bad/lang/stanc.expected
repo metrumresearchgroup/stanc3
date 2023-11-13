@@ -61,7 +61,7 @@ Syntax error in 'bad3.stan', line 1, column 21 to column 22, parsing error:
                               ^
    -------------------------------------------------
 
-Expected "[" expression "," expression "]" for sizes of matrix.
+"[" expression "," expression "]" expected for matrix sizes.
   $ ../../../../../install/default/bin/stanc bad3.stanfunctions
 Syntax error in 'bad3.stanfunctions', line 1, column 0 to column 5, parsing error:
    -------------------------------------------------
@@ -137,6 +137,17 @@ Semantic error in 'bad9.stan', line 5, column 3 to column 9:
    -------------------------------------------------
 
 (Transformed) Parameters cannot be integers.
+  $ ../../../../../install/default/bin/stanc bad_bar.stan
+Semantic error in 'bad_bar.stan', line 3, column 9 to column 28:
+   -------------------------------------------------
+     1:  generated quantities {
+     2:     vector[3] foo;
+     3:     foo = rep_vector(1.2 | 3);
+                  ^
+     4:  }
+   -------------------------------------------------
+
+Only functions with names ending in _lpdf, _lupdf, _lpmf, _lupmf, _cdf, _lcdf, _lccdf can make use of conditional notation.
   $ ../../../../../install/default/bin/stanc bad_bounds1.stan
 Syntax error in 'bad_bounds1.stan', line 2, column 15 to column 17, parsing error:
    -------------------------------------------------
@@ -147,7 +158,7 @@ Syntax error in 'bad_bounds1.stan', line 2, column 15 to column 17, parsing erro
      4:  parameters {
    -------------------------------------------------
 
-">" or ", upper = expression>" (with expression not containing binary logical operators) expected after specifying lower bound for type.
+Ill-formed expression. Expected expression (not containing binary logical operators).
   $ ../../../../../install/default/bin/stanc bad_cov_exp_quad_arr_rvec_data.stan
 Semantic error in 'bad_cov_exp_quad_arr_rvec_data.stan', line 13, column 41 to column 48:
    -------------------------------------------------
@@ -212,10 +223,10 @@ Ill-typed arguments supplied to function 'cov_exp_quad':
 Available signatures:
 (array[] vector, array[] vector, real, real) => matrix
   The fourth argument must be real but got array[] real
-(array[] real, array[] real, real, real) => matrix
-  The first argument must be array[] real but got array[] vector
 (array[] row_vector, array[] row_vector, real, real) => matrix
   The first argument must be array[] row_vector but got array[] vector
+(array[] real, array[] real, real, real) => matrix
+  The first argument must be array[] real but got array[] vector
 (array[] real, real, real) => matrix
   Expected 3 arguments but found 4 arguments.
 (array[] vector, real, real) => matrix
@@ -322,10 +333,10 @@ Ill-typed arguments supplied to function 'cov_exp_quad':
 Available signatures:
 (array[] row_vector, array[] row_vector, real, real) => matrix
   The second argument must be array[] row_vector but got array[] vector
-(array[] real, array[] real, real, real) => matrix
-  The first argument must be array[] real but got array[] row_vector
 (array[] vector, array[] vector, real, real) => matrix
   The first argument must be array[] vector but got array[] row_vector
+(array[] real, array[] real, real, real) => matrix
+  The first argument must be array[] real but got array[] row_vector
 (array[] real, real, real) => matrix
   Expected 3 arguments but found 4 arguments.
 (array[] vector, real, real) => matrix
@@ -359,10 +370,10 @@ Ill-typed arguments supplied to function 'cov_exp_quad':
 Available signatures:
 (array[] vector, array[] vector, real, real) => matrix
   The third argument must be real but got array[] real
-(array[] real, array[] real, real, real) => matrix
-  The first argument must be array[] real but got array[] vector
 (array[] row_vector, array[] row_vector, real, real) => matrix
   The first argument must be array[] row_vector but got array[] vector
+(array[] real, array[] real, real, real) => matrix
+  The first argument must be array[] real but got array[] vector
 (array[] real, real, real) => matrix
   Expected 3 arguments but found 4 arguments.
 (array[] vector, real, real) => matrix
@@ -469,10 +480,10 @@ Ill-typed arguments supplied to function 'cov_exp_quad':
 Available signatures:
 (array[] vector, array[] vector, real, real) => matrix
   The second argument must be array[] vector but got array[] row_vector
-(array[] real, array[] real, real, real) => matrix
-  The first argument must be array[] real but got array[] vector
 (array[] row_vector, array[] row_vector, real, real) => matrix
   The first argument must be array[] row_vector but got array[] vector
+(array[] real, array[] real, real, real) => matrix
+  The first argument must be array[] real but got array[] vector
 (array[] real, real, real) => matrix
   Expected 3 arguments but found 4 arguments.
 (array[] vector, real, real) => matrix
@@ -491,15 +502,16 @@ Syntax error in 'bad_cov_exp_quad_vec_rvec_param.stan', line 17, column 0 to col
 
 "model {" or "generated quantities {" expected after end of transformed parameters block.
   $ ../../../../../install/default/bin/stanc bad_decl1.stan
-Syntax error in 'bad_decl1.stan', line 2, column 14 to column 15, parsing error:
+Syntax error in 'bad_decl1.stan', line 2, column 10 to column 13, parsing error:
    -------------------------------------------------
      1:  data {
      2:    real x, int y;
-                       ^
+                   ^
      3:  }
    -------------------------------------------------
 
-Expected identifier. Multiple declarations must have the same type.
+Found a type ('int') where an identifier was expected.
+All variables declared in a comma-separated list must be of the same type.
   $ ../../../../../install/default/bin/stanc bad_decl2.stan
 Syntax error in 'bad_decl2.stan', line 2, column 13 to column 14, parsing error:
    -------------------------------------------------
@@ -510,6 +522,73 @@ Syntax error in 'bad_decl2.stan', line 2, column 13 to column 14, parsing error:
    -------------------------------------------------
 
 Expected non-array type after "array" declaration.
+  $ ../../../../../install/default/bin/stanc bad_decl3.stan
+Syntax error in 'bad_decl3.stan', line 3, column 28 to column 29, parsing error:
+   -------------------------------------------------
+     1:  functions {
+     2:      void test(real alpha, real tau, real beta, real delta) {
+     3:        real t, x = tau, beta * alpha; // this errors saying
+                                     ^
+     4:        return;
+     5:      }
+   -------------------------------------------------
+
+Expected a new identifier after comma in declaration.
+All variables declared must be of the same type, and any initializing assignment must follow the identifier before the next comma.
+  $ ../../../../../install/default/bin/stanc bad_decl4.stan
+Syntax error in 'bad_decl4.stan', line 2, column 10 to column 16, parsing error:
+   -------------------------------------------------
+     1:  data {
+     2:    real x, reject;
+                   ^
+     3:  }
+   -------------------------------------------------
+
+Expected a new identifier but found reserved keyword 'reject'.
+  $ ../../../../../install/default/bin/stanc bad_function.stan
+Semantic error in 'bad_function.stan', line 3, column 3 to column 7:
+   -------------------------------------------------
+     1:  generated quantities {
+     2:     real x;
+     3:     x();
+            ^
+     4:  }
+   -------------------------------------------------
+
+A non-returning function was expected but a non-function value 'x' was supplied.
+  $ ../../../../../install/default/bin/stanc bad_function2.stan
+Semantic error in 'bad_function2.stan', line 3, column 3 to column 7:
+   -------------------------------------------------
+     1:  generated quantities {
+     2:     real x;
+     3:     y();
+            ^
+     4:  }
+   -------------------------------------------------
+
+A non-returning function was expected but an undeclared identifier 'y' was supplied.
+  $ ../../../../../install/default/bin/stanc bad_lmpf.stan
+Semantic error in 'bad_lmpf.stan', line 2, column 2 to line 4, column 3:
+   -------------------------------------------------
+     1:  functions {
+     2:    real my_dist_lpmf(real foo){
+           ^
+     3:      return 1.0;
+     4:    }
+   -------------------------------------------------
+
+Probability mass functions require integer variates (first argument). Instead found type real.
+  $ ../../../../../install/default/bin/stanc bad_lpdf.stan
+Semantic error in 'bad_lpdf.stan', line 2, column 2 to line 4, column 3:
+   -------------------------------------------------
+     1:  functions {
+     2:    real my_dist_lpdf(){
+           ^
+     3:      return 1.0;
+     4:    }
+   -------------------------------------------------
+
+Probability density functions require real variates (first argument).
   $ ../../../../../install/default/bin/stanc bad_periods_data.stan
 Syntax error in 'bad_periods_data.stan', line 2, column 7, lexing error:
    -------------------------------------------------
@@ -669,7 +748,7 @@ Syntax error in 'incomplete2.stan', line 2, column 15 to column 20, parsing erro
      3:  }
    -------------------------------------------------
 
-Found a expression where we expected a statement. Is there a missing semi-colon here?
+Found an ill-formed expression where we expected a statement. Is there a missing semi-colon here?
 Or did you mean to use the preceding expression in:
 * a function call
 * a sampling statement
@@ -694,7 +773,7 @@ Syntax error in 'incomplete4.stan', line 2, column 13 to column 14, parsing erro
      3:  }
    -------------------------------------------------
 
-Found a expression where we expected a statement. Is there a missing semi-colon here?
+Found an ill-formed expression where we expected a statement. Is there a missing semi-colon here?
 Or did you mean to use the preceding expression in:
 * a function call
 * a sampling statement

@@ -5,6 +5,7 @@ open Core_kernel
 open Middle
 open Ast
 open Debugging
+open Preprocessor
 
 (* Takes a sized_basic_type and a list of sizes and repeatedly applies then
    SArray constructor, taking sizes off the list *)
@@ -12,19 +13,39 @@ let reducearray (sbt, l) =
   List.fold_right l ~f:(fun z y -> SizedType.SArray (y, z)) ~init:sbt
 
 let build_id id loc =
-  grammar_logger ("identifier " ^ id);
-  {name=id; id_loc=Location_span.of_positions_exn loc}
+  grammar_logger ("identifier " ^ id) ;
+  {name= id; id_loc= location_span_of_positions loc}
 
-let rec iterate_n f x = function
-  | 0 -> x
-  | n -> iterate_n f (f x) (n - 1)
+let reserved (name, loc, _) =
+  raise
+    (Errors.SyntaxError
+       (Errors.Parsing
+          ( "Expected a new identifier but found reserved keyword '" ^ name
+            ^ "'.\n"
+          , location_span_of_positions loc ) ) )
+
+let reserved_decl (name, loc, is_type) =
+  if is_type then
+    raise
+      (Errors.SyntaxError
+         (Errors.Parsing
+            ( "Found a type ('" ^ name
+              ^ "') where an identifier was expected.\n\
+                 All variables declared in a comma-separated list must be of \
+                 the same type.\n"
+            , location_span_of_positions loc ) ) )
+  else reserved (name, loc, is_type)
+
+let build_expr expr loc = {expr; emeta= {loc= location_span_of_positions loc}}
+let rec iterate_n f x = function 0 -> x | n -> iterate_n f (f x) (n - 1)
+
 let nest_unsized_array basic_type n =
   iterate_n (fun t -> UnsizedType.UArray t) basic_type n
 
-(* $sloc and $symbolstartpos generates code using !=, which
-    Core_kernel considers to be an error.
- *)
-let (!=) = Stdlib.(!=)
+let note_deprecated_array ?(unsized = false) (pos1, pos2) =
+  let loc_span = location_span_of_positions (pos1, pos2) in
+  Deprecation_removals.old_array_usages :=
+    (loc_span, unsized) :: !Deprecation_removals.old_array_usages
 %}
 
 (* Token definitions. The quoted strings are aliases, used in the examples generated in
@@ -40,14 +61,14 @@ let (!=) = Stdlib.(!=)
 %token RETURN "return" IF "if" ELSE "else" WHILE "while" FOR "for" IN "in"
        BREAK "break" CONTINUE "continue" PROFILE "profile"
 %token VOID "void" INT "int" REAL "real" COMPLEX "complex" VECTOR "vector"
-       ROWVECTOR "row_vector" ARRAY "array" MATRIX "matrix" ORDERED "ordered"
+       ROWVECTOR "row_vector" ARRAY "array" TUPLE "tuple" MATRIX "matrix" ORDERED "ordered"
        COMPLEXVECTOR "complex_vector" COMPLEXROWVECTOR "complex_row_vector"
        POSITIVEORDERED "positive_ordered" SIMPLEX "simplex" UNITVECTOR "unit_vector"
        CHOLESKYFACTORCORR "cholesky_factor_corr" CHOLESKYFACTORCOV "cholesky_factor_cov"
        CORRMATRIX "corr_matrix" COVMATRIX "cov_matrix" COMPLEXMATRIX "complex_matrix"
 %token LOWER "lower" UPPER "upper" OFFSET "offset" MULTIPLIER "multiplier"
 %token <string> INTNUMERAL "24"
-%token <string> REALNUMERAL "3.1415"
+%token <string> REALNUMERAL "3.1415" DOTNUMERAL ".2"
 %token <string> IMAGNUMERAL "1i"
 %token <string> STRINGLITERAL "\"hello world\""
 %token <string> IDENTIFIER "foo"
@@ -82,7 +103,6 @@ let (!=) = Stdlib.(!=)
 %nonassoc unary_over_binary
 %right HAT ELTPOW
 %left TRANSPOSE
-%nonassoc ARRAY (* resolves shift-reduce with array keyword in declarations *)
 %left LBRACK
 %nonassoc below_ELSE
 %nonassoc ELSE
@@ -109,7 +129,7 @@ program:
       let () =
         match (ofb, odb, otdb, opb, otpb, omb, ogb) with
         | None, None, None, None, None, None, None ->
-            Input_warnings.empty ($startpos).pos_fname
+            Input_warnings.empty (location_of_position $startpos).filename
         | _ -> ()
       in
       { functionblock= ofb
@@ -125,7 +145,7 @@ program:
 functions_only:
   | fd = list(function_def) EOF
     { grammar_logger "functions_only";
-      { functionblock= Some {stmts= fd; xloc= Location_span.of_positions_exn $loc}
+      { functionblock= Some {stmts= fd; xloc= location_span_of_positions $loc}
       ; datablock= None
       ; transformeddatablock= None
       ; parametersblock= None
@@ -139,100 +159,96 @@ functions_only:
 function_block:
   | FUNCTIONBLOCK LBRACE fd=list(function_def) RBRACE
     { grammar_logger "function_block" ;
-      {stmts= fd; xloc= Location_span.of_positions_exn $loc} }
+      {stmts= fd; xloc= location_span_of_positions $loc} }
 
 data_block:
   | DATABLOCK LBRACE tvd=list(top_var_decl_no_assign) RBRACE
     { grammar_logger "data_block" ;
-      {stmts= List.concat tvd; xloc= Location_span.of_positions_exn $loc} }
+      {stmts= tvd; xloc= location_span_of_positions $loc} }
 
 transformed_data_block:
   | TRANSFORMEDDATABLOCK LBRACE tvds=list(top_vardecl_or_statement) RBRACE
     { grammar_logger "transformed_data_block" ;
-      {stmts= List.concat tvds; xloc= Location_span.of_positions_exn $loc} }
-    (* NOTE: this allows mixing of statements and top_var_decls *)
+      {stmts= tvds; xloc= location_span_of_positions $loc} }
 
 parameters_block:
   | PARAMETERSBLOCK LBRACE tvd=list(top_var_decl_no_assign) RBRACE
     { grammar_logger "parameters_block" ;
-      {stmts= List.concat tvd; xloc= Location_span.of_positions_exn $loc} }
+      {stmts= tvd; xloc= location_span_of_positions $loc} }
 
 transformed_parameters_block:
   | TRANSFORMEDPARAMETERSBLOCK LBRACE tvds=list(top_vardecl_or_statement) RBRACE
     { grammar_logger "transformed_parameters_block" ;
-      {stmts= List.concat tvds; xloc= Location_span.of_positions_exn $loc} }
+      {stmts= tvds; xloc= location_span_of_positions $loc} }
 
 model_block:
   | MODELBLOCK LBRACE vds=list(vardecl_or_statement) RBRACE
     { grammar_logger "model_block" ;
-      {stmts= List.concat vds; xloc= Location_span.of_positions_exn $loc} }
+      {stmts= vds; xloc= location_span_of_positions $loc} }
 
 generated_quantities_block:
   | GENERATEDQUANTITIESBLOCK LBRACE tvds=list(top_vardecl_or_statement) RBRACE
     { grammar_logger "generated_quantities_block" ;
-      {stmts= List.concat tvds; xloc= Location_span.of_positions_exn $loc} }
+      {stmts= tvds; xloc= location_span_of_positions $loc} }
 
 (* function definitions *)
 identifier:
   | id=IDENTIFIER { build_id id $loc }
   | TRUNCATE { build_id "T" $loc}
-  | id_and_v = future_keyword
-    {
-      let id, v = id_and_v in
-      Input_warnings.future_keyword id.name v $loc;
-      id
-    }
 
-future_keyword:
-  | OFFSET { build_id "offset" $loc, "2.32.0" }
-  | MULTIPLIER { build_id "multiplier" $loc, "2.32.0" }
-  | LOWER { build_id "lower" $loc, "2.32.0" }
-  | UPPER { build_id "upper" $loc, "2.32.0" }
-  | ARRAY
-    { build_id "array" $loc, "2.32.0" }
 
 decl_identifier:
   | id=identifier { id }
-  | id=reserved_word { id }
+  | err=reserved_word { reserved err }
+
+decl_identifier_after_comma:
+  | id=identifier { id }
+  | err=reserved_word { reserved_decl err }
 
 reserved_word:
-  (* Keywords cannot be identifiers but
-     semantic check produces a better error message. *)
-  | FUNCTIONBLOCK { build_id "functions" $loc }
-  | DATABLOCK { build_id "data" $loc }
-  | PARAMETERSBLOCK { build_id "parameters" $loc }
-  | MODELBLOCK { build_id "model" $loc }
-  | RETURN { build_id "return" $loc }
-  | IF { build_id "if" $loc }
-  | ELSE { build_id "else" $loc }
-  | WHILE { build_id "while" $loc }
-  | FOR { build_id "for" $loc }
-  | IN { build_id "in" $loc }
-  | BREAK { build_id "break" $loc }
-  | CONTINUE { build_id "continue" $loc }
-  | VOID { build_id "void" $loc }
-  | INT { build_id "int" $loc }
-  | REAL { build_id "real" $loc }
-  | COMPLEX { build_id "complex" $loc }
-  | VECTOR { build_id "vector" $loc }
-  | ROWVECTOR { build_id "row_vector" $loc }
-  | MATRIX { build_id "matrix" $loc }
-  | COMPLEXVECTOR { build_id "complex_vector" $loc }
-  | COMPLEXROWVECTOR { build_id "complex_row_vector" $loc }
-  | COMPLEXMATRIX { build_id "complex_matrix" $loc }
-  | ORDERED { build_id "ordered" $loc }
-  | POSITIVEORDERED { build_id "positive_ordered" $loc }
-  | SIMPLEX { build_id "simplex" $loc }
-  | UNITVECTOR { build_id "unit_vector" $loc }
-  | CHOLESKYFACTORCORR { build_id "cholesky_factor_corr" $loc }
-  | CHOLESKYFACTORCOV { build_id "cholesky_factor_cov" $loc }
-  | CORRMATRIX { build_id "corr_matrix" $loc }
-  | COVMATRIX { build_id "cov_matrix" $loc }
-  | PRINT { build_id "print" $loc }
-  | REJECT { build_id "reject" $loc }
-  | TARGET { build_id "target" $loc }
-  | GETLP { build_id "get_lp" $loc }
-  | PROFILE { build_id "profile" $loc }
+  (* Keywords cannot be identifiers but it is nice to
+    let them parse as such to provide a better error *)
+  | FUNCTIONBLOCK { "functions", $loc, false }
+  | DATABLOCK { "data", $loc, false }
+  | PARAMETERSBLOCK { "parameters", $loc, false }
+  | MODELBLOCK { "model", $loc, false }
+  | RETURN { "return", $loc, false }
+  | IF { "if", $loc, false }
+  | ELSE { "else", $loc, false }
+  | WHILE { "while", $loc, false }
+  | FOR { "for", $loc, false }
+  | IN { "in", $loc, false }
+  | BREAK { "break", $loc, false }
+  | CONTINUE { "continue", $loc, false }
+  | VOID { "void", $loc, false }
+  | INT { "int", $loc, true }
+  | REAL { "real", $loc, true }
+  | COMPLEX { "complex", $loc, true }
+  | VECTOR { "vector", $loc, true }
+  | ROWVECTOR { "row_vector", $loc, true }
+  | MATRIX { "matrix", $loc, true }
+  | COMPLEXVECTOR { "complex_vector", $loc, true }
+  | COMPLEXROWVECTOR { "complex_row_vector", $loc, true }
+  | COMPLEXMATRIX { "complex_matrix", $loc, true }
+  | ORDERED { "ordered", $loc, true }
+  | POSITIVEORDERED { "positive_ordered", $loc, true }
+  | SIMPLEX { "simplex", $loc, true }
+  | UNITVECTOR { "unit_vector", $loc, true }
+  | CHOLESKYFACTORCORR { "cholesky_factor_corr", $loc, true }
+  | CHOLESKYFACTORCOV { "cholesky_factor_cov", $loc, true }
+  | CORRMATRIX { "corr_matrix", $loc, true }
+  | COVMATRIX { "cov_matrix", $loc, true  }
+  | PRINT { "print", $loc, false }
+  | REJECT { "reject", $loc, false }
+  | TARGET { "target", $loc, false }
+  | GETLP { "get_lp", $loc, false }
+  | PROFILE { "profile", $loc, false }
+  | TUPLE { "tuple", $loc, true }
+  | OFFSET { "offset", $loc, false }
+  | MULTIPLIER { "multiplier", $loc, false }
+  | LOWER { "lower", $loc, false }
+  | UPPER { "upper", $loc, false }
+  | ARRAY { "array", $loc, true }
 
 function_def:
   | rt=return_type name=decl_identifier LPAREN args=separated_list(COMMA, arg_decl)
@@ -241,7 +257,7 @@ function_def:
       grammar_logger "function_def" ;
       {stmt=FunDef {returntype = rt; funname = name;
                            arguments = args; body=b;};
-       smeta={loc=Location_span.of_positions_exn $loc}
+       smeta={loc=location_span_of_positions $loc}
       }
     }
 
@@ -257,15 +273,23 @@ arg_decl:
        match od with None -> (UnsizedType.AutoDiffable, ut, id) | _ -> (DataOnly, ut, id)  }
 
 unsized_type:
-  | ARRAY n=unsized_dims bt=basic_type
-      {  grammar_logger "unsized_type";
-       nest_unsized_array bt n
+  | ARRAY n=unsized_dims t=basic_type
+  | ARRAY n=unsized_dims t=unsized_tuple_type
+    {  grammar_logger "unsized_type";
+        nest_unsized_array t n
     }
   | bt=basic_type n_opt=option(unsized_dims)
     {  grammar_logger "unsized_type";
        if Option.is_some n_opt then
-        Input_warnings.array_syntax ~unsized:true $loc;
+         note_deprecated_array ~unsized:true $loc;
        nest_unsized_array bt (Option.value n_opt ~default:0)
+    }
+  | t=unsized_tuple_type
+    { t }
+
+%inline unsized_tuple_type:
+  | TUPLE LPAREN hd=unsized_type COMMA ts=separated_nonempty_list(COMMA, unsized_type) RPAREN
+    {  UnsizedType.UTuple (hd::ts)
     }
 
 basic_type:
@@ -296,17 +320,21 @@ unsized_dims:
 no_assign:
   | UNREACHABLE
     { (* This code will never be reached *)
-      raise (Failure "This should be unreachable; the UNREACHABLE token should \
-                      never be produced")
+       Common.FatalError.fatal_error_msg
+          [%message "the UNREACHABLE token should never be produced"]
     }
 
 optional_assignment(rhs):
   | rhs_opt=option(pair(ASSIGN, rhs))
     { Option.map ~f:snd rhs_opt }
 
-id_and_optional_assignment(rhs):
-  | id=decl_identifier rhs_opt=optional_assignment(rhs)
-    { (id, rhs_opt) }
+id_and_optional_assignment(rhs, decl):
+  | identifier=decl initial_value=optional_assignment(rhs)
+    { Ast.{identifier; initial_value} }
+
+remaining_declarations(rhs):
+  | COMMA decls=separated_nonempty_list(COMMA, id_and_optional_assignment(rhs, decl_identifier_after_comma))
+    { decls }
 
 (*
  * All rules for declaration statements.
@@ -333,20 +361,21 @@ decl(type_rule, rhs):
    *)
   | ty=type_rule id=decl_identifier dims=dims rhs_opt=optional_assignment(rhs)
       SEMICOLON
-    { Input_warnings.array_syntax $loc;
+    { note_deprecated_array $loc;
       (fun ~is_global ->
-      [{ stmt=
+      { stmt=
           VarDecl {
               decl_type= (reducearray (fst ty, dims))
             ; transformation= snd ty
-            ; identifier= id
-            ; initial_value= rhs_opt
+            ; variables= [ { identifier= id
+                           ; initial_value= rhs_opt
+                           } ]
             ; is_global
             }
       ; smeta= {
-          loc= Location_span.of_positions_exn $loc
+          loc= location_span_of_positions $loc
         }
-    }])
+    })
     }
 
   (* This rule matches non-array declarations and also the new array syntax, e.g:
@@ -354,25 +383,50 @@ decl(type_rule, rhs):
    *)
   (* Note that the array dimensions option must be inlined with ioption, else
      it will conflict with first rule. *)
-  | dims_opt=ioption(arr_dims) ty=type_rule
-     vs=separated_nonempty_list(COMMA, id_and_optional_assignment(rhs)) SEMICOLON
+  | ty=higher_type(type_rule)
+    (* additional indirection only for better error messaging *)
+    v = id_and_optional_assignment(rhs, decl_identifier) vs=option(remaining_declarations(rhs)) SEMICOLON
     { (fun ~is_global ->
-      let dims = Option.value ~default:[] dims_opt
+      let vs = v :: Option.value vs ~default:[]
       in
-      List.map vs ~f:(fun (id, rhs_opt) ->
-          { stmt=
-              VarDecl {
-                  decl_type= (reducearray (fst ty, dims))
-                ; transformation= snd ty
-                ; identifier= id
-                ; initial_value= rhs_opt
-                ; is_global
-                }
-          ; smeta= {
-              loc= Location_span.of_positions_exn $sloc
+      { stmt=
+          VarDecl {
+              decl_type= fst ty
+            ; transformation= snd ty
+            ; variables=vs
+            ; is_global
             }
-          })
-    )}
+      ; smeta= {
+          loc= location_span_of_positions $sloc
+        }
+      })
+    }
+
+(* Take a type matched by type_rule and produce that type or any (possibly nested) container of that type *)
+(* Can't do the fully recursive array_type(higher_type) because arrays can't hold arrays *)
+%inline higher_type(type_rule):
+  | ty=array_type(type_rule)
+  | ty=tuple_type(type_rule)
+  | ty=type_rule
+  { grammar_logger "higher_type" ;
+    ty
+  }
+
+array_type(type_rule):
+  | dims=arr_dims ty=type_rule
+  | dims=arr_dims ty=tuple_type(type_rule)
+  { grammar_logger "array_type" ;
+    let (type_, trans) = ty in
+    ((reducearray (type_, dims)), trans)
+  }
+
+tuple_type(type_rule):
+  | TUPLE LPAREN head=higher_type(type_rule) COMMA rest=separated_nonempty_list(COMMA, higher_type(type_rule)) RPAREN
+  { grammar_logger "tuple_type" ;
+    let ts = head::rest in
+    let types, trans = List.unzip ts in
+    (SizedType.STuple types, TupleTransformation trans)
+  }
 
 var_decl:
   | d_fn=decl(sized_basic_type, expression)
@@ -393,10 +447,9 @@ top_var_decl_no_assign:
     }
   | SEMICOLON
     { grammar_logger "top_var_decl_no_assign_skip";
-      [ { stmt= Skip
-        ; smeta= { loc= Location_span.of_positions_exn $loc
-        }
-      }]
+      { stmt= Skip
+      ; smeta= { loc= location_span_of_positions $loc }
+      }
     }
 
 sized_basic_type:
@@ -496,91 +549,125 @@ offset_mult:
   | MULTIPLIER ASSIGN e=constr_expression
     { grammar_logger "multiplier" ; Multiplier e }
 
-arr_dims:
-  | ARRAY LBRACK l=separated_nonempty_list(COMMA, expression) RBRACK
-    { grammar_logger "array dims" ; l  }
+ arr_dims:
+    | ARRAY LBRACK l=separated_nonempty_list(COMMA, expression) RBRACK
+                 { grammar_logger "array dims" ; l  }
 
 dims:
   | LBRACK l=separated_nonempty_list(COMMA, expression) RBRACK
     { grammar_logger "dims" ; l  }
 
-(* expressions *)
+(* General expressions (that can't be used in constraints declarations) *)
 %inline expression:
   | l=lhs
-    {
-      grammar_logger "lhs_expression" ;
+    { grammar_logger "lhs_expression" ;
       l
     }
   | e=non_lhs
     { grammar_logger "non_lhs_expression" ;
-      {expr=e;
-       emeta={loc= Location_span.of_positions_exn $loc}}}
+      e
+    }
 
+(* L-values *)
+lhs:
+  | id=identifier
+    {  grammar_logger "lhs_identifier" ;
+       {expr=Variable id
+       ;emeta = {loc=id.id_loc}}
+    }
+  | v=indexed(lhs) { v }
+  | l=lhs ix_str=DOTNUMERAL
+    { grammar_logger "lhs_tuple_index" ;
+      match int_of_string_opt (String.drop_prefix ix_str 1) with
+      | None ->
+         raise (Errors.SyntaxError (Errors.Parsing
+            ("Failed to parse integer from string '" ^ ix_str
+              ^ "' in tuple index. \nThe index is likely too large.\n",
+              location_span_of_positions $loc)))
+      | Some ix ->
+         build_expr (TupleProjection (l, ix)) $loc
+    }
+
+(* This is separated so that it can be reused, e.g. to match array[ixs] type syntax *)
+%inline indexed(expr_type):
+  | l=expr_type LBRACK indices=indexes RBRACK
+    {  grammar_logger "lhs_index" ;
+       build_expr (Indexed (l, indices)) $loc
+    }
+
+(* General expressions (that can't be used in constraints declarations)
+   that can't be assigned to
+ *)
 non_lhs:
   | e1=expression  QMARK e2=expression COLON e3=expression
-    { grammar_logger "ifthenelse_expr" ; TernaryIf (e1, e2, e3) }
+    { grammar_logger "ifthenelse_expr" ; build_expr (TernaryIf (e1, e2, e3)) $loc }
   | e1=expression op=infixOp e2=expression
-    { grammar_logger "infix_expr" ; BinOp (e1, op, e2)  }
+    { grammar_logger "infix_expr" ; build_expr (BinOp (e1, op, e2)) $loc  }
   | op=prefixOp e=expression %prec unary_over_binary
-    { grammar_logger "prefix_expr" ; PrefixOp (op, e) }
+    { grammar_logger "prefix_expr" ; build_expr (PrefixOp (op, e)) $loc }
   | e=expression op=postfixOp
-    { grammar_logger "postfix_expr" ; PostfixOp (e, op)}
-  | ue=non_lhs LBRACK i=indexes RBRACK
-    {  grammar_logger "expression_indexed" ;
-       Indexed ({expr=ue;
-                 emeta={loc= Location_span.of_positions_exn $loc(ue)}}, i)}
+    { grammar_logger "postfix_expr" ; build_expr (PostfixOp (e, op)) $loc}
+  | e=indexed(non_lhs)
+    { e }
   | e=common_expression
-    { grammar_logger "common_expr" ; e }
+    { grammar_logger "common_expr" ; build_expr e $loc }
 
 (* TODO: why do we not simply disallow greater than in constraints? No need to disallow all logical operations, right? *)
 constr_expression:
   | e1=constr_expression op=arithmeticBinOp e2=constr_expression
     {
       grammar_logger "constr_expression_arithmetic" ;
-      {expr=BinOp (e1, op, e2);
-       emeta={loc=Location_span.of_positions_exn $loc}
-      }
+      build_expr (BinOp (e1, op, e2)) $loc
     }
   | op=prefixOp e=constr_expression %prec unary_over_binary
     {
       grammar_logger "constr_expression_prefixOp" ;
-      {expr=PrefixOp (op, e);
-       emeta={loc=Location_span.of_positions_exn $loc}}
+      build_expr (PrefixOp (op, e)) $loc
     }
   | e=constr_expression op=postfixOp
     {
       grammar_logger "constr_expression_postfix" ;
-      {expr=PostfixOp (e, op);
-       emeta={loc=Location_span.of_positions_exn $loc}}
+      build_expr (PostfixOp (e, op)) $loc
     }
-  | e=constr_expression LBRACK i=indexes RBRACK
+  | e=indexed(constr_expression)
     {
       grammar_logger "constr_expression_indexed" ;
-      {expr=Indexed (e, i);
-       emeta={loc=Location_span.of_positions_exn $loc}}
+      e
+    }
+  | e=identifier ix_str=DOTNUMERAL
+    {  grammar_logger "constr_id_tuple_index" ;
+       match int_of_string_opt (String.drop_prefix ix_str 1) with
+       | None ->
+         raise (Errors.SyntaxError (Errors.Parsing
+                  ("Failed to parse integer from string '" ^ ix_str
+                    ^ "' in tuple index. \nThe index is likely too large.\n",
+                    location_span_of_positions $loc)))
+       | Some ix ->
+        build_expr (TupleProjection (build_expr (Variable e) $loc, ix)) $loc
     }
   | e=common_expression
     {
       grammar_logger "constr_expression_common_expr" ;
-      {expr=e;
-       emeta={loc= Location_span.of_positions_exn $loc}}
+      build_expr e $loc
     }
   | id=identifier
     {
       grammar_logger "constr_expression_identifier" ;
-      {expr=Variable id;
-       emeta={loc=Location_span.of_positions_exn $loc}}
+      build_expr (Variable id) $loc
     }
 
 common_expression:
   | i=INTNUMERAL
     {  grammar_logger ("intnumeral " ^ i) ; IntNumeral i }
   | r=REALNUMERAL
+  | r=DOTNUMERAL
     {  grammar_logger ("realnumeral " ^ r) ; RealNumeral r }
   | z=IMAGNUMERAL
     {  grammar_logger ("imagnumeral " ^ z) ; ImagNumeral (String.drop_suffix z 1) }
   | LBRACE xs=separated_nonempty_list(COMMA, expression) RBRACE
     {  grammar_logger "array_expression" ; ArrayExpr xs  }
+   | LPAREN x_head=expression COMMA xs=separated_nonempty_list(COMMA, expression) RPAREN
+    {  grammar_logger "tuple_expression" ; TupleExpr (x_head::xs)  }
   | LBRACK xs=separated_list(COMMA, expression) RBRACK
     {  grammar_logger "row_vector_expression" ; RowVectorExpr xs }
   | id=identifier LPAREN args=separated_list(COMMA, expression) RPAREN
@@ -597,6 +684,16 @@ common_expression:
   | id=identifier LPAREN e=expression BAR args=separated_list(COMMA, expression)
     RPAREN
     {  grammar_logger "conditional_dist_app" ; CondDistApp ((), id, e :: args) }
+  | e=common_expression ix_str=DOTNUMERAL
+    {  grammar_logger "common_expression_tuple_index" ;
+       match int_of_string_opt (String.drop_prefix ix_str 1) with
+       | None -> raise (Errors.SyntaxError (Errors.Parsing
+            ("Failed to parse integer from string '" ^ ix_str
+              ^ "' in tuple index.\nThe index is likely too large.\n",
+              location_span_of_positions $loc)))
+       | Some ix ->
+          TupleProjection (build_expr e $loc, ix)
+    }
   | LPAREN e=expression RPAREN
     { grammar_logger "extra_paren" ; Paren e }
 
@@ -660,7 +757,6 @@ common_expression:
   | GEQ
     {   grammar_logger "infix_geq" ; Operator.Geq }
 
-
 indexes:
   | (* nothing *)
     {   grammar_logger "index_nothing" ; [All] }
@@ -685,29 +781,17 @@ printables:
   | p1=printables COMMA p2=printables
     { grammar_logger "printables" ; p1 @ p2 }
 
-(* L-values *)
-lhs:
-  | id=identifier
-    {  grammar_logger "lhs_identifier" ;
-       {expr=Variable id
-       ;emeta = {loc=id.id_loc}}
-    }
-  | l=lhs LBRACK indices=indexes RBRACK
-    {  grammar_logger "lhs_index" ;
-      {expr=Indexed (l, indices)
-      ;emeta = { loc=Location_span.of_positions_exn $loc}}}
-
 (* statements *)
 statement:
   | s=atomic_statement
     {  grammar_logger "atomic_statement" ;
        {stmt= s;
-        smeta= { loc=Location_span.of_positions_exn $sloc} }
+        smeta= { loc=location_span_of_positions $sloc} }
     }
   | s=nested_statement
     {  grammar_logger "nested_statement" ;
        {stmt= s;
-        smeta={loc = Location_span.of_positions_exn $sloc} }
+        smeta={loc = location_span_of_positions $sloc} }
     }
 
 atomic_statement:
@@ -776,14 +860,14 @@ truncation:
        | None, None -> NoTruncate  }
 
 nested_statement:
-  | IF LPAREN e=expression RPAREN s1=statement ELSE s2=statement
+  | IF LPAREN e=expression RPAREN s1=vardecl_or_statement ELSE s2=vardecl_or_statement
     {  grammar_logger "ifelse_statement" ; IfThenElse (e, s1, Some s2) }
-  | IF LPAREN e=expression RPAREN s=statement %prec below_ELSE
+  | IF LPAREN e=expression RPAREN s=vardecl_or_statement %prec below_ELSE
     {  grammar_logger "if_statement" ; IfThenElse (e, s, None) }
-  | WHILE LPAREN e=expression RPAREN s=statement
+  | WHILE LPAREN e=expression RPAREN s=vardecl_or_statement
     {  grammar_logger "while_statement" ; While (e, s) }
   | FOR LPAREN id=identifier IN e1=expression COLON e2=expression RPAREN
-    s=statement
+    s=vardecl_or_statement
     {
       grammar_logger "for_statement" ;
       For {loop_variable= id;
@@ -791,22 +875,22 @@ nested_statement:
            upper_bound= e2;
            loop_body= s;}
     }
-  | FOR LPAREN id=identifier IN e=expression RPAREN s=statement
+  | FOR LPAREN id=identifier IN e=expression RPAREN s=vardecl_or_statement
     {  grammar_logger "foreach_statement" ; ForEach (id, e, s) }
   | PROFILE LPAREN st=string_literal RPAREN LBRACE l=list(vardecl_or_statement) RBRACE
-    {  grammar_logger "profile_statement" ; Profile (st, List.concat l) }
+    {  grammar_logger "profile_statement" ; Profile (st, l) }
   | LBRACE l=list(vardecl_or_statement)  RBRACE
-    {  grammar_logger "block_statement" ; Block (List.concat l) } (* NOTE: I am choosing to allow mixing of statements and var_decls *)
+    {  grammar_logger "block_statement" ; Block l } (* NOTE: I am choosing to allow mixing of statements and var_decls *)
 
 (* statement or var decls *)
 vardecl_or_statement:
   | s=statement
-    { grammar_logger "vardecl_or_statement_statement" ; [s] }
+    { grammar_logger "vardecl_or_statement_statement" ; s }
   | v=var_decl
     { grammar_logger "vardecl_or_statement_vardecl" ; v }
 
 top_vardecl_or_statement:
   | s=statement
-    { grammar_logger "top_vardecl_or_statement_statement" ; [s] }
+    { grammar_logger "top_vardecl_or_statement_statement" ; s }
   | v=top_var_decl
     { grammar_logger "top_vardecl_or_statement_top_vardecl" ; v }

@@ -1,6 +1,145 @@
 STANC3 RELEASE NOTES
 ======================================================================
 
+v2.33.0 (5 September 2023)
+======================================================================
+
+- Added tuple types to the language (#1100)
+- The following deprecations have been turned into errors this version:
+    - The old array syntax, e.g. `int arr[5];`. Use `array[5] int arr;` instead.
+    - Distribution functions ending in `_log`. Use either `_lpdf` or `_lpmf`.
+    - The functions `binomial_coefficient_log`, `multiply_log`, and `cov_exp_quad`. Use `lchoose`, `lmultiply`, and `gp_exp_quad_cov` respectively.
+    - The `if_else` function. Use the ternary operator  `cond ? true_value : false_value`
+    - Use of CDFs with a `,` between the first and second argument. Use a `|`.
+    - Comments beginning with `#`. Use `//`.
+    - Use of `<-` for assignment. Use `=`.
+    - The `increment_log_prob` function. Use the `target +=` statement.
+    - The `get_lp()` function. Use `target()`.
+    - The use of nested multi-indices on the left hand side of an assignment statement.
+    For this version, these can all be automatically updated with the `--canonicalize=deprecations` argument to the autoformatter. This is not guaranteed to work for versions _following_ this one.
+    Additionally, the following identifiers are now reserved words: `array`, `offset`, `multiplier`, `lower`, and `upper`.
+    (#1287)
+- Exposed vectorized signatures for `log_sum_exp` (#1344)
+- Exposed new functions `qr`, `qr_thin`,  `eigendecompose_sym`, `eigendecompose`, `complex_schur_decompose`, `svd`, and `csr_extract`. (#1346)
+- Added a `log_prob_impl` specialization specifically for reverse mode to improve code generation (#1327)
+- Fixed an issue where returning array literals could produce the wrong types in C++. (#1335)
+- Fixed an issue with leading zeroes in real literals like `0E0` (#1336)
+- Fixed a bug with type promotion in the arguments to user-defined distributions generating bad C++. (#1338)
+- Fixed optimization logic for deducing whether mixes of scalars, data matrices, and autodiff matrices can be promoted to SoA (#1347)
+- Fixed an issue with the partial evaluator crashing on statements containing a mod-by-zero. (#1351)
+- `--filename-in-msg` now also affects the name of the file shown in runtime exceptions. Useful for interfaces which use mangled or temporary names during compilation. (#1339)
+- Improved error message provided when the wrong return type is returned from a function.
+    Return statements now follow the same type promotion rules as assignment and function argument passing.
+    The typechecker now allows infinite loops (`while (1)` without an internal `break`) to be the end of a returning function. Previously, an (unreachable) return statement was needed following the loop.
+    (#1341)
+- Improved error messages for unsupported type in reduce_sum (#1332)
+- Improved error messages when using a reserved word as a variable name. (#1343)
+
+v2.32.1 (2 May 2023)
+======================================================================
+
+- The shapes and sizes of parameter initial values are now checked against the specified sizes in the model before being read in, matching the existing behavior for data. (#1316)
+  **Note:** This change may cause existing code which worked "by accident" to raise new errors about mismatches between the model's declarations and the provided initialization.
+- Errors in transform_inits should now properly highlight the location in the original Stan program. (#1318)
+- Fixed an issue where the `--debug-generate-inits` debug flag would fail badly if parameter sizes depended on data (#1319)
+
+v2.32.0 (20 April 2023)
+======================================================================
+
+- Syntax removals scheduled for this version have been pushed back to 2.33. We still recommend updating your Stan models as you are able. As a reminder, deprecated syntax which will be removed in minor versions can as a rule be updated automatically using find-and-replace tools or the [Stan compiler's auto-formatting abilities](https://mc-stan.org/docs/stan-users-guide/stanc-pretty-printing.html). (#1303)
+- The deprecated `--include_paths` and `--allow_undefined` arguments have been removed, use `--include-paths` and `--allow-undefined`. (#1303)
+- Recursive user-defined functions no longer need forward declarations. (#1277)
+- Added overloads to `eigenvalues` and `eigenvectors` which accept a complex matrix as input. (#1282)
+- Fixed an issue where `profile` blocks could generate uncompilable C++ when used with `--O1`. (#1281)
+- Fixed an issue where the compiler would generate uncompilable C++ when a matrix expression featured mixed types of elements. (#1292)
+- Fixed an issue where a user-defined-function expecting real arguments could be passed an integer and exhibit integer behavior like truncating division. (#1296)
+- Fixed an issue where external functions could not be used in higher-order functions without the end-user supplying an implementation of our functor structs. (#1298)
+- Fixed a bug in `transform_inits` for models which used complex types (#1305)
+- Improved the error shown when an `#include`d file cannot be found to list the paths it searched on. (#1273)
+- Improved `--filename-in-msg` for the command line version of `stanc`. Errors now use the requested name, not just warnings. (#1274)
+- Refactored how C++ is code-generated in the compiler. (#1233)
+- Added tests for various parts of the C++ backend which weren't previously tested, and added a `--debug-lir` flag to print out the C++ representation in a s-expression. (#1276)
+- Updated code generate of `get_param_names` (#1245)
+- Switched to `std::endl` instead of `'\n'` to end prints. (#1301)
+- Added a new function `unconstrain_array` to the generated code. This is currently not exposed. (#1305)
+- Added a `--debug-generate-inits` flag to stanc which behaves like `--debug-generate-data` but for declarations in the `parameters` block. (#1306)
+- Sped up some code which is critical to parsing. (#1302)
+
+v2.31.0 (21 November 2022)
+======================================================================
+
+- Improved the error message for bad multiple declarations. (#1239)
+- Fixed a bug where using a C++ reserved word as a name in certain situations would prevent compilation. (#1243)
+- Build binaries in parallel on Jenkins. (#1244)
+- Added functions `complex_schur_decompose_t()` and `complex_schur_decompose_u()` implementing the complex-valued Schur decomposition for matrices.(#1247)
+- Vectorized the `conj` function for complex types.(#1253)
+- CI change, build backwards-compatible Mac executables on flatiron mac. (#1255)
+- Improved the error generated when a function is re-declared, or when a function is not given a definition. (#1256)
+- `print` and `reject` will now be listed as functions in `stanc --info`s output. (#1257)
+- Added quantile functions (inverse-CDFs) `std_normal_qf` and `std_normal_log_qf`. `std_normal_qf` is a synonym for `inv_Phi`, and `std_normal_log_qf` is the same but with the input on the log-scale.(#1258)
+- Fix using `reject()` with container types. (#1261)
+- Vectorized sampling statements can now be used with the truncation syntax `T[ , ]`(#1263)
+- Functions which return integer types are considered as "data" for purposes of data-only arguments.(#1265)
+- The negation operator `-` can now accept arrays, e.g. `array[N] int foo = {...}; print(-foo);`(#1266)
+- Exposes algebraic functions with a variadic arguments, using the following four functions: `solve_powell`, `solve_powell_tol`, `solve_newton` and `solve_newton_tol`.  Relevant changes to Stan-math are already merged.(#1268)
+
+v2.30.1 (27 July 2022)
+======================================================================
+
+- Improved the pedantic mode warning for parameters without priors. The message now highlights when it is safe to ignore it.
+- Fixed a bug in the memory pattern optimization where a for loop generated for the function inliner would prevent detection of for loops higher in the control flow graph.
+- Fixed an issue with the function inliner when a function local variable had the same name as a variable in the calling scope.
+- Fixed an issue where recursive functions which called themselves with a slice of their arguments would lead to infinite template expansion in C++ compilation.
+- Fixed a bug in stanc.js where the stanc flags were not listed correctly in the generated C++.
+- The imaginary components of complex vectors and matrices are now initialized to NaN to match the real component and behaviour of non-complex vectors and matrices.
+
+v2.30.0 (1 July 2022)
+======================================================================
+
+Complex:
+ - Added complex containers: `complex_matrix`, `complex_vector`, and `complex_row_vector` with basic arithmetic support. (#1133)
+ - Fixed indexing of a complex container to return the correct type. (#1158)
+ - Added many common linear algebra functions and container operations for complex types. (#1166)
+ - Fixed an issue reading in `complex_matrix` in the data block. (#1168)
+ - Added vectorized signatures for `get_real` and `get_imag`, e.g. `get_real(complex_matrix) => matrix`. (#1169)
+ - Added `fft`, `inv_fft`, `fft2`, and `inv_fft2` to the language. (#1170)
+ - `pow` (and subsequently the `^` operator) now have overloads for complex containers. (#1186)
+ - `to_complex` is now vectorized. This means signatures like `to_complex(matrix, matrix) => complex_matrix` are now available. (#1208)
+ - Added signatures for addition, subtraction and division which mix scalars and complex vector types, broadcasting the scalar as appropriate. (#1212)
+ - Added `svd_U`, `svd_V`, `singular_values`, `eigenvalues_sym`, and `eigenvectors_sym` for complex inputs. (#1212)
+
+New functions:
+ - Added `L1` and `L2` norms. (#1140)
+ - Added `log_determinant_spd` which is faster when the input matrix is known to be symmetric and positive definite. (#1178)
+ - Added `wishart_cholesky_lpdf` and `wishart_cholesky_rng` distribution functions. (#1188)
+ - Added `multi_student_t_cholesky_lpdf` and `multi_student_t_cholesky_rng` distribution functions. (#1197)
+ - Added `inv_wishart_cholesky_lpdf` and `inv_wishart_cholesky_rng` distribution functions. (#1202)
+ - Exposes inv_inc_beta. (#1211)
+
+Misc:
+ - Re-enabled function inlining optimizations at O1. (#1097)
+ - Modified the optimizer to turn statements like `3 + 4i` into `to_complex(3,4)` directly. (#1112)
+ - Added `cumulative_sum(Vector/RowVector)` for `var<Matrix>` types. (#1152)
+ - Improved compile times by accumulating all template requirements into a single `require_all_t` on user defined functions. (#1157)
+ - The `--info` and `--debug-generate-data` commands now use the Yojson library for it's output. (#1161, #1175)
+ - Bugfixed for output values in `write_array` that should be `NaN`. (#1165)
+ - `--dump-stan-math-signatures` now prints an entire signature on one line, no matter how long it is. (#1167)
+ - Fix --debug-generate-data for ordered vector data types. (#1173)
+ - Exposed an overload for `cumulative_sum` which takes and returns an array of integers. (#1174)
+ - The javascript interface (stancjs) now generates errors which look more like stanc3's by pointing out where in the supplied code the error occurred. (#1177)
+ - Cleaned up the internal structuring of modules in the compiler. (#1179)
+ - Cleaned up code for pretty printing the Middle Intermediate Representation (MIR). (#1180)
+ - Added `--debug-mem-patterns` flag, which will print out the memory type of variables (either Array of Structs or the more efficient Struct of Arrays pattern) when optimization is enabled. (#1185)
+ - Allowed the adding of new distributions without requiring them to support deprecated suffixes. (#1191)
+ - Added `eigenvectors` and `eigenvalues` functions which return the complex-valued eigenvectors or eigenvalues of a real (asymmetrix) matrix. (#1192)
+ - `abs` is now vectorized for container types. `fabs` is now deprecated, as all usages can be replaced with `abs` thanks to array promotion rules. (#1195)
+ - Made installing the developer tools for the Stanc repository an interactive script with error handling. (#1200)
+ - Internally clean up how variable declarations are represented. (#1203)
+ - Simplified internal representations in the compiler. (#1204)
+ - The pretty-printer now preserves multiple declarations in one line like `int a, b;` rather than splitting them into two declarations. (#1207)
+ - Declarations are now allowed in places they previously would not parse, such as the only statement in the body of an if statement. (#1207)
+ - `./`, `/` `.*`, and `*` now have consistent behavior with scalar arguments. (#1209)
+
 v2.29.2 (25 March 2022)
 ======================================================================
 
@@ -198,7 +337,7 @@ v2.25.0 (26 October 2020)
     - owens_t
     - rising_factorial
 
-Code contributions were made by @andrjohns @nhuurre @rok-cesnovar @rybern and @seantalts 
+Code contributions were made by @andrjohns @nhuurre @rok-cesnovar @rybern and @seantalts
 
 v2.24.1 (11 August 2020)
 ======================================================================
@@ -213,22 +352,22 @@ Bugfixes:
 v2.24.0 (28 July 2020)
 ======================================================================
 
-New functions: 
+New functions:
    `algebra_solver_newton`
 
    `matrix hmm_hidden_state_prob(matrix, matrix, vector)`
    `int[] hmm_latent_rng(matrix, matrix, vector)`
    `real hmm_marginal(matrix, matrix, vector)`
-    
+
    `T lambert_w0(T)`, for any T
    `T lambert_w1(T)`, for any T
-    
+
    `matrix matrix_power(matrix, int)`
-   
+
    `real multinomial_logit_log(int[], vector)`
    `real multinomial_logit_lpmf(int[], vector)`
    `int[] multinomial_logit_rng(vector, int)`
-    
+
    `ode_adams`, `ode_adams_tol`
    `ode_bdf`, `ode_bdf_tol`
    `ode_rk45`, `ode_rk45_tol`
@@ -240,7 +379,7 @@ New functions:
     (previously only real pow(real, real) was available)
 
    `T reverse(T)`, where T is vector, row_vector or an array of any type
-   
+
    `matrix identity_matrix(int)`
    `real[] linspaced_array(int, real, real); row_vector linspaced_row_vector(int, real, real); vector linspaced_vector(int, real, real)`
    `int[] one_hot_int_array(int, int); real[] one_hot_array(int, int); row_vector one_hot_row_vector(int, int); vector one_hot_vector(int, int)`
@@ -275,7 +414,7 @@ Bugfixes:
 - fixed a bug that caused tilde statements to conflict with userdef functions
 - rng functions are no longer allowed in size declarations
 - fixed the _lpdf functor struct so that UDF with _log and int argument now compile
-- fixed array literal type-checking 
+- fixed array literal type-checking
 - fixed the error messages for missing input (line number is now displayed properly)
 - fixed indexing in transform_init()
 - fixed emitting generated quantities only (for gq_writer)

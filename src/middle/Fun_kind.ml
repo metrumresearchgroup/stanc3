@@ -3,10 +3,9 @@
 *)
 
 open Core_kernel
-open Core_kernel.Poly
 
 type 'propto suffix = FnPlain | FnRng | FnLpdf of 'propto | FnTarget
-[@@deriving compare, sexp, hash, map]
+[@@deriving compare, hash, fold, map, sexp, equal]
 
 let without_propto = map_suffix (function true | false -> ())
 
@@ -22,19 +21,19 @@ let suffix_from_name fname =
   else if is_suffix "_lp" then FnTarget
   else if is_suffix "_lupdf" || is_suffix "_lupmf" then FnLpdf true
   else if is_suffix "_lpdf" || is_suffix "_lpmf" then FnLpdf false
-  else if
-    is_suffix "_log"
-    && not
-         ( is_suffix "_cdf_log" || is_suffix "_ccdf_log"
-         || fname = "multiply_log"
-         || fname = "binomial_coefficient_log" )
-  then FnLpdf false
   else FnPlain
 
-let pp pp_expr ppf = function
+let with_unnormalized_suffix (name : string) =
+  Option.first_some
+    ( String.chop_suffix ~suffix:"_lpdf" name
+    |> Option.map ~f:(fun n -> n ^ "_lupdf") )
+    ( String.chop_suffix ~suffix:"_lpmf" name
+    |> Option.map ~f:(fun n -> n ^ "_lupmf") )
+
+let pp pp_expr ppf kind =
+  match kind with
   | StanLib (s, FnLpdf true, _) | UserDefined (s, FnLpdf true) ->
-      Fmt.string ppf
-        (Utils.with_unnormalized_suffix s |> Option.value ~default:s)
+      Fmt.string ppf (with_unnormalized_suffix s |> Option.value ~default:s)
   | StanLib (s, _, _) | UserDefined (s, _) -> Fmt.string ppf s
   | CompilerInternal internal -> Internal_fun.pp pp_expr ppf internal
 

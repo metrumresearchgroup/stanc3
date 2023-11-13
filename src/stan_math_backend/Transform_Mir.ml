@@ -24,11 +24,105 @@ let rec change_kwrds_stmts s =
     | Decl e -> Decl {e with decl_id= add_prefix_to_kwrds e.decl_id}
     | NRFunApp (UserDefined (s, sfx), e) ->
         NRFunApp (UserDefined (add_prefix_to_kwrds s, sfx), e)
-    | Assignment ((s, t, e1), e2) ->
-        Assignment ((add_prefix_to_kwrds s, t, e1), e2)
-    | For e -> For {e with loopvar= add_prefix_to_kwrds e.loopvar}
+    | Assignment (lhs, t, e2) ->
+        Assignment
+          (Stmt.Helpers.map_lhs_variable ~f:add_prefix_to_kwrds lhs, t, e2)
+    | For e ->
+        For
+          { e with
+            loopvar= add_prefix_to_kwrds e.loopvar
+          ; body= change_kwrds_stmts e.body }
     | x -> map Fn.id change_kwrds_stmts x in
   {s with pattern}
+
+(** A list of functions which return an Eigen block expression *)
+let eigen_block_expr_fns =
+  ["head"; "tail"; "segment"; "col"; "row"; "block"; "sub_row"; "sub_col"]
+  |> String.Set.of_list
+
+(** Eval indexed eigen types in UDF calls to prevent
+   infinite template expansion if the call is recursive
+
+   Infinite expansion can happen only when the call graph is cyclic.
+   The strategy here is to build the call graph one edge at the time
+   and check if adding that edge creates a cycle. If it does, insert
+   an [eval()] to stop template expansion.
+
+   All relevant function calls are recorded transitively in [callgraph],
+   meaning if [A] calls [B] and [B] calls [C] then [callgraph[A] = {B,C}].
+   In the worst case every function calls every other, [callgraph] has
+   size O(n^2) and this algorithm is O(n^3) so it's important to track
+   only the function calls that really can propagate eigen templates.
+*)
+let break_eigen_cycles functions_block =
+  let callgraph = String.Table.create () in
+  let eval_eigen_cycles fun_args calls (f : _ Program.fun_def) =
+    let open Expr.Fixed in
+    let rec is_potentially_recursive = function
+      | {pattern= Var name; _} -> Set.mem fun_args name
+      | {pattern= Indexed (e, _); _} -> is_potentially_recursive e
+      | {pattern= FunApp (StanLib (fname, _, _), e :: _); _} ->
+          Set.mem eigen_block_expr_fns fname && is_potentially_recursive e
+      | _ -> false in
+    let rec map_args name args =
+      let args = List.map ~f:rewrite_expr args in
+      let can_recurse, eval_args =
+        List.fold_map ~init:false
+          ~f:(fun is_rec e ->
+            if is_potentially_recursive e then
+              ( true
+              , {e with pattern= FunApp (StanLib ("eval", FnPlain, AoS), [e])}
+              )
+            else (is_rec, e) )
+          args in
+      if not can_recurse then args
+      else if name = f.fdname then eval_args
+      else
+        match Hashtbl.find callgraph name with
+        | Some nested when Hash_set.mem nested f.fdname -> eval_args
+        | Some nested ->
+            (* [calls] records all functions reachable from the current function *)
+            Hash_set.add calls name ;
+            Hash_set.iter nested ~f:(Hash_set.add calls) ;
+            args
+        | None -> Hash_set.add calls name ; args
+    and rewrite_expr : Expr.Typed.t -> Expr.Typed.t = function
+      | {pattern= FunApp ((UserDefined (name, _) as kind), args); _} as e ->
+          {e with pattern= FunApp (kind, map_args name args)}
+      | { pattern=
+            FunApp
+              ( (StanLib (_, _, _) as kind)
+              , ({pattern= Var name; meta= {type_= UFun _; _}} as f) :: args )
+        ; _ } as e ->
+          (* higher-order function -- just pretend it's a direct call *)
+          {e with pattern= FunApp (kind, f :: map_args name args)}
+      | e -> {e with pattern= Pattern.map rewrite_expr e.pattern} in
+    let rec rewrite_stmt s =
+      let open Stmt.Fixed in
+      match s with
+      | {pattern= Pattern.NRFunApp ((UserDefined (name, _) as kind), args); _}
+        as s ->
+          {s with pattern= NRFunApp (kind, map_args name args)}
+      | s -> {s with pattern= Pattern.map rewrite_expr rewrite_stmt s.pattern}
+    in
+    Program.map_fun_def rewrite_stmt f in
+  let break_cycles (Program.{fdname; fdargs; _} as fd) =
+    let fun_args =
+      List.filter_map fdargs ~f:(fun (_, n, t) ->
+          if UnsizedType.is_eigen_type t then Some n else None )
+      |> String.Set.of_list in
+    if Set.is_empty fun_args then fd
+    else
+      let calls = String.Hash_set.create () in
+      let fndef = eval_eigen_cycles fun_args calls fd in
+      if not (Hash_set.is_empty calls) then (
+        (* update [callgraph] with the call paths going through the current function *)
+        Hashtbl.map_inplace callgraph ~f:(fun x ->
+            if Hash_set.mem x fdname then Hash_set.union calls x else x ) ;
+        Hashtbl.update callgraph fdname
+          ~f:(Option.value_map ~f:(Hash_set.union calls) ~default:calls) ) ;
+      fndef in
+  List.map ~f:break_cycles functions_block
 
 let opencl_trigger_restrictions =
   String.Map.of_alist_exn
@@ -117,66 +211,386 @@ let rec base_type = function
 
 let pos = "pos__"
 
-let data_read smeta (decl_id, st) =
+let meta_from_sizedtype st =
+  let type_ = SizedType.to_unsized st in
+  { Expr.Typed.Meta.empty with
+    type_
+  ; adlevel= UnsizedType.fill_adtype_for_type DataOnly type_ }
+
+let munge_tuple_name name =
+  Str.global_replace (Str.regexp_string ".") "_dot_" name
+
+let make_tuple_temp name = munge_tuple_name name ^ "_temp__"
+
+(** This function is essentially copied from [var_context_read],
+    but rather than calling ReadDataFn, this indexes
+    into the flattened versions of the tuple data
+    created by [var_context_read] when it encounters an array of tuples
+
+    @param enclosing_tuple_name The name (in the sense of [Stmt.Helpers.get_lhs_name])
+      of the element of the tuple this recursive call is handling. This is
+      used to generate the appropriate [_flat__] variable to pull from
+    @param origin_type The type of the flat variable for this call, if one exists.
+      In situations where this is an array of tuples still, this type is unused.
+  *)
+let rec var_context_read_inside_tuple enclosing_tuple_name origin_type
+    ((decl_id_lval : 'a Stmt.Fixed.Pattern.lvalue), _, st) =
+  let smeta =
+    (* avoid a bunch of redundant current_statement assigns *)
+    Location_span.empty in
   let unsized = SizedType.to_unsized st in
   let scalar = base_type st in
   let flat_type = UnsizedType.UArray scalar in
+  let decl_id = Stmt.Helpers.get_lhs_name decl_id_lval in
   let decl_var =
     { Expr.Fixed.pattern= Var decl_id
     ; meta= Expr.Typed.Meta.{loc= smeta; type_= unsized; adlevel= DataOnly} }
   in
   let swrap stmt = {Stmt.Fixed.pattern= stmt; meta= smeta} in
   let pos_var = {Expr.Fixed.pattern= Var pos; meta= Expr.Typed.Meta.empty} in
-  let readfnapp var =
-    Expr.Helpers.internal_funapp FnReadData
-      [{var with pattern= Lit (Str, remove_prefix decl_id)}]
-      Expr.Typed.Meta.{var.meta with type_= flat_type} in
-  match unsized with
-  | UInt | UReal | UComplex ->
-      [ Assignment
-          ( (decl_id, unsized, [])
-          , { Expr.Fixed.pattern=
-                Indexed (readfnapp decl_var, [Single Expr.Helpers.loop_bottom])
-            ; meta= {decl_var.meta with type_= unsized} } )
-        |> swrap ]
-  | UArray UInt | UArray UReal ->
-      [Assignment ((decl_id, flat_type, []), readfnapp decl_var) |> swrap]
-  | UFun _ | UMathLibraryFunction ->
-      Common.FatalError.fatal_error_msg
-        [%message "Cannot read a function type."]
-  | UVector | URowVector | UMatrix | UComplexMatrix | UComplexRowVector
-   |UComplexVector | UArray _ ->
+  let flat_name decl_id = munge_tuple_name decl_id ^ "_flat__" in
+  let enclosing_tuple_flat, enclosing_tuple_pos =
+    let name = munge_tuple_name enclosing_tuple_name in
+    (name ^ "_flat__", name ^ "_flat__pos__") in
+  let origin_name =
+    let var = Expr.Helpers.variable enclosing_tuple_flat in
+    { var with
+      meta=
+        { var.meta with
+          type_= origin_type
+        ; adlevel= UnsizedType.fill_adtype_for_type DataOnly origin_type } }
+  in
+  let type_size =
+    Expr.Helpers.(
+      binop (variable enclosing_tuple_pos) Plus (SizedType.io_size st)) in
+  let end_position = Expr.Helpers.(binop type_size Minus loop_bottom) in
+  let origin =
+    match unsized with
+    | UInt | UReal | UComplex ->
+        (* Scalars get one index *)
+        Expr.Helpers.add_int_index origin_name
+          (Index.Single (Expr.Helpers.variable enclosing_tuple_pos))
+    | _ ->
+        Expr.Helpers.add_int_index origin_name
+          (Index.Between
+             (Expr.Helpers.variable enclosing_tuple_pos, end_position) ) in
+  let incr_tuple_pos =
+    Stmt.Fixed.Pattern.Assignment
+      (Stmt.Helpers.lvariable enclosing_tuple_pos, UInt, type_size)
+    |> swrap in
+  match st with
+  | SInt | SReal | SComplex ->
+      [Assignment (decl_id_lval, unsized, origin) |> swrap; incr_tuple_pos]
+  | SArray ((SInt | SReal), _) ->
+      [Assignment (decl_id_lval, flat_type, origin) |> swrap; incr_tuple_pos]
+  | STuple subtypes ->
+      let elements =
+        List.mapi
+          ~f:(fun iter x ->
+            ( (Stmt.Fixed.Pattern.LTupleProjection (decl_id_lval, iter + 1), [])
+            , smeta
+            , x ) )
+          subtypes in
+      let enclosing_names =
+        List.mapi
+          ~f:(fun i _ -> enclosing_tuple_name ^ "." ^ string_of_int (i + 1))
+          subtypes in
+      List.map2_exn
+        ~f:(fun name projection ->
+          var_context_read_inside_tuple name origin_type projection )
+        enclosing_names elements
+      |> List.concat
+  | SArray _ when SizedType.contains_tuple st ->
+      let tupl, dims = SizedType.get_array_dims st in
+      let tuple_component_names, tuple_types =
+        match tupl with
+        | STuple subtypes ->
+            ( List.mapi
+                ~f:(fun i _ ->
+                  enclosing_tuple_name ^ "." ^ string_of_int (i + 1) )
+                subtypes
+            , subtypes )
+        | _ -> ([], []) in
+      let temps =
+        List.map2_exn
+          ~f:(fun name t ->
+            Stmt.Fixed.Pattern.Decl
+              { decl_adtype=
+                  UnsizedType.fill_adtype_for_type DataOnly
+                    (SizedType.to_unsized t)
+              ; decl_id= make_tuple_temp name
+              ; decl_type= Sized t
+              ; initialize= true }
+            |> swrap )
+          tuple_component_names tuple_types in
+      let loop =
+        let final_assignment loopvars =
+          let assign_lval =
+            let lbase, idxs = decl_id_lval in
+            ( lbase
+            , idxs @ List.map ~f:(fun e -> Index.Single e) (List.rev loopvars)
+            ) in
+          [ Stmt.Fixed.Pattern.Assignment
+              ( assign_lval
+              , unsized
+              , Expr.Helpers.tuple_expr
+                  (List.map2_exn
+                     ~f:(fun n st ->
+                       Expr.Fixed.
+                         { pattern= Var (make_tuple_temp n)
+                         ; meta= meta_from_sizedtype st } )
+                     tuple_component_names tuple_types ) )
+            |> swrap ] in
+        [ Stmt.Helpers.mk_nested_for (List.rev dims)
+            (fun loopvars ->
+              Stmt.Fixed.
+                { meta= smeta
+                ; pattern=
+                    SList
+                      ( ( List.map2_exn
+                            ~f:(fun io_name st ->
+                              let temp_name = make_tuple_temp io_name in
+                              var_context_read_inside_tuple io_name
+                                (UnsizedType.wind_array_type
+                                   (SizedType.to_unsized st, List.length dims) )
+                                (Stmt.Helpers.lvariable temp_name, smeta, st) )
+                            tuple_component_names tuple_types
+                        |> List.concat )
+                      @ final_assignment loopvars ) } )
+            smeta ] in
+      [Block (temps @ loop) |> swrap]
+  | SVector _ | SRowVector _ | SMatrix _ | SComplexMatrix _
+   |SComplexRowVector _ | SComplexVector _ | SArray _ ->
       let decl, assign, flat_var =
-        let decl_id = decl_id ^ "_flat__" in
+        let decl_id_flat = flat_name decl_id in
         ( Stmt.Fixed.Pattern.Decl
             { decl_adtype= AutoDiffable
-            ; decl_id
+            ; decl_id= decl_id_flat
             ; decl_type= Unsized flat_type
-            ; initialize= false }
+            ; initialize= true }
           |> swrap
-        , Assignment ((decl_id, flat_type, []), readfnapp decl_var) |> swrap
-        , { Expr.Fixed.pattern= Var decl_id
+        , Assignment (Stmt.Helpers.lvariable decl_id_flat, flat_type, origin)
+          |> swrap
+        , { Expr.Fixed.pattern= Var decl_id_flat
           ; meta=
               Expr.Typed.Meta.{loc= smeta; type_= flat_type; adlevel= DataOnly}
           } ) in
-      let bodyfn var =
+      let bodyfn _ var =
         let pos_increment =
-          [ Assignment ((pos, UInt, []), Expr.Helpers.(binop pos_var Plus one))
+          [ Assignment
+              ( Stmt.Helpers.lvariable pos
+              , UInt
+              , Expr.Helpers.(binop pos_var Plus one) )
             |> swrap ] in
         let read_indexed _ =
           { Expr.Fixed.pattern= Indexed (flat_var, [Single pos_var])
           ; meta= Expr.Typed.Meta.{flat_var.meta with type_= scalar} } in
         SList
-          ( Stmt.Helpers.assign_indexed (SizedType.to_unsized st) decl_id smeta
-              read_indexed var
+          ( Stmt.Helpers.assign_indexed (SizedType.to_unsized st) decl_id_lval
+              smeta read_indexed var
           :: pos_increment )
         |> swrap in
       let pos_reset =
-        Stmt.Fixed.Pattern.Assignment ((pos, UInt, []), Expr.Helpers.loop_bottom)
+        Stmt.Fixed.Pattern.Assignment
+          (Stmt.Helpers.lvariable pos, UInt, Expr.Helpers.loop_bottom)
         |> swrap in
       [ Block
           [ decl; assign; pos_reset
-          ; Stmt.Helpers.for_scalar_inv st bodyfn decl_var smeta ]
+          ; Stmt.Helpers.for_scalar_inv st bodyfn decl_var smeta; incr_tuple_pos
+          ]
+        |> swrap ]
+
+let rec var_context_read
+    ((decl_id_lval : 'a Stmt.Fixed.Pattern.lvalue), smeta, st) =
+  let unsized = SizedType.to_unsized st in
+  let scalar = base_type st in
+  let flat_type = UnsizedType.UArray scalar in
+  let decl_id = Stmt.Helpers.get_lhs_name decl_id_lval in
+  let decl_var =
+    { Expr.Fixed.pattern= Var decl_id
+    ; meta= Expr.Typed.Meta.{loc= smeta; type_= unsized; adlevel= DataOnly} }
+  in
+  let swrap stmt = {Stmt.Fixed.pattern= stmt; meta= smeta} in
+  let swrap_noloc stmt =
+    (* not strictly necessary, but lets us cut down on the number of
+       curent_statement__ = X lines in the generated code *)
+    {Stmt.Fixed.pattern= stmt; meta= Location_span.empty} in
+  let pos_var = {Expr.Fixed.pattern= Var pos; meta= Expr.Typed.Meta.empty} in
+  let flat_name decl_id = munge_tuple_name decl_id ^ "_flat__" in
+  let readfnapp decl_id flat_type =
+    Expr.Helpers.internal_funapp FnReadData
+      [{decl_var with pattern= Lit (Str, remove_prefix decl_id)}]
+      Expr.Typed.Meta.{decl_var.meta with type_= flat_type} in
+  match st with
+  | SInt | SReal | SComplex ->
+      let e =
+        { Expr.Fixed.pattern=
+            Indexed
+              (readfnapp decl_id flat_type, [Single Expr.Helpers.loop_bottom])
+        ; meta= {decl_var.meta with type_= unsized} } in
+      [Assignment (decl_id_lval, unsized, e) |> swrap]
+  | SArray ((SInt | SReal), _) ->
+      [ Assignment (decl_id_lval, flat_type, readfnapp decl_id flat_type)
+        |> swrap ]
+  | STuple subtypes ->
+      let sub_sts =
+        List.mapi
+          ~f:(fun iter x ->
+            ( (Stmt.Fixed.Pattern.LTupleProjection (decl_id_lval, iter + 1), [])
+            , ( if iter = 0 then smeta
+                (* don't repeat locations in inner loops *)
+              else Location_span.empty )
+            , x ) )
+          subtypes in
+      List.concat_map ~f:var_context_read sub_sts
+  | SArray _ when SizedType.contains_tuple st ->
+      (* The IO format for tuples is complicated in this case.
+         Therefore, we need to do the following
+         1. Make "_flat__" decls for everything
+         2. Declare a temp for each item of this tuple
+         3. in a loop:
+           i. call [var_context_read_inside_tuple] with the temp variable as the destination
+             this function does essentially the same things recursively, but it doesn't create
+             more "_flat__" variables for deeper nested arrays-of-tuples.
+           ii. assign those temps (forwarding as tuple) to this variable, properly indexed.
+      *)
+      let tupl, dims = SizedType.get_array_dims st in
+      let flat_decls =
+        (* Here we need to go recursively all the way down the tuple *)
+        let flat_io_names =
+          UnsizedType.enumerate_tuple_names_io decl_id
+            (SizedType.to_unsized tupl) in
+        let flat_vars = List.map ~f:flat_name flat_io_names in
+        let flat_types = SizedType.flatten_tuple_io tupl in
+        List.map3_exn
+          ~f:(fun variable_name io_name st ->
+            let typ = SizedType.to_unsized st in
+            let scalar_type = UnsizedType.internal_scalar typ in
+            let array_type = UnsizedType.UArray scalar_type in
+            [ Stmt.Fixed.Pattern.Decl
+                { decl_adtype= AutoDiffable
+                ; decl_id= variable_name
+                ; decl_type= Unsized array_type
+                ; initialize= true }
+              |> swrap_noloc
+            ; Assignment
+                ( Stmt.Helpers.lvariable variable_name
+                , typ
+                , readfnapp io_name array_type )
+              |> swrap
+            ; Stmt.Fixed.Pattern.Decl
+                { decl_adtype= DataOnly
+                ; decl_id= variable_name ^ "pos__"
+                ; decl_type= Unsized UInt
+                ; initialize= true }
+              |> swrap_noloc
+            ; Stmt.Fixed.Pattern.Assignment
+                ( Stmt.Helpers.lvariable (variable_name ^ "pos__")
+                , UInt
+                , Expr.Helpers.loop_bottom )
+              |> swrap_noloc ] )
+          flat_vars flat_io_names flat_types
+        |> List.concat in
+      (* from now on, we only care about things at this level,
+         calling [var_context_read_inside_tuple] *)
+      let tuple_component_names, tuple_types =
+        match tupl with
+        | STuple subtypes ->
+            ( List.mapi
+                ~f:(fun i _ -> decl_id ^ "." ^ string_of_int (i + 1))
+                subtypes
+            , subtypes )
+        | _ -> (* impossible by above pattern patch *) ([], []) in
+      let temps =
+        List.map2_exn
+          ~f:(fun name t ->
+            Stmt.Fixed.Pattern.Decl
+              { decl_adtype=
+                  UnsizedType.fill_adtype_for_type DataOnly
+                    (SizedType.to_unsized t)
+              ; decl_id= make_tuple_temp name
+              ; decl_type= Sized t
+              ; initialize= true }
+            |> swrap_noloc )
+          tuple_component_names tuple_types in
+      let loop =
+        let final_assignment loopvars =
+          let assign_lval =
+            let lbase, idxs = decl_id_lval in
+            ( lbase
+            , idxs @ List.map ~f:(fun e -> Index.Single e) (List.rev loopvars)
+            ) in
+          [ Stmt.Fixed.Pattern.Assignment
+              ( assign_lval
+              , unsized
+              , Expr.Helpers.tuple_expr
+                  (List.map2_exn
+                     ~f:(fun n st ->
+                       Expr.Fixed.
+                         { pattern= Var (make_tuple_temp n)
+                         ; meta= meta_from_sizedtype st } )
+                     tuple_component_names tuple_types ) )
+            |> swrap_noloc ] in
+        [ Stmt.Helpers.mk_nested_for (List.rev dims)
+            (fun loopvars ->
+              SList
+                ( ( List.map2_exn
+                      ~f:(fun io_name st ->
+                        let temp_name = make_tuple_temp io_name in
+                        var_context_read_inside_tuple io_name
+                          (UnsizedType.wind_array_type
+                             (SizedType.to_unsized st, List.length dims) )
+                          ( Stmt.Helpers.lvariable temp_name
+                          , Location_span.empty
+                          , st ) )
+                      tuple_component_names tuple_types
+                  |> List.concat )
+                @ final_assignment loopvars )
+              |> swrap_noloc )
+            Location_span.empty ] in
+      [Block (flat_decls @ temps @ loop) |> swrap]
+  | SVector _ | SRowVector _ | SMatrix _ | SComplexMatrix _
+   |SComplexRowVector _ | SComplexVector _ | SArray _ ->
+      let decl, assign, flat_var =
+        let decl_id_flat = flat_name decl_id in
+        ( Stmt.Fixed.Pattern.Decl
+            { decl_adtype= AutoDiffable
+            ; decl_id= decl_id_flat
+            ; decl_type= Unsized flat_type
+            ; initialize= false }
+          |> swrap
+        , Assignment
+            ( Stmt.Helpers.lvariable decl_id_flat
+            , flat_type
+            , readfnapp decl_id flat_type )
+          |> swrap
+        , { Expr.Fixed.pattern= Var decl_id_flat
+          ; meta=
+              Expr.Typed.Meta.{loc= smeta; type_= flat_type; adlevel= DataOnly}
+          } ) in
+      let bodyfn _ var =
+        let pos_increment =
+          [ Assignment
+              ( Stmt.Helpers.lvariable pos
+              , UInt
+              , Expr.Helpers.(binop pos_var Plus one) )
+            |> swrap_noloc ] in
+        let read_indexed _ =
+          { Expr.Fixed.pattern= Indexed (flat_var, [Single pos_var])
+          ; meta= Expr.Typed.Meta.{flat_var.meta with type_= scalar} } in
+        SList
+          ( Stmt.Helpers.assign_indexed (SizedType.to_unsized st) decl_id_lval
+              Location_span.empty read_indexed var
+          :: pos_increment )
+        |> swrap_noloc in
+      let pos_reset =
+        Stmt.Fixed.Pattern.Assignment
+          (Stmt.Helpers.lvariable pos, UInt, Expr.Helpers.loop_bottom)
+        |> swrap_noloc in
+      [ Block
+          [ decl; assign; pos_reset
+          ; Stmt.Helpers.for_scalar_inv st bodyfn decl_var Location_span.empty
+          ]
         |> swrap ]
 
 (*
@@ -189,47 +603,86 @@ let data_read smeta (decl_id, st) =
 let read_constrain_dims constrain_transform st =
   let rec constrain_get_dims st =
     match st with
-    | SizedType.SInt | SReal | SComplex -> []
+    | SizedType.SInt | SReal | SComplex | STuple _ -> []
+    | SArray (t, dim) -> dim :: constrain_get_dims t
     | SVector (_, d)
      |SRowVector (_, d)
      |SComplexVector d
      |SComplexRowVector d ->
         [d]
-    | SMatrix (_, _, dim2) | SComplexMatrix (_, dim2) -> [dim2]
-    | SArray (t, dim) -> dim :: constrain_get_dims t in
+    | SMatrix (_, _, dim2) | SComplexMatrix (_, dim2) -> [dim2] in
   match constrain_transform with
   | Transformation.CholeskyCorr | Correlation | Covariance ->
       constrain_get_dims st
   | _ -> SizedType.get_dims st
 
-let data_serializer_read loc out_constrained_st =
+let plain_deserializer_read loc out_constrained_st =
   let ut = SizedType.to_unsized out_constrained_st in
-  let dims = SizedType.get_dims_io out_constrained_st in
+  let dims = SizedType.get_dims out_constrained_st in
   let emeta = Expr.Typed.Meta.create ~loc ~type_:ut ~adlevel:AutoDiffable () in
   Expr.(
     Helpers.(
-      internal_funapp FnReadDataSerializer dims Typed.Meta.{emeta with type_= ut}))
+      internal_funapp FnReadDeserializer dims Typed.Meta.{emeta with type_= ut}))
 
-let param_read smeta
-    (decl_id, Program.{out_constrained_st= cst; out_block; out_trans; _}) =
+let param_deserializer_read
+    ( decl_id_lval
+    , smeta
+    , Program.{out_constrained_st= cst; out_block; out_trans; _} ) =
   if not (out_block = Parameters) then []
   else
-    let ut = SizedType.to_unsized cst in
-    let emeta =
-      Expr.Typed.Meta.create ~loc:smeta ~type_:ut ~adlevel:AutoDiffable () in
-    let dims = read_constrain_dims out_trans cst in
-    let read =
-      Expr.(
-        Helpers.(
-          internal_funapp
-            (FnReadParam
-               { constrain= out_trans
-               ; dims
-               ; mem_pattern= SizedType.get_mem_pattern cst } )
-            []
-            Typed.Meta.{emeta with type_= ut})) in
-    [ Stmt.Fixed.
-        {pattern= Pattern.Assignment ((decl_id, ut, []), read); meta= smeta} ]
+    let basic_read (cst, out_trans) =
+      let ut = SizedType.to_unsized cst in
+      let emeta =
+        Expr.Typed.Meta.create ~loc:smeta ~type_:ut
+          ~adlevel:(UnsizedType.fill_adtype_for_type AutoDiffable ut)
+          () in
+      let dims = read_constrain_dims out_trans cst in
+      let read =
+        Expr.Helpers.internal_funapp
+          (FnReadParam
+             { constrain= out_trans
+             ; dims
+             ; mem_pattern= SizedType.get_mem_pattern cst } )
+          [] emeta in
+      read in
+    let rec read_stmt (lval, cst, out_trans) =
+      match cst with
+      | SizedType.SArray _ when SizedType.contains_tuple cst ->
+          let tupl, array_dims = SizedType.get_array_dims cst in
+          [ Stmt.Helpers.mk_nested_for (List.rev array_dims)
+              (fun loopvars ->
+                Stmt.Fixed.
+                  { meta= smeta
+                  ; pattern=
+                      SList
+                        (read_stmt
+                           (let lbase, idxs = lval in
+                            ( ( lbase
+                              , idxs
+                                @ List.map
+                                    ~f:(fun e -> Index.Single e)
+                                    (List.rev loopvars) )
+                            , tupl
+                            , out_trans ) ) ) } )
+              smeta ]
+      | SizedType.STuple _ ->
+          let subtys =
+            Utils.(zip_stuple_trans_exn cst (tuple_trans_exn out_trans)) in
+          let sub_sts =
+            List.mapi
+              ~f:(fun iter (st, trans) ->
+                ( (Stmt.Fixed.Pattern.LTupleProjection (lval, iter + 1), [])
+                , st
+                , trans ) )
+              subtys in
+          List.concat_map ~f:read_stmt sub_sts
+      | _ ->
+          let read = basic_read (cst, out_trans) in
+          [ Stmt.Fixed.
+              { pattern=
+                  Pattern.Assignment (lval, SizedType.to_unsized cst, read)
+              ; meta= smeta } ] in
+    read_stmt (decl_id_lval, cst, out_trans)
 
 let escape_name str =
   str
@@ -305,16 +758,53 @@ let%expect_test "Flatten slists" =
       (meta ()))) |}]
 
 let add_reads vars mkread stmts =
+  let vars = List.map ~f:(fun (id, l, outvar) -> (id, (l, outvar))) vars in
   let var_names = String.Map.of_alist_exn vars in
-  let add_read_to_decl (Stmt.Fixed.{pattern; meta} as stmt) =
+  let add_read_to_decl (Stmt.Fixed.{pattern; _} as stmt) =
     match pattern with
     | Decl {decl_id; _} when Map.mem var_names decl_id ->
-        stmt :: mkread meta (decl_id, Map.find_exn var_names decl_id)
+        let loc, out = Map.find_exn var_names decl_id in
+        stmt :: mkread (Stmt.Helpers.lvariable decl_id, loc, out)
     | _ -> [stmt] in
   List.concat_map ~f:add_read_to_decl stmts
 
-let gen_write ?(unconstrain = false)
+let param_serializer_write ?(unconstrain = false)
     (decl_id, Program.{out_constrained_st; out_trans; _}) =
+  let rec write (var, st, trans) =
+    match (unconstrain, st, trans) with
+    | ( true
+      , SizedType.STuple subtypes
+      , Transformation.TupleTransformation transforms ) ->
+        let tuple_elements =
+          subtypes
+          |> List.mapi ~f:(fun iter x ->
+                 (Expr.Helpers.add_tuple_index var (iter + 1), x) )
+          |> List.map2_exn ~f:(fun t (v, st) -> (v, st, t)) transforms in
+        List.concat_map ~f:write tuple_elements
+    | true, SArray _, TupleTransformation _ ->
+        let tupl, array_dims = SizedType.get_array_dims st in
+        [ Stmt.Helpers.mk_nested_for (List.rev array_dims)
+            (fun loopvars ->
+              Stmt.Fixed.
+                { meta= Location_span.empty
+                ; pattern=
+                    SList
+                      (write
+                         ( List.fold ~f:Expr.Helpers.add_int_index ~init:var
+                             (List.map
+                                ~f:(fun e -> Index.Single e)
+                                (List.rev loopvars) )
+                         , tupl
+                         , trans ) ) } )
+            Location_span.empty ]
+    | true, _, _ ->
+        [ Stmt.Helpers.internal_nrfunapp
+            (FnWriteParam {unconstrain_opt= Some trans; var})
+            [] Location_span.empty ]
+    | false, _, _ ->
+        [ Stmt.Helpers.internal_nrfunapp
+            (FnWriteParam {unconstrain_opt= None; var})
+            [] Location_span.empty ] in
   let decl_var =
     { Expr.Fixed.pattern= Var decl_id
     ; meta=
@@ -322,65 +812,139 @@ let gen_write ?(unconstrain = false)
           { loc= Location_span.empty
           ; type_= SizedType.to_unsized out_constrained_st
           ; adlevel= DataOnly } } in
-  Stmt.Helpers.internal_nrfunapp
-    (FnWriteParam
-       {unconstrain_opt= Option.some_if unconstrain out_trans; var= decl_var} )
-    [] Location_span.empty
+  write (decl_var, out_constrained_st, out_trans)
 
 (**
   Generate write instructions for unconstrained types. For scalars,
- *  matrices, vectors, and arrays with one dimension we can write
- *  these directly, but for arrays of arrays/vectors/matrices we
- *  need to use for_scalar_inv to write them in "column major order"
+  matrices, vectors, and arrays with one dimension we can write
+  these directly, but for arrays of arrays/vectors/matrices we
+  need to write them in "column major order"
  *)
-let gen_unconstrained_write (decl_id, Program.{out_constrained_st; _}) =
-  if SizedType.is_recursive_container out_constrained_st then
-    let bodyfn var =
-      Stmt.Helpers.internal_nrfunapp
-        (FnWriteParam {unconstrain_opt= None; var})
-        [var] Location_span.empty in
-    let meta =
-      {Expr.Typed.Meta.empty with type_= SizedType.to_unsized out_constrained_st}
-    in
-    let expr = Expr.Fixed.{meta; pattern= Var decl_id} in
-    Stmt.Helpers.for_scalar_inv out_constrained_st bodyfn expr
-      Location_span.empty
-  else
-    let decl_var =
-      { Expr.Fixed.pattern= Var decl_id
-      ; meta=
-          Expr.Typed.Meta.
-            { loc= Location_span.empty
-            ; type_= SizedType.to_unsized out_constrained_st
-            ; adlevel= DataOnly } } in
-    Stmt.Helpers.internal_nrfunapp
-      (FnWriteParam {unconstrain_opt= None; var= decl_var})
-      [] Location_span.empty
+let param_unconstrained_serializer_write
+    (decl_id, smeta, Program.{out_constrained_st; _}) =
+  let rec write (var, st) =
+    match st with
+    | SizedType.STuple subtypes ->
+        let elements =
+          List.mapi
+            ~f:(fun iter x -> (Expr.Helpers.add_tuple_index var (iter + 1), x))
+            subtypes in
+        List.concat_map ~f:write elements
+    | _ when SizedType.is_recursive_container st ->
+        let nonarray_st, array_dims = SizedType.get_scalar_and_dims st in
+        [ Stmt.Helpers.mk_nested_for (List.rev array_dims)
+            (fun loopvars ->
+              Stmt.Fixed.
+                { meta= Location_span.empty
+                ; pattern=
+                    SList
+                      (write
+                         ( List.fold ~f:Expr.Helpers.add_int_index ~init:var
+                             (List.map
+                                ~f:(fun e -> Index.Single e)
+                                (List.rev loopvars) )
+                         , nonarray_st ) ) } )
+            smeta ]
+    | _ ->
+        [ Stmt.Helpers.internal_nrfunapp
+            (FnWriteParam {unconstrain_opt= None; var})
+            [] Location_span.empty ] in
+  let var =
+    { Expr.Fixed.pattern= Var decl_id
+    ; meta=
+        Expr.Typed.Meta.
+          { loc= Location_span.empty
+          ; type_= SizedType.to_unsized out_constrained_st
+          ; adlevel= DataOnly } } in
+  write (var, out_constrained_st)
 
-(** Statements to read, unconstrain and assign a parameter then write it back *)
-let data_unconstrain_transform smeta (decl_id, outvar) =
-  [ Stmt.Fixed.
+(** Reads in parameters from a var_context, the same way as is done in the constructor,
+     and then writes out the unconstrained versions *)
+let var_context_unconstrain_transform (decl_id, smeta, outvar) =
+  let st = outvar.Program.out_constrained_st in
+  Stmt.Fixed.
+    { pattern=
+        Decl
+          { decl_adtype=
+              UnsizedType.fill_adtype_for_type AutoDiffable
+                (SizedType.to_unsized st)
+          ; decl_id
+          ; decl_type= Type.Sized st
+          ; initialize= true }
+    ; meta= smeta }
+  :: var_context_read (Stmt.Helpers.lvariable decl_id, smeta, st)
+  @ param_serializer_write ~unconstrain:true (decl_id, outvar)
+
+(** Reads in parameters from a serializer and then writes out the unconstrained versions *)
+let array_unconstrain_transform (decl_id, smeta, outvar) =
+  let decl =
+    Stmt.Fixed.
       { pattern=
           Decl
-            { decl_adtype= UnsizedType.AutoDiffable
+            { decl_adtype=
+                UnsizedType.fill_adtype_for_type AutoDiffable
+                  (SizedType.to_unsized outvar.Program.out_constrained_st)
             ; decl_id
             ; decl_type= Type.Sized outvar.Program.out_constrained_st
             ; initialize= true }
-      ; meta= smeta }
-  ; (let nonarray_st, array_dims =
-       SizedType.get_array_dims outvar.Program.out_constrained_st in
-     Stmt.Helpers.mk_nested_for (List.rev array_dims)
-       (fun loopvars ->
-         Stmt.Fixed.
-           { meta= smeta
-           ; pattern=
-               Assignment
-                 ( ( decl_id
-                   , SizedType.to_unsized nonarray_st
-                   , List.map ~f:(fun e -> Index.Single e) (List.rev loopvars)
-                   )
-                 , data_serializer_read smeta nonarray_st ) } )
-       smeta ); gen_write ~unconstrain:true (decl_id, outvar) ]
+      ; meta= smeta } in
+  let rec read (lval, st) =
+    match st with
+    | SizedType.STuple subtypes ->
+        let elements =
+          List.mapi
+            ~f:(fun iter x ->
+              ((Stmt.Fixed.Pattern.LTupleProjection (lval, iter + 1), []), x) )
+            subtypes in
+        List.concat_map ~f:read elements
+    | _ when SizedType.contains_tuple st ->
+        let tupl, array_dims = SizedType.get_scalar_and_dims st in
+        [ Stmt.Helpers.mk_nested_for (List.rev array_dims)
+            (fun loopvars ->
+              Stmt.Fixed.
+                { meta= Location_span.empty
+                ; pattern=
+                    SList
+                      (read
+                         (let lbase, idxs = lval in
+                          ( ( lbase
+                            , idxs
+                              @ List.map
+                                  ~f:(fun e -> Index.Single e)
+                                  (List.rev loopvars) )
+                          , tupl ) ) ) } )
+            smeta ]
+    | _ when SizedType.is_recursive_container st ->
+        (* non-tuple containing array *)
+        let nonarray_st, array_dims = SizedType.get_scalar_and_dims st in
+        [ Stmt.Helpers.mk_nested_for (List.rev array_dims)
+            (fun loopvars ->
+              let assign_lval =
+                let lbase, idxs = lval in
+                ( lbase
+                , idxs
+                  @ List.map ~f:(fun e -> Index.Single e) (List.rev loopvars) )
+              in
+              Stmt.Fixed.
+                { meta= smeta
+                ; pattern=
+                    Assignment
+                      ( assign_lval
+                      , SizedType.to_unsized nonarray_st
+                      , plain_deserializer_read smeta
+                          (SizedType.internal_scalar nonarray_st) ) } )
+            smeta ]
+    | _ ->
+        [ Stmt.Fixed.
+            { meta= smeta
+            ; pattern=
+                Assignment
+                  ( lval
+                  , SizedType.to_unsized st
+                  , plain_deserializer_read smeta st ) } ] in
+  decl
+  :: read (Stmt.Helpers.lvariable decl_id, outvar.Program.out_constrained_st)
+  @ param_serializer_write ~unconstrain:true (decl_id, outvar)
 
 let rec contains_var_expr is_vident accum Expr.Fixed.{pattern; _} =
   accum
@@ -389,30 +953,6 @@ let rec contains_var_expr is_vident accum Expr.Fixed.{pattern; _} =
   | Var v when is_vident v -> true
   | pattern ->
       Expr.Fixed.Pattern.fold (contains_var_expr is_vident) false pattern
-
-let fn_name_map =
-  String.Map.of_alist_exn [("integrate_ode", "integrate_ode_rk45")]
-
-let rec map_fn_names s =
-  let rec map_fn_names_expr e =
-    let pattern =
-      Expr.Fixed.(
-        match e.pattern with
-        | FunApp (StanLib (f, sfx, mem_pattern), a) when Map.mem fn_name_map f
-          ->
-            Pattern.FunApp
-              (StanLib (Map.find_exn fn_name_map f, sfx, mem_pattern), a)
-        | expr -> Pattern.map map_fn_names_expr expr) in
-    {e with pattern} in
-  let stmt =
-    Stmt.Fixed.(
-      match s.pattern with
-      | NRFunApp (StanLib (f, sfx, mem_pattern), a) when Map.mem fn_name_map f
-        ->
-          Pattern.NRFunApp
-            (StanLib (Map.find_exn fn_name_map f, sfx, mem_pattern), a)
-      | stmt -> Pattern.map map_fn_names_expr map_fn_names stmt) in
-  {s with pattern= stmt}
 
 let rec insert_before f to_insert = function
   | [] -> to_insert
@@ -452,12 +992,14 @@ let%expect_test "insert before" =
   [%sexp (l : int list)] |> print_s ;
   [%expect {| (1 2 3 4 5 999 6) |}]
 
-let map_prog_stmt_lists f (p : ('a, 'b) Program.t) =
+let map_prog_stmt_lists f (p : ('a, 'b, 'c) Program.t) =
   { p with
     Program.prepare_data= f p.prepare_data
   ; log_prob= f p.log_prob
+  ; reverse_mode_log_prob= f p.reverse_mode_log_prob
   ; generate_quantities= f p.generate_quantities
-  ; transform_inits= f p.transform_inits }
+  ; transform_inits= f p.transform_inits
+  ; unconstrain_array= f p.unconstrain_array }
 
 let trans_prog (p : Program.Typed.t) =
   (* name mangling of c++ keywords*)
@@ -465,7 +1007,7 @@ let trans_prog (p : Program.Typed.t) =
     { Stmt.Fixed.pattern=
         Stmt.Fixed.Pattern.map translate_funapps_and_kwrds map_stmt pattern
     ; meta } in
-  let rename_kwrds (s, e) = (add_prefix_to_kwrds s, e) in
+  let rename_inout (s, l, e) = (add_prefix_to_kwrds s, l, e) in
   let rename_fdarg (e1, s, e2) = (e1, add_prefix_to_kwrds s, e2) in
   let rename_func (s : 'a Program.fun_def) =
     { s with
@@ -474,24 +1016,40 @@ let trans_prog (p : Program.Typed.t) =
   let p =
     Program.(
       { p with
-        output_vars= List.map ~f:rename_kwrds p.output_vars
-      ; input_vars= List.map ~f:rename_kwrds p.input_vars
+        output_vars= List.map ~f:rename_inout p.output_vars
+      ; input_vars= List.map ~f:rename_inout p.input_vars
       ; functions_block= List.map ~f:rename_func p.functions_block }
-      |> map translate_funapps_and_kwrds map_stmt
-      |> map Fn.id change_kwrds_stmts) in
-  let p = Program.map Fn.id map_fn_names p in
+      |> map translate_funapps_and_kwrds map_stmt Fn.id
+      |> map Fn.id change_kwrds_stmts Fn.id) in
+  let p = {p with functions_block= break_eigen_cycles p.functions_block} in
   let init_pos =
     [ Stmt.Fixed.Pattern.Decl
         { decl_adtype= DataOnly
         ; decl_id= pos
         ; decl_type= Sized SInt
         ; initialize= true }
-    ; Assignment ((pos, UInt, []), Expr.Helpers.loop_bottom) ]
+    ; Assignment (Stmt.Helpers.lvariable pos, UInt, Expr.Helpers.loop_bottom) ]
     |> List.map ~f:(fun pattern ->
            Stmt.Fixed.{pattern; meta= Location_span.empty} ) in
+  let maybe_add_pos stmts =
+    if
+      List.exists stmts ~f:(function
+        | {Stmt.Fixed.pattern= Decl {decl_type; _}; _} -> (
+          match Type.to_unsized decl_type with
+          | UInt | UReal | UComplex
+           |UArray (UReal | UInt)
+           |UFun _ | UMathLibraryFunction ->
+              false
+          | UVector | URowVector | UMatrix | UComplexMatrix
+           |UComplexRowVector | UComplexVector | UArray _ | UTuple _ ->
+              true )
+        | _ -> false )
+    then init_pos @ stmts
+    else stmts in
   let param_writes, tparam_writes, gq_writes =
-    List.map p.output_vars ~f:(fun (name, outvar) ->
-        (outvar.Program.out_block, gen_unconstrained_write (name, outvar)) )
+    List.map p.output_vars ~f:param_unconstrained_serializer_write
+    |> List.map2_exn p.output_vars ~f:(fun (_, meta, outvar) writes ->
+           (outvar.Program.out_block, Stmt.Fixed.{pattern= SList writes; meta}) )
     |> List.partition3_map ~f:(fun (b, x) ->
            match b with
            | Parameters -> `Fst x
@@ -547,14 +1105,15 @@ let trans_prog (p : Program.Typed.t) =
             ; meta= Location_span.empty } ] in
   let generate_quantities =
     ( p.generate_quantities
-    |> add_reads p.output_vars param_read
+    |> add_reads p.output_vars param_deserializer_read
     |> translate_to_open_cl
     |> insert_before tparam_start param_writes
     |> insert_before gq_start tparam_writes_cond )
     @ gq_writes in
   let log_prob =
-    p.log_prob |> add_reads p.output_vars param_read |> translate_to_open_cl
-  in
+    p.log_prob
+    |> add_reads p.output_vars param_deserializer_read
+    |> translate_to_open_cl in
   let opencl_vars =
     String.Set.union_list
       (List.concat_map
@@ -573,9 +1132,11 @@ let trans_prog (p : Program.Typed.t) =
           String.chop_suffix_exn ~suffix:opencl_suffix vident in
         let type_of_input_var =
           match
-            List.Assoc.find p.input_vars vident_sans_opencl ~equal:String.equal
+            List.find
+              ~f:(fun (s, _, _) -> String.equal s vident_sans_opencl)
+              p.input_vars
           with
-          | Some st -> SizedType.to_unsized st
+          | Some (_, _, st) -> SizedType.to_unsized st
           | None -> UnsizedType.UMatrix in
         [ Stmt.Fixed.
             { pattern=
@@ -587,28 +1148,33 @@ let trans_prog (p : Program.Typed.t) =
             ; meta= Location_span.empty }
         ; { pattern=
               Assignment
-                ( (vident, type_of_input_var, [])
+                ( Stmt.Helpers.lvariable vident
+                , type_of_input_var
                 , to_matrix_cl
                     { pattern= Var vident_sans_opencl
                     ; meta= Expr.Typed.Meta.empty } )
           ; meta= Location_span.empty } ] ) in
   let p =
+    let params =
+      List.filter
+        ~f:(fun (_, _, ov) -> ov.Program.out_block = Parameters)
+        p.output_vars in
     { p with
-      log_prob= log_prob @ maybe_add_opencl_events_clear
+      log_prob=
+        log_prob @ maybe_add_opencl_events_clear
+        (*First initialization of reverse mode log prob *)
+    ; reverse_mode_log_prob= log_prob @ maybe_add_opencl_events_clear
     ; prog_name= escape_name p.prog_name
     ; prepare_data=
-        init_pos
-        @ (p.prepare_data |> add_reads p.input_vars data_read)
+        (p.prepare_data |> add_reads p.input_vars var_context_read)
         @ to_matrix_cl_stmts
+        |> maybe_add_pos
     ; transform_inits=
-        init_pos
-        @ List.concat_map
-            ~f:(data_unconstrain_transform Location_span.empty)
-            (List.filter
-               ~f:(fun (_, ov) -> ov.Program.out_block = Parameters)
-               p.output_vars )
+        List.concat_map ~f:var_context_unconstrain_transform params
+        |> maybe_add_pos
+    ; unconstrain_array= List.concat_map ~f:array_unconstrain_transform params
     ; generate_quantities } in
   Program.(
     p
-    |> map Fn.id ensure_body_in_block
+    |> map Fn.id ensure_body_in_block Fn.id
     |> map_prog_stmt_lists flatten_slists_list)

@@ -2,6 +2,7 @@
 
 {
   module Stack = Core_kernel.Stack
+  module Queue = Core_kernel.Queue
   open Lexing
   open Debugging
   open Preprocessor
@@ -16,29 +17,29 @@
     update_start_positions lexbuf.lex_curr_p
 
 
-  let comments : Ast.comment_type list ref = ref []
+  let note_deprecated_comment pos =
+    let loc_span = location_span_of_positions (pos, pos) in
+    Deprecation_removals.pound_comment_usages := loc_span :: !Deprecation_removals.pound_comment_usages
 
   (* Store comments *)
-  let add_comment (begin_pos, buffer) end_pos =
-      comments :=
-        LineComment ( Buffer.contents buffer
-                , Middle.Location_span.of_positions_exn (begin_pos, end_pos) )
-      :: !comments
+  let add_line_comment (begin_pos, buffer) end_pos =
+    add_comment
+    @@ LineComment
+         ( Buffer.contents buffer
+         , location_span_of_positions (begin_pos, end_pos) )
 
   let add_multi_comment begin_pos lines end_pos =
-    comments :=
-        BlockComment ( lines, Middle.Location_span.of_positions_exn (begin_pos, end_pos) )
-      :: !comments
+    add_comment
+    @@ Ast.BlockComment (lines, location_span_of_positions (begin_pos, end_pos))
 
   let add_separator lexbuf =
-    comments :=
-        Separator (Middle.Location.of_position_exn lexbuf.lex_curr_p)
-      :: !comments
+    add_comment @@ Separator (location_of_position lexbuf.lex_curr_p)
 
   let add_include fname lexbuf =
-    comments :=
-        Include (fname, (Middle.Location_span.of_positions_exn (lexbuf.lex_start_p, lexbuf.lex_curr_p)) )
-      :: !comments
+    add_comment
+    @@ Include
+         ( fname
+         , location_span_of_positions (lexbuf.lex_start_p, lexbuf.lex_curr_p) )
 }
 
 (* Some auxiliary definition for variables and constants *)
@@ -49,16 +50,17 @@ let integer_constant =  ['0'-'9']+ ('_' ['0'-'9']+)*
 
 let exp_literal = ['e' 'E'] ['+' '-']? integer_constant
 let real_constant1 = integer_constant '.' integer_constant? exp_literal?
-let real_constant2 = '.' integer_constant exp_literal?
+let real_constant2 = '.' integer_constant exp_literal
 let real_constant3 = integer_constant exp_literal
+let real_constant_dot = '.' integer_constant
 let real_constant = real_constant1 | real_constant2 | real_constant3
-let imag_constant = (integer_constant | real_constant) 'i'
+let imag_constant = (integer_constant | real_constant | real_constant_dot) 'i'
 let space = ' ' | '\t' | '\012'
 let newline = '\r' | '\n' | '\r'*'\n'
 let non_space_or_newline =  [^ ' ' '\t' '\012' '\r' '\n' ]
 
 rule token = parse
-(* White space, line numers and comments *)
+(* White space, line numbers and comments *)
   | newline                   { lexer_logger "newline" ;
                                 incr_linenum lexbuf ; token lexbuf }
   | space                     { lexer_logger "space" ; token lexbuf }
@@ -78,14 +80,7 @@ rule token = parse
                                   try_get_new_lexbuf fname in
                                 token new_lexbuf }
   | "#"                       { lexer_logger "#comment" ;
-                                Input_warnings.deprecated "#"
-                                  (lexbuf.lex_curr_p, "Comments beginning with \
-                                                       # are deprecated and this \
-                                                       syntax will be removed in \
-                                                       Stan 2.32.0. Use // to begin \
-                                                       line comments; this can be \
-                                                       done automatically using the \
-                                                       auto-format flag to stanc") ;
+                                note_deprecated_comment lexbuf.lex_curr_p ;
                                 singleline_comment (lexbuf.lex_curr_p, Buffer.create 16) lexbuf;
                                 token lexbuf } (* deprecated *)
 (* Program blocks *)
@@ -138,6 +133,7 @@ rule token = parse
   | "row_vector"              { lexer_logger "row_vector" ; Parser.ROWVECTOR }
   | "complex_vector"          { lexer_logger "complex_vector" ; Parser.COMPLEXVECTOR }
   | "complex_row_vector"      { lexer_logger "complex_row_vector" ; Parser.COMPLEXROWVECTOR }
+  | "tuple"                   { lexer_logger "tuple" ; Parser.TUPLE }
   | "array"                   { lexer_logger "array" ; Parser.ARRAY }
   | "matrix"                  { lexer_logger "matrix" ; Parser.MATRIX }
   | "complex_matrix"          { lexer_logger "complex_matrix" ; Parser.COMPLEXMATRIX }
@@ -189,26 +185,8 @@ rule token = parse
   | ".*="                     { lexer_logger ".*=" ; Parser.ELTTIMESASSIGN }
   | "./="                     { lexer_logger "./=" ; Parser.ELTDIVIDEASSIGN }
   | "<-"                      { lexer_logger "<-" ;
-                                Input_warnings.deprecated "<-"
-                                  (lexbuf.lex_curr_p, "assignment operator <- \
-                                                       is deprecated in the \
-                                                       Stan language and will \
-                                                       be removed in Stan 2.32.0; \
-                                                       use = instead. This \
-                                                       can be done automatically \
-                                                       with the canonicalize flag \
-                                                       for stanc") ;
                                 Parser.ARROWASSIGN } (* deprecated *)
   | "increment_log_prob"      { lexer_logger "increment_log_prob" ;
-                                Input_warnings.deprecated "increment_log_prob"
-                                  (lexbuf.lex_curr_p, "increment_log_prob(...)\
-                                                       ; is deprecated and \
-                                                       will be removed in Stan \
-                                                       2.32.0. Use target \
-                                                       += ...; instead. This \
-                                                       can be done automatically \
-                                                       with the canonicalize flag \
-                                                       for stanc") ;
                                 Parser.INCREMENTLOGPROB } (* deprecated *)
 (* Effects *)
   | "print"                   { lexer_logger "print" ; Parser.PRINT }
@@ -219,18 +197,13 @@ rule token = parse
                                 Parser.INTNUMERAL (lexeme lexbuf) }
   | real_constant as r        { lexer_logger ("real_constant " ^ r) ;
                                 Parser.REALNUMERAL (lexeme lexbuf) }
+  | real_constant_dot as r    { lexer_logger ("real_constant_dot " ^ r) ;
+                                (* Separated out because ".1" could be a number or a tuple projection *)
+                                Parser.DOTNUMERAL (lexeme lexbuf) }
   | imag_constant as z        { lexer_logger ("imag_constant " ^ z) ;
                                 Parser.IMAGNUMERAL (lexeme lexbuf) }
   | "target"                  { lexer_logger "target" ; Parser.TARGET } (* NB: the stanc2 parser allows variables to be named target. I think it's a bad idea and have disallowed it. *)
   | "get_lp"                  { lexer_logger "get_lp" ;
-                                Input_warnings.deprecated "get_lp"
-                                  (lexbuf.lex_curr_p, "get_lp() function is \
-                                                       deprecated. It will be \
-                                                       removed in Stan 2.32.0. \
-                                                       Use target() instead. \
-                                                       This can be done automatically \
-                                                       with the canonicalize flag for \
-                                                       stanc") ;
                                 Parser.GETLP } (* deprecated *)
   | string_literal as s       { lexer_logger ("string_literal " ^ s) ;
                                 Parser.STRINGLITERAL (lexeme lexbuf) }
@@ -247,7 +220,7 @@ rule token = parse
 
   | _                         { raise (Errors.SyntaxError
                                         (Errors.Lexing
-                                          (Middle.Location.of_position_exn
+                                          (location_of_position
                                             (lexeme_start_p
                                               (current_buffer ()))))) }
 
@@ -259,7 +232,7 @@ and multiline_comment state = parse
                update_start_positions lexbuf.lex_curr_p }
   | eof      { raise (Errors.SyntaxError
                       (Errors.UnexpectedEOF
-                        (Middle.Location.of_position_exn lexbuf.lex_curr_p))) }
+                        (location_of_position lexbuf.lex_curr_p))) }
   | newline  { incr_linenum lexbuf;
                let ((pos, lines), buffer) = state in
                let lines = (Buffer.contents buffer) :: lines in
@@ -269,8 +242,8 @@ and multiline_comment state = parse
 
 (* Single-line comment terminated by a newline *)
 and singleline_comment state = parse
-  | newline  { add_comment state lexbuf.lex_curr_p ; incr_linenum lexbuf }
-  | eof      { add_comment state lexbuf.lex_curr_p ; update_start_positions lexbuf.lex_curr_p }
+  | newline  { add_line_comment state lexbuf.lex_curr_p ; incr_linenum lexbuf }
+  | eof      { add_line_comment state lexbuf.lex_curr_p ; update_start_positions lexbuf.lex_curr_p }
   | _        { Buffer.add_string (snd state) (lexeme lexbuf) ; singleline_comment state lexbuf }
 
 {

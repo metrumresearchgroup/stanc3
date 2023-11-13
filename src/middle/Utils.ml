@@ -7,13 +7,10 @@ let option_or_else ~if_none x = Option.first_some x if_none
 (** Name mangling helper functions for distributions *)
 let unnormalized_suffices = ["_lupdf"; "_lupmf"]
 
-(** _log is listed last so that it only gets picked up if no other implementation exists *)
-let distribution_suffices = ["_lpmf"; "_lpdf"; "_log"]
+let distribution_suffices = ["_lpmf"; "_lpdf"]
 
 let conditioning_suffices =
   ["_lpdf"; "_lupdf"; "_lupmf"; "_lpmf"; "_cdf"; "_lcdf"; "_lccdf"]
-
-let conditioning_suffices_w_log = conditioning_suffices @ ["_log"]
 
 let cumulative_distribution_suffices =
   ["cdf"; "lcdf"; "lccdf"; "cdf_log"; "ccdf_log"]
@@ -49,14 +46,6 @@ let is_unnormalized_distribution s =
     ~f:(fun suffix -> String.is_suffix s ~suffix)
     unnormalized_suffices
 
-let with_unnormalized_suffix (name : string) =
-  Option.merge
-    ~f:(fun x _ -> x)
-    ( String.chop_suffix ~suffix:"_lpdf" name
-    |> Option.map ~f:(fun n -> n ^ "_lupdf") )
-    ( String.chop_suffix ~suffix:"_lpmf" name
-    |> Option.map ~f:(fun n -> n ^ "_lupmf") )
-
 let replace_unnormalized_suffix suffix ~name =
   name
   |> String.chop_suffix ~suffix:(unnormalized_suffix suffix)
@@ -87,3 +76,36 @@ let%expect_test "all but last n" =
   let l = all_but_last_n [1; 2; 3; 4] 2 in
   print_s [%sexp (l : int list)] ;
   [%expect {| (1 2) |}]
+
+(* Utilities for using Tuples and Transformations together *)
+let tuple_trans_exn = function
+  | Transformation.TupleTransformation transforms -> transforms
+  | t ->
+      Common.FatalError.fatal_error_msg
+        [%message
+          "Expected TupleTransformation but got"
+            (t : Expr.Typed.t Transformation.t)]
+
+let zip_stuple_trans_exn pst tms =
+  let rec tuple_subtypes pst =
+    match pst with
+    | SizedType.STuple subtypes -> subtypes
+    | SArray (st, _) -> tuple_subtypes st
+    | _ ->
+        Common.FatalError.fatal_error_msg
+          [%message "Internal error: expected Tuple with TupleTransformation"]
+  in
+  let psts = tuple_subtypes pst in
+  List.zip_exn psts tms
+
+let zip_utuple_trans_exn pst tms =
+  let rec tuple_psts pst =
+    match pst with
+    | UnsizedType.UTuple uts -> uts
+    | UArray ut -> tuple_psts ut
+    | _ ->
+        Common.FatalError.fatal_error_msg
+          [%message "Internal error: expected Tuple with TupleTransformation"]
+  in
+  let psts = tuple_psts pst in
+  List.zip_exn psts tms

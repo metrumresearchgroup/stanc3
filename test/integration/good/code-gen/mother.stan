@@ -6,16 +6,12 @@
 //      generate_transform_inits_method(prog.parameter_decl_, o);
 
 functions {
-  int foo(int n);
 
   int foo(int n) {
     if (n == 0)
       return 1;
     return n * foo(n - 1);
   }
-
-  array[] real sho(real t, array[] real y, array[] real theta,
-                   data array[] real x, data array[] int x_int);
 
   array[] real sho(real t, array[] real y, array[] real theta,
                    data array[] real x, data array[] int x_int) {
@@ -187,8 +183,8 @@ functions {
     return x + target();
   }
 
-  void foo_4(real x) {
-    reject("user-specified rejection", x);
+  void foo_4(array[] real x) {
+    reject("user-specified rejection", x[1], "; ", x);
   }
 
   real relative_diff(real x, real y, real max_, real min_) {

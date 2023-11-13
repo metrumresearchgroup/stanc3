@@ -4,9 +4,7 @@ type t
 
 val pp : Format.formatter -> t -> unit
 val location : t -> Location_span.t
-
-val mismatched_return_types :
-  Location_span.t -> UnsizedType.returntype -> UnsizedType.returntype -> t
+val invalid_return : Location_span.t -> UnsizedType.t -> UnsizedType.t -> t
 
 val mismatched_array_types :
   Location_span.t -> UnsizedType.t -> UnsizedType.t -> t
@@ -42,23 +40,10 @@ val returning_fn_expected_undeclared_dist_suffix_found :
 val returning_fn_expected_wrong_dist_suffix_found :
   Location_span.t -> string * string -> t
 
+val illtyped_reduce_sum_not_array : Location_span.t -> UnsizedType.t -> t
+val illtyped_reduce_sum_slice : Location_span.t -> UnsizedType.t -> t
+
 val illtyped_reduce_sum :
-     Location_span.t
-  -> string
-  -> UnsizedType.t list
-  -> (UnsizedType.autodifftype * UnsizedType.t) list
-  -> SignatureMismatch.function_mismatch
-  -> t
-
-val illtyped_reduce_sum_generic :
-     Location_span.t
-  -> string
-  -> UnsizedType.t list
-  -> (UnsizedType.autodifftype * UnsizedType.t) list
-  -> SignatureMismatch.function_mismatch
-  -> t
-
-val illtyped_variadic_ode :
      Location_span.t
   -> string
   -> UnsizedType.t list
@@ -74,11 +59,12 @@ val ambiguous_function_promotion :
      list
   -> t
 
-val illtyped_variadic_dae :
+val illtyped_variadic :
      Location_span.t
   -> string
   -> UnsizedType.t list
   -> (UnsizedType.autodifftype * UnsizedType.t) list
+  -> UnsizedType.t
   -> SignatureMismatch.function_mismatch
   -> t
 
@@ -100,13 +86,14 @@ val illtyped_binary_op :
 
 val illtyped_prefix_op : Location_span.t -> Operator.t -> UnsizedType.t -> t
 val illtyped_postfix_op : Location_span.t -> Operator.t -> UnsizedType.t -> t
+val tuple_index_invalid_index : Location_span.t -> int -> int -> t
+val tuple_index_not_tuple : Location_span.t -> UnsizedType.t -> t
 val not_indexable : Location_span.t -> UnsizedType.t -> int -> t
 val ident_is_keyword : Location_span.t -> string -> t
 val ident_is_model_name : Location_span.t -> string -> t
 val ident_is_stanmath_name : Location_span.t -> string -> t
 val ident_in_use : Location_span.t -> string -> t
 val ident_not_in_scope : Location_span.t -> string -> string option -> t
-val invalid_map_rect_fn : Location_span.t -> string -> t
 val invalid_decl_rng_fn : Location_span.t -> t
 val invalid_rng_fn : Location_span.t -> t
 val invalid_unnormalized_fn : Location_span.t -> t
@@ -116,6 +103,7 @@ val conditional_notation_not_allowed : Location_span.t -> t
 val conditioning_required : Location_span.t -> t
 val not_printable : Location_span.t -> t
 val empty_array : Location_span.t -> t
+val empty_tuple : Location_span.t -> t
 val bad_int_literal : Location_span.t -> t
 val cannot_assign_to_read_only : Location_span.t -> string -> t
 val cannot_assign_to_global : Location_span.t -> string -> t
@@ -123,14 +111,16 @@ val cannot_assign_function : Location_span.t -> UnsizedType.t -> string -> t
 val cannot_assign_to_multiindex : Location_span.t -> t
 val invalid_sampling_pdf_or_pmf : Location_span.t -> t
 val invalid_sampling_cdf_or_ccdf : Location_span.t -> string -> t
-val invalid_sampling_no_such_dist : Location_span.t -> string -> t
-val target_plusequals_outisde_model_or_logprob : Location_span.t -> t
-val invalid_truncation_cdf_or_ccdf : Location_span.t -> t
-val multivariate_truncation : Location_span.t -> t
+val invalid_sampling_no_such_dist : Location_span.t -> string -> bool -> t
+val target_plusequals_outside_model_or_logprob : Location_span.t -> t
+
+val invalid_truncation_cdf_or_ccdf :
+  Location_span.t -> (UnsizedType.autodifftype * UnsizedType.t) list -> t
+
 val break_outside_loop : Location_span.t -> t
 val continue_outside_loop : Location_span.t -> t
 val expression_return_outside_returning_fn : Location_span.t -> t
-val void_ouside_nonreturning_fn : Location_span.t -> t
+val void_outside_nonreturning_fn : Location_span.t -> t
 val non_data_variable_size_decl : Location_span.t -> t
 val non_int_bounds : Location_span.t -> t
 val complex_transform : Location_span.t -> t
@@ -147,7 +137,7 @@ val fn_decl_redefined :
   Location_span.t -> string -> stan_math:bool -> UnsizedType.t -> t
 
 val fn_decl_exists : Location_span.t -> string -> t
-val fn_decl_without_def : Location_span.t -> t
+val fn_decl_without_def : Location_span.t -> string -> t
 val fn_decl_needs_block : Location_span.t -> t
 val non_real_prob_fn_def : Location_span.t -> t
 val prob_density_non_real_variate : Location_span.t -> UnsizedType.t option -> t

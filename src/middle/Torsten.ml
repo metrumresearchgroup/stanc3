@@ -45,7 +45,6 @@ let pmx_variadic_ode_fns =
     ; "pmx_ode_ckrk_ctrl" ]
 
 let pmx_ode_control_suffix = "_ctrl"
-let is_pmx_variadic_ode_fn f = Set.mem pmx_variadic_ode_fns f
 
 let pmx_integrate_ode_arg =
   [ (UnsizedType.AutoDiffable, UnsizedType.UArray UReal) (* y0 *)

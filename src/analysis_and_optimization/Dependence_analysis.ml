@@ -175,9 +175,9 @@ let mir_uninitialized_variables (mir : Program.Typed.t) :
       (Set.Poly.singleton "target") in
   let parameters =
     Set.Poly.of_list
-      (List.map ~f:fst
+      (List.map ~f:fst3
          (List.filter
-            ~f:(fun (_, {out_block; _}) -> out_block = Parameters)
+            ~f:(fun (_, _, {out_block; _}) -> out_block = Parameters)
             mir.output_vars ) ) in
   let globals_data = Set.Poly.union globals data_vars in
   let globals_data_prep =
@@ -189,6 +189,9 @@ let mir_uninitialized_variables (mir : Program.Typed.t) :
       (* log_prob scope: data, prep declarations *)
     ; stmt_uninitialized_variables globals_data_prep
         {pattern= SList mir.log_prob; meta= Location_span.empty}
+      (* log_prob scope: data, prep declarations *)
+    ; stmt_uninitialized_variables globals_data_prep
+        {pattern= SList mir.reverse_mode_log_prob; meta= Location_span.empty}
       (* gen quant scope: data, prep declarations *)
     ; stmt_uninitialized_variables globals_data_prep
         {pattern= SList mir.generate_quantities; meta= Location_span.empty}

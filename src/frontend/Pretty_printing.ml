@@ -13,8 +13,8 @@ let comments : comment_type list ref = ref []
 
 let skipped = ref []
 
-let set_comments ?(inline_includes = false) ls =
-  let filtered =
+let set_comments ?(inline_includes = false) ?(strip_comments = false) ls =
+  let includes_filtered =
     if inline_includes then
       List.filter ~f:(function Include _ -> false | _ -> true) ls
     else
@@ -28,7 +28,13 @@ let set_comments ?(inline_includes = false) ls =
               false
           | _ -> true )
         ls in
-  comments := filtered
+  let stripped =
+    if strip_comments then
+      List.filter
+        ~f:(function LineComment _ | BlockComment _ -> false | _ -> true)
+        includes_filtered
+    else includes_filtered in
+  comments := stripped
 
 let get_comments end_loc =
   let rec go ls =
@@ -177,15 +183,6 @@ let indented_box ?(offset = 0) pp_v ppf v =
 let pp_unsizedtype = Middle.UnsizedType.pp
 let pp_autodifftype = Middle.UnsizedType.pp_autodifftype
 
-let rec unwind_sized_array_type st =
-  match st with
-  | Middle.SizedType.SInt | SReal | SComplex | SVector _ | SRowVector _
-   |SMatrix _ | SComplexMatrix _ | SComplexVector _ | SComplexRowVector _ ->
-      (st, [])
-  | SArray (st, dim) ->
-      let st', dims = unwind_sized_array_type st in
-      (st', dim :: dims)
-
 let pp_returntype ppf = function
   | Middle.UnsizedType.ReturnType x -> pp_unsizedtype ppf x
   | Void -> pf ppf "void"
@@ -281,10 +278,11 @@ and pp_expression ppf ({expr= e_content; emeta= {loc; _}} : untyped_expression)
   | RowVectorExpr es -> pf ppf "[@[%a]@]" pp_list_of_expression (es, loc)
   | Paren e -> pf ppf "(%a)" pp_expression e
   | Promotion (e, _, _) -> pp_expression ppf e
-  | Indexed (e, l) -> (
-    match l with
-    | [] -> pf ppf "%a" pp_expression e
-    | l -> pf ppf "%a[%a]" pp_expression e pp_list_of_indices l )
+  | Indexed (e, l) -> pf ppf "%a[%a]" pp_expression e pp_list_of_indices l
+  | TupleProjection (e, i) -> pf ppf "%a.%d" pp_expression e i
+  | TupleExpr es ->
+      pf ppf "(@[%a%s@])" pp_list_of_expression (es, loc)
+        (if List.length es = 1 then "," else "")
 
 and pp_list_of_expression ppf es =
   let loc_of (x : untyped_expression) = x.emeta.loc in
@@ -311,24 +309,6 @@ let pp_printable ppf = function
 
 let pp_list_of_printables ppf l = (hovbox @@ list ~sep:comma pp_printable) ppf l
 
-let rec pp_sizedtype ppf = function
-  | Middle.SizedType.SInt -> pf ppf "int"
-  | SReal -> pf ppf "real"
-  | SComplex -> pf ppf "complex"
-  | SVector (_, e) -> pf ppf "vector[%a]" pp_expression e
-  | SRowVector (_, e) -> pf ppf "row_vector[%a]" pp_expression e
-  | SMatrix (_, e1, e2) ->
-      pf ppf "matrix[%a, %a]" pp_expression e1 pp_expression e2
-  | SComplexVector e -> pf ppf "complex_vector[%a]" pp_expression e
-  | SComplexRowVector e -> pf ppf "complex_row_vector[%a]" pp_expression e
-  | SComplexMatrix (e1, e2) ->
-      pf ppf "complex_matrix[%a, %a]" pp_expression e1 pp_expression e2
-  | SArray _ as arr ->
-      let ty, ixs = unwind_sized_array_type arr in
-      pf ppf "array[@[%a@]]@ %a"
-        (list ~sep:comma pp_expression)
-        ixs pp_sizedtype ty
-
 let pp_bracketed_transform ppf = function
   | Middle.Transformation.Lower e -> pf ppf "<@[lower=%a@]>" pp_expression e
   | Upper e -> pf ppf "<@[upper=%a@]>" pp_expression e
@@ -339,10 +319,11 @@ let pp_bracketed_transform ppf = function
   | OffsetMultiplier (e1, e2) ->
       pf ppf "<@[offset=%a,@ multiplier=%a@]>" pp_expression e1 pp_expression e2
   | Identity | Ordered | PositiveOrdered | Simplex | UnitVector | CholeskyCorr
-   |CholeskyCov | Correlation | Covariance ->
+   |CholeskyCov | Correlation | Covariance | TupleTransformation _
+  (* tuple transformations are handled in pp_transformed_type *) ->
       ()
 
-let pp_transformed_type ppf (st, trans) =
+let rec pp_transformed_type ppf (st, trans) =
   let open Middle in
   let pp_possibly_transformed_type ppf (st, trans) =
     let sizes_fmt =
@@ -354,7 +335,7 @@ let pp_transformed_type ppf (st, trans) =
           const (fun ppf -> pf ppf "[%a]" pp_expression) e
       | SMatrix (_, e1, e2) | SComplexMatrix (e1, e2) ->
           const (fun ppf -> pf ppf "[%a, %a]" pp_expression e1 pp_expression) e2
-      | SArray _ | SInt | SReal | SComplex -> nop in
+      | SArray _ | SInt | SReal | SComplex | STuple _ -> nop in
     let cov_sizes_fmt =
       match st with
       | SMatrix (_, e1, e2) ->
@@ -365,7 +346,8 @@ let pp_transformed_type ppf (st, trans) =
               e2
       | _ -> nop in
     match trans with
-    | Transformation.Identity -> pf ppf "%a" pp_sizedtype st
+    | Transformation.Identity ->
+        pf ppf "%a" (Middle.SizedType.pp pp_expression) st
     | Lower _ | Upper _ | LowerUpper _ | Offset _ | Multiplier _
      |OffsetMultiplier _ ->
         pf ppf "%a%a%a" pp_unsizedtype (SizedType.to_unsized st)
@@ -377,11 +359,18 @@ let pp_transformed_type ppf (st, trans) =
     | CholeskyCorr -> pf ppf "cholesky_factor_corr%a" cov_sizes_fmt ()
     | CholeskyCov -> pf ppf "cholesky_factor_cov%a" cov_sizes_fmt ()
     | Correlation -> pf ppf "corr_matrix%a" cov_sizes_fmt ()
-    | Covariance -> pf ppf "cov_matrix%a" cov_sizes_fmt () in
+    | Covariance -> pf ppf "cov_matrix%a" cov_sizes_fmt ()
+    | TupleTransformation transforms ->
+        (* NB this calls the top-level function to handle internal arrays etc *)
+        let transTypes = Middle.Utils.zip_stuple_trans_exn st transforms in
+        pf ppf "tuple(@[%a%s@])"
+          (list ~sep:comma pp_transformed_type)
+          transTypes
+          (if List.length transforms = 1 then "," else "") in
   match st with
   (* array goes before something like cov_matrix *)
   | Middle.SizedType.SArray _ ->
-      let ty, ixs = unwind_sized_array_type st in
+      let ty, ixs = Middle.SizedType.get_array_dims st in
       let ({emeta= {loc= {end_loc; _}; _}; _} : untyped_expression) =
         List.last_exn ixs in
       let ({emeta= {loc= {begin_loc; _}; _}; _} : untyped_expression) =
@@ -457,17 +446,13 @@ and pp_statement ppf ({stmt= s_content; smeta= {loc}} as ss : untyped_statement)
       pf ppf "profile(%s) {@,%a@,}" name
         (indented_box pp_list_of_statements)
         (vdsl, loc)
-  | VarDecl
-      { decl_type= pst
-      ; transformation= trans
-      ; identifier= id
-      ; initial_value= init
-      ; is_global= _ } ->
-      let pp_init ppf init =
-        match init with None -> () | Some e -> pf ppf " = %a" pp_expression e
-      in
-      pf ppf "@[<h>%a %a%a;@]" pp_transformed_type (pst, trans) pp_identifier id
-        pp_init init
+  | VarDecl {decl_type= pst; transformation= trans; variables; is_global= _} ->
+      let pp_var ppf {identifier; initial_value} =
+        pf ppf "%a%a" pp_identifier identifier
+          (option (fun ppf e -> pf ppf " = %a" pp_expression e))
+          initial_value in
+      pf ppf "@[<h>%a %a;@]" pp_transformed_type (pst, trans)
+        (list ~sep:comma pp_var) variables
   | FunDef {returntype= rt; funname= id; arguments= args; body= b} -> (
       let loc_of (_, _, id) = id.id_loc in
       pf ppf "%a %a(%a" pp_returntype rt pp_identifier id
@@ -517,7 +502,7 @@ let rec pp_block_list ppf = function
         pp_block_list ppf tl )
   | [] -> pp_spacing None None ppf (remaining_comments ())
 
-let pp_program ~bare_functions ~line_length ~inline_includes ppf
+let pp_program ~bare_functions ~line_length ~inline_includes ~strip_comments ppf
     { functionblock= bf
     ; datablock= bd
     ; transformeddatablock= btd
@@ -527,7 +512,7 @@ let pp_program ~bare_functions ~line_length ~inline_includes ppf
     ; generatedquantitiesblock= bgq
     ; comments } =
   Format.pp_set_margin ppf line_length ;
-  set_comments ~inline_includes comments ;
+  set_comments ~inline_includes ~strip_comments comments ;
   print_included := inline_includes ;
   Format.pp_open_vbox ppf 0 ;
   if bare_functions then pp_bare_block ppf @@ Option.value_exn bf
@@ -543,18 +528,19 @@ let pp_program ~bare_functions ~line_length ~inline_includes ppf
 
 let check_correctness ?(bare_functions = false) prog pretty =
   let result_ast =
-    try
-      let res, (_ : Warnings.t list) =
-        if bare_functions then
-          Parse.parse_string Parser.Incremental.functions_only pretty
-        else Parse.parse_string Parser.Incremental.program pretty in
-      Option.value_exn (Result.ok res)
-    with _ ->
-      Common.FatalError.fatal_error_msg
-        [%message
-          "Pretty-printed program failed to parse"
-            (prog : Ast.untyped_program)
-            pretty] in
+    let res, (_ : Warnings.t list) =
+      if bare_functions then
+        Parse.parse_string Parser.Incremental.functions_only pretty
+      else Parse.parse_string Parser.Incremental.program pretty in
+    match res with
+    | Ok prog -> prog
+    | Error e ->
+        let error = Errors.to_string e in
+        Common.FatalError.fatal_error_msg
+          [%message
+            "Pretty-printed program failed to parse" error
+              (prog : Ast.untyped_program)
+              pretty] in
   if compare_untyped_program prog result_ast <> 0 then
     Common.FatalError.fatal_error_msg
       [%message
@@ -566,13 +552,16 @@ let pp_typed_expression ppf e =
   pp_expression ppf (untyped_expression_of_typed_expression e)
 
 let pretty_print_program ?(bare_functions = false) ?(line_length = 78)
-    ?(inline_includes = false) p =
+    ?(inline_includes = false) ?(strip_comments = false) p =
   let result =
-    str "%a" (pp_program ~bare_functions ~line_length ~inline_includes) p in
+    str "%a"
+      (pp_program ~bare_functions ~line_length ~inline_includes ~strip_comments)
+      p in
   check_correctness ~bare_functions p result ;
   result
 
 let pretty_print_typed_program ?(bare_functions = false) ?(line_length = 78)
-    ?(inline_includes = false) p =
+    ?(inline_includes = false) ?(strip_comments = false) p =
   pretty_print_program ~bare_functions ~line_length ~inline_includes
+    ~strip_comments
     (untyped_program_of_typed_program p)

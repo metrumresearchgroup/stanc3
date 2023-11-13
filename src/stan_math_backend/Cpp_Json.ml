@@ -4,7 +4,8 @@ module Str = Re.Str
 
 let rec sizedtype_to_json (st : Expr.Typed.t SizedType.t) : Yojson.Basic.t =
   let emit_cpp_expr e =
-    Fmt.str "+ std::to_string(%a) +" Expression_gen.pp_expr e in
+    Fmt.str "+ std::to_string(%a) +" Cpp.Printing.pp_expr
+      (Lower_expr.lower_expr e) in
   match st with
   | SInt -> `Assoc [("name", `String "int")]
   | SReal -> `Assoc [("name", `String "real")]
@@ -28,6 +29,11 @@ let rec sizedtype_to_json (st : Expr.Typed.t SizedType.t) : Yojson.Basic.t =
       `Assoc
         [ ("name", `String "array"); ("length", `String (emit_cpp_expr d))
         ; ("element_type", sizedtype_to_json st) ]
+  | STuple subtypes ->
+      `Assoc
+        [ ("name", `String "tuple")
+        ; ("num_elements", `String (string_of_int (List.length subtypes)))
+        ; ("element_types", `List (List.map ~f:sizedtype_to_json subtypes)) ]
 
 let out_var_json (name, st, block) : Yojson.Basic.t =
   `Assoc

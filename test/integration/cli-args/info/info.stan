@@ -17,13 +17,19 @@ data {
   int a;
   real b;
   vector[2] c;
-  row_vector[3] d;
+  row_vector[3] d1,d2;
   matrix[2,2] e;
   array[5] int f;
   array[6] real g;
   array[7] vector[1] h;
   array[2] matrix[2,2] i;
   array[3,1,3] int j;
+  array[2] complex cplx;
+  complex_vector[4] cplx_vec;
+  complex_row_vector[a] cplx_row;
+  complex_matrix[2,4] cplx_mat;
+  
+  array[2] tuple(int, real, tuple(real, array[10] int)) tuples;
 }
 
 transformed data {
@@ -57,6 +63,10 @@ model {
     target += std_normal_lupdf(y);
     target += reduce_sum(f_lpdf, g, 1);
     y ~ goo();
+    print("hello world");
+    if (0) {
+      reject("goodbye");
+    }
 }
 
 generated quantities {

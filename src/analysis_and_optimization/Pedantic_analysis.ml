@@ -245,10 +245,10 @@ let list_param_dependant_fundef_cf (mir : Program.Typed.t)
         Set.Poly.map dep_args ~f:(fun (loc, ix, arg_name) ->
             (loc, List.nth_exn arg_exprs ix, arg_name) )
     | _ ->
-        raise
-          (Failure
-             "In finding searching for parameter dependent functionarguments, \
-              mismatched function. Please report a bug.\n" ) in
+        Common.FatalError.fatal_error_msg
+          [%message
+            "In finding searching for parameter dependent function arguments, \
+             mismatched function."] in
   let arg_param_deps label arg_expr =
     var_deps info_map ~expr:(Some arg_expr) label (parameter_names_set mir)
   in
@@ -449,7 +449,12 @@ let unused_params_warnings (factor_graph : factor_graph) (mir : Program.Typed.t)
     (list_unused_params factor_graph mir)
 
 let non_one_priors_message (pname : string) (n : int) : string =
-  if n = 0 then Printf.sprintf "The parameter %s has no priors." pname
+  if n = 0 then
+    Printf.sprintf
+      "The parameter %s has no priors. This means either no prior is provided, \
+       or the prior(s) depend on data variables. In the later case, this may \
+       be a false positive."
+      pname
   else Printf.sprintf "The parameter %s has %d priors." pname n
 
 let non_one_priors_warnings (factor_graph : factor_graph) (mir : Program.Typed.t)

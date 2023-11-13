@@ -31,11 +31,11 @@ transformed parameters {
 `
 
 var opt_test = stanc.stanc("optimization", ad_model, ["O1"]);
-var ind = opt_test.result.search("\\<double, -1, -1\\> X_tp1");
+var ind = opt_test.result.search("\\<double,-1,-1\\> X_tp1");
 console.assert(ind > -1, "ERROR: No AD optimization with the O1 flag!")
 
 var opt_test = stanc.stanc("optimization", ad_model, ["O0"]);
-var ind = opt_test.result.search("\\<local_scalar_t__, -1, -1\\> X_tp1");
+var ind = opt_test.result.search("\\<local_scalar_t__,-1,-1\\> X_tp1");
 console.assert(ind > -1, "ERROR: AD optimization without the O1 flag!")
 
 var glm_model = `
@@ -103,3 +103,5 @@ utils.print_error(opencl_test)
 var ind = opencl_test.result.search("matrix_cl<int> y_opencl__");
 console.assert(ind > -1, "ERROR: No OpenCL code found with the use-opencl flag!")
 
+// test that the stanc flags are placed in the model correctly
+console.log(opencl_test.result.match(/"stancflags = .*"/)[0])

@@ -55,7 +55,13 @@ let trans_bounds_values (trans : Expr.Typed.t Transformation.t) : bound_values =
   | PositiveOrdered -> {lower= `Lit 0.; upper= `None}
   | UnitVector -> {lower= `Lit (-1.); upper= `Lit 1.}
   | CholeskyCorr | CholeskyCov | Correlation | Covariance | Ordered | Offset _
-   |Multiplier _ | OffsetMultiplier _ | Identity ->
+   |Multiplier _ | OffsetMultiplier _
+   |Identity
+    (* This is a stub, but,
+       until we define a distribution which accepts a tuple,
+       this doesn't matter.
+    *)
+   |TupleTransformation _ ->
       {lower= `None; upper= `None}
 
 let chop_dist_name (fname : string) : string Option.t =
@@ -77,8 +83,9 @@ let data_set ?(exclude_transformed = false) ?(exclude_ints = false)
   let data = Set.Poly.of_list mir.input_vars in
   (* Possibly remove ints from the data set *)
   let filtered_data =
-    let remove_ints = Set.Poly.filter ~f:(fun (_, st) -> st <> SizedType.SInt) in
-    Set.Poly.map ~f:fst ((if exclude_ints then remove_ints else ident) data)
+    let remove_ints =
+      Set.Poly.filter ~f:(fun (_, _, st) -> st <> SizedType.SInt) in
+    Set.Poly.map ~f:fst3 ((if exclude_ints then remove_ints else ident) data)
   in
   (* Transformed data are declarations in prepare_data but excluding data *)
   if exclude_transformed then filtered_data
@@ -87,15 +94,15 @@ let data_set ?(exclude_transformed = false) ?(exclude_ints = false)
       Set.Poly.diff
         (Set.Poly.union_list
            (List.map ~f:top_var_declarations mir.prepare_data) )
-        (Set.Poly.map ~f:fst data) in
+        (Set.Poly.map ~f:fst3 data) in
     Set.Poly.union trans_data filtered_data
 
 let parameter_set ?(include_transformed = false) (mir : Program.Typed.t) =
   Set.Poly.of_list
     (List.map
-       ~f:(fun (pname, {out_trans; _}) -> (pname, out_trans))
+       ~f:(fun (pname, _, {out_trans; _}) -> (pname, out_trans))
        (List.filter
-          ~f:(fun (_, {out_block; _}) ->
+          ~f:(fun (_, _, {out_block; _}) ->
             out_block = Parameters
             || (include_transformed && out_block = TransformedParameters) )
           mir.output_vars ) )
@@ -109,7 +116,7 @@ let rec var_declarations Stmt.Fixed.{pattern; _} : string Set.Poly.t =
   | IfElse (_, s, None) | While (_, s) | For {body= s; _} -> var_declarations s
   | IfElse (_, s1, Some s2) ->
       Set.Poly.union (var_declarations s1) (var_declarations s2)
-  | Block slist | SList slist ->
+  | Block slist | SList slist | Profile (_, slist) ->
       Set.Poly.union_list (List.map ~f:var_declarations slist)
   | _ -> Set.Poly.empty
 
@@ -155,23 +162,6 @@ let map_rec_stmt_loc_num flowgraph_to_mir f s =
       ; meta= stmt.meta } in
   map_rec_stmt_loc_num' 1 s
 
-let map_rec_state_stmt_loc_num
-    (flowgraph_to_mir : (int, Stmt.Located.Non_recursive.t) Map.Poly.t)
-    (f :
-         int
-      -> 's
-      -> (Expr.Typed.t, Stmt.Located.t) Stmt.Fixed.Pattern.t
-      -> (Expr.Typed.t, Stmt.Located.t) Stmt.Fixed.Pattern.t * 's ) (state : 's)
-    (s : Stmt.Located.Non_recursive.t) : Stmt.Located.t * 's =
-  let cur_state = ref state in
-  let g i stmt =
-    let stmt, state = f i !cur_state stmt in
-    cur_state := state ;
-    stmt in
-  let stmt = map_rec_stmt_loc_num flowgraph_to_mir g s in
-  let state = !cur_state in
-  (stmt, state)
-
 let stmt_loc_of_stmt_loc_num flowgraph_to_mir s =
   (* (flowgraph_to_mir : (int, stmt_loc_num) Map.Poly.t) (s : stmt_loc_num) = *)
   map_rec_stmt_loc_num flowgraph_to_mir (fun _ s' -> s') s
@@ -183,7 +173,7 @@ let statement_stmt_loc_of_statement_stmt_loc_num flowgraph_to_mir pattern =
 
 (** Forgetful function from numbered to unnumbered programs *)
 let unnumbered_prog_of_numbered_prog flowgraph_to_mir p =
-  Program.map (stmt_loc_of_stmt_loc_num flowgraph_to_mir) p
+  Program.map (stmt_loc_of_stmt_loc_num flowgraph_to_mir) p Fn.id
 
 (** See interface file *)
 let fwd_traverse_statement stmt ~init ~f =
@@ -254,6 +244,7 @@ let rec expr_var_set Expr.Fixed.{pattern; meta} =
   | Indexed (expr, ix) ->
       Set.Poly.union_list (expr_var_set expr :: List.map ix ~f:index_var_set)
   | Promotion (expr, _, _) -> expr_var_set expr
+  | TupleProjection (expr, _) -> expr_var_set expr
   | EAnd (expr1, expr2) | EOr (expr1, expr2) -> union_recur [expr1; expr2]
 
 and index_var_set ix =
@@ -276,7 +267,7 @@ let stmt_rhs stmt =
       Set.Poly.of_list (exprs @ Fun_kind.collect_exprs kind)
   | IfElse (rhs, _, _)
    |While (rhs, _)
-   |Assignment (_, rhs)
+   |Assignment (_, _, rhs)
    |TargetPE rhs
    |Return (Some rhs) ->
       Set.Poly.singleton rhs
@@ -305,10 +296,6 @@ let rec summation_terms (Expr.Fixed.{pattern; _} as rhs) =
       List.append (summation_terms e1) (summation_terms e2)
   | _ -> [rhs]
 
-(** See interface file *)
-let stmt_of_block b =
-  Stmt.Fixed.{pattern= SList b; meta= Stmt.Located.Meta.empty}
-
 let rec fn_subst_expr m e =
   match m e with
   | Some e' ->
@@ -324,7 +311,7 @@ let fn_subst_idx m = Index.map (fn_subst_expr m)
 let fn_subst_stmt_base_helper g h b =
   Stmt.Fixed.Pattern.(
     match b with
-    | Assignment ((x, ut, l), e2) -> Assignment ((x, ut, List.map ~f:h l), g e2)
+    | Assignment ((x, l), ut, e2) -> Assignment ((x, List.map ~f:h l), ut, g e2)
     | x -> map g (fun y -> y) x)
 
 let fn_subst_stmt_base m =
@@ -356,8 +343,6 @@ let expr_subst_idx m = Index.map (expr_subst_expr m)
 let expr_subst_stmt_base m =
   fn_subst_stmt_base_helper (expr_subst_expr m) (expr_subst_idx m)
 
-let expr_subst_stmt m = map_rec_stmt_loc (expr_subst_stmt_base m)
-
 let rec expr_depth Expr.Fixed.{pattern; _} =
   match pattern with
   | Var _ | Lit (_, _) -> 0
@@ -381,6 +366,7 @@ let rec expr_depth Expr.Fixed.{pattern; _} =
       1
       + Option.value ~default:0
           (List.max_elt ~compare:compare_int (List.map ~f:expr_depth [e1; e2]))
+  | TupleProjection (e, _) -> 1 + expr_depth e
 
 and idx_depth i =
   match i with
@@ -388,52 +374,64 @@ and idx_depth i =
   | Single e | Upfrom e | MultiIndex e -> expr_depth e
   | Between (e1, e2) -> max (expr_depth e1) (expr_depth e2)
 
-let ad_level_sup l =
-  if List.exists l ~f:(fun x -> Expr.Typed.adlevel_of x = AutoDiffable) then
-    UnsizedType.AutoDiffable
-  else DataOnly
-
 let rec update_expr_ad_levels autodiffable_variables
     (Expr.Fixed.{pattern; _} as e) =
+  let max_adlevel l =
+    let base =
+      if
+        List.exists l ~f:(fun x ->
+            UnsizedType.is_autodifftype @@ Expr.Typed.adlevel_of x )
+      then UnsizedType.AutoDiffable
+      else DataOnly in
+    UnsizedType.fill_adtype_for_type base Expr.Typed.Meta.(e.meta.type_) in
   match pattern with
   | Var x ->
-      if Set.Poly.mem autodiffable_variables x then
-        Expr.Typed.{e with meta= Meta.{e.meta with adlevel= AutoDiffable}}
-      else {e with meta= {e.meta with adlevel= DataOnly}}
+      if Set.Poly.mem autodiffable_variables x then e
+      else
+        let adlevel =
+          UnsizedType.fill_adtype_for_type DataOnly
+            Expr.Typed.Meta.(e.meta.type_) in
+        {e with meta= {e.meta with adlevel}}
   | Lit (_, _) -> {e with meta= {e.meta with adlevel= DataOnly}}
   | FunApp (kind, l) ->
       let kind' =
         Fun_kind.map (update_expr_ad_levels autodiffable_variables) kind in
       let l = List.map ~f:(update_expr_ad_levels autodiffable_variables) l in
-      {pattern= FunApp (kind', l); meta= {e.meta with adlevel= ad_level_sup l}}
+      {pattern= FunApp (kind', l); meta= {e.meta with adlevel= max_adlevel l}}
   | TernaryIf (e1, e2, e3) ->
       let e1 = update_expr_ad_levels autodiffable_variables e1 in
       let e2 = update_expr_ad_levels autodiffable_variables e2 in
       let e3 = update_expr_ad_levels autodiffable_variables e3 in
       { pattern= TernaryIf (e1, e2, e3)
-      ; meta= {e.meta with adlevel= ad_level_sup [e1; e2; e3]} }
+      ; meta= {e.meta with adlevel= max_adlevel [e1; e2; e3]} }
   | EAnd (e1, e2) ->
       let e1 = update_expr_ad_levels autodiffable_variables e1 in
       let e2 = update_expr_ad_levels autodiffable_variables e2 in
-      { pattern= EAnd (e1, e2)
-      ; meta= {e.meta with adlevel= ad_level_sup [e1; e2]} }
+      {pattern= EAnd (e1, e2); meta= {e.meta with adlevel= max_adlevel [e1; e2]}}
   | EOr (e1, e2) ->
       let e1 = update_expr_ad_levels autodiffable_variables e1 in
       let e2 = update_expr_ad_levels autodiffable_variables e2 in
-      {pattern= EOr (e1, e2); meta= {e.meta with adlevel= ad_level_sup [e1; e2]}}
+      {pattern= EOr (e1, e2); meta= {e.meta with adlevel= max_adlevel [e1; e2]}}
   | Promotion (expr, ut, ad) ->
       let expr' = update_expr_ad_levels autodiffable_variables expr in
       { pattern= Promotion (expr', ut, ad)
-      ; meta= {e.meta with adlevel= ad_level_sup [expr']} }
+      ; meta= {e.meta with adlevel= max_adlevel [expr']} }
   | Indexed (ixed, i_list) ->
       let ixed = update_expr_ad_levels autodiffable_variables ixed in
       let i_list =
         List.map ~f:(update_idx_ad_levels autodiffable_variables) i_list in
       { pattern= Indexed (ixed, i_list)
-      ; meta=
-          { e.meta with
-            adlevel= ad_level_sup (e :: List.concat_map ~f:Index.bounds i_list)
-          } }
+      ; meta= {e.meta with adlevel= ixed.meta.adlevel} }
+  | TupleProjection (e, ix) ->
+      (* TODO For the purposes of program analysis, tuples
+         _should_ be treated as n Vars. So for example,
+         autodiffable_variables should possibly include tuple.1 but not tuple.2
+         In the mean time, what's the most conservative?
+         Make the whole thing AD when any part is?
+      *)
+      let e' = update_expr_ad_levels autodiffable_variables e in
+      { pattern= TupleProjection (e', ix)
+      ; meta= {e.meta with adlevel= e'.meta.adlevel} }
 
 and update_idx_ad_levels autodiffable_variables =
   Index.map (update_expr_ad_levels autodiffable_variables)
@@ -454,6 +452,7 @@ let cleanup_empty_stmts stmts =
   let is_decl = function {pattern= Decl _; _} -> true | _ -> false in
   let flatten_block s =
     match s.pattern with
+    (* NB: Does not include Profile since we don't want to remove those blocks *)
     | SList ls | Block ls ->
         if List.for_all ~f:(Fn.non is_decl) ls then ls else [s]
     | _ -> [s] in
@@ -493,6 +492,7 @@ let unsafe_unsized_to_sized_type (rt : Expr.Typed.t Type.t) =
             SComplexMatrix (Expr.Helpers.int 0, Expr.Helpers.int 0)
         | UComplexVector -> SComplexVector (Expr.Helpers.int 0)
         | UComplexRowVector -> SComplexRowVector (Expr.Helpers.int 0)
+        | UTuple ts -> STuple (List.map ~f:to_sized ts)
         | UFun (_, UnsizedType.ReturnType inner_ut, _, _) -> to_sized inner_ut
         | UFun (_, Void, _, _) | UMathLibraryFunction ->
             Common.FatalError.fatal_error_msg

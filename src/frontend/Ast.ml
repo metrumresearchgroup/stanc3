@@ -52,6 +52,8 @@ type ('e, 'f) expression =
   | RowVectorExpr of 'e list
   | Paren of 'e
   | Indexed of 'e * 'e index list
+  | TupleProjection of 'e * int
+  | TupleExpr of 'e list
 [@@deriving sexp, hash, compare, map, fold]
 
 type ('m, 'f) expr_with = {expr: (('m, 'f) expr_with, 'f) expression; emeta: 'm}
@@ -113,6 +115,7 @@ type 'e printable = PString of string | PExpr of 'e
 type ('l, 'e) lvalue =
   | LVariable of identifier
   | LIndexed of 'l * 'e index list
+  | LTupleProjection of 'l * int
 [@@deriving sexp, hash, compare, map, fold]
 
 type ('e, 'm) lval_with = {lval: (('e, 'm) lval_with, 'e) lvalue; lmeta: 'm}
@@ -122,6 +125,9 @@ type untyped_lval = (untyped_expression, located_meta) lval_with
 [@@deriving sexp, hash, compare, map, fold]
 
 type typed_lval = (typed_expression, typed_expr_meta) lval_with
+[@@deriving sexp, hash, compare, map, fold]
+
+type 'e variable = {identifier: identifier; initial_value: 'e option}
 [@@deriving sexp, hash, compare, map, fold]
 
 (** Statement shapes, where we substitute untyped_expression and untyped_statement
@@ -158,9 +164,8 @@ type ('e, 's, 'l, 'f) statement =
   | VarDecl of
       { decl_type: 'e SizedType.t
       ; transformation: 'e Transformation.t
-      ; identifier: identifier
-      ; initial_value: 'e option
-      ; is_global: bool }
+      ; is_global: bool
+      ; variables: 'e variable list }
   | FunDef of
       { returntype: UnsizedType.returntype
       ; funname: identifier
@@ -171,18 +176,17 @@ type ('e, 's, 'l, 'f) statement =
 [@@deriving sexp, hash, compare, map, fold]
 
 (** Statement return types which we will decorate statements with during type
-    checking: the purpose is to check that function bodies have the correct
-    return type in every possible execution branch.
-    NoReturnType corresponds to not having a return statement in it.
-    Incomplete rt corresponds to having some return statement(s) of type rt
-    in it, but not one in every branch
-    Complete rt corresponds to having a return statement of type rt in every branch
-    AnyReturnType corresponds to statements which have an error in every branch  *)
+    checking:
+    - [Complete] corresponds to statements that exit the function (return or error) in every branch
+    - [Incomplete] corresponds to statements which pass control flow to following statements in at least some branches
+    - [NonlocalControlFlow] is simila to [Incomplete] but specifically used when breaks are present in loops.
+      Normally, an infinite loop with [Incomplete] return type is fine (and considered [Complete]),
+      since it either returns or diverges. However, in the presence of break statements, control flow
+      may jump to the end of the loop. *)
 type statement_returntype =
-  | NoReturnType
-  | Incomplete of Middle.UnsizedType.returntype
-  | Complete of Middle.UnsizedType.returntype
-  | AnyReturnType
+  | Incomplete
+  | NonlocalControlFlow (* is any break present *)
+  | Complete
 [@@deriving sexp, hash, compare]
 
 type ('e, 'm, 'l, 'f) statement_with =
@@ -284,21 +288,36 @@ let rec expr_of_lvalue {lval; lmeta} =
   { expr=
       ( match lval with
       | LVariable s -> Variable s
-      | LIndexed (l, i) -> Indexed (expr_of_lvalue l, i) )
+      | LIndexed (l, i) -> Indexed (expr_of_lvalue l, i)
+      | LTupleProjection (l, i) -> TupleProjection (expr_of_lvalue l, i) )
   ; emeta= lmeta }
 
-let rec lvalue_of_expr {expr; emeta} =
-  { lval=
-      ( match expr with
-      | Variable s -> LVariable s
-      | Indexed (l, i) -> LIndexed (lvalue_of_expr l, i)
-      | _ ->
-          Common.FatalError.fatal_error_msg
-            [%message "Trying to convert illegal expression to lval."] )
-  ; lmeta= emeta }
+let rec lvalue_of_expr_opt {expr; emeta} =
+  let lval_opt =
+    match expr with
+    | Variable s -> Some (LVariable s)
+    | Indexed (l, i) ->
+        Option.map (lvalue_of_expr_opt l) ~f:(fun lv -> LIndexed (lv, i))
+    | TupleProjection (l, i) ->
+        Option.map (lvalue_of_expr_opt l) ~f:(fun lv ->
+            LTupleProjection (lv, i) )
+    | _ -> None in
+  Option.map lval_opt ~f:(fun lval -> {lval; lmeta= emeta})
+
+let lvalue_of_expr expr =
+  Option.value_exn ~message:"Trying to convert illegal expression to lval."
+    (lvalue_of_expr_opt expr)
 
 let rec id_of_lvalue {lval; _} =
-  match lval with LVariable s -> s | LIndexed (l, _) -> id_of_lvalue l
+  match lval with
+  | LVariable s -> s
+  | LIndexed (l, _) -> id_of_lvalue l
+  | LTupleProjection (l, _) -> id_of_lvalue l
+
+let type_of_arguments :
+       (UnsizedType.autodifftype * UnsizedType.t * 'a) list
+    -> UnsizedType.argumentlist =
+  List.map ~f:(fun (a, t, _) -> (a, t))
 
 (* XXX: the parser produces inaccurate locations: smeta.loc.begin_loc is the last
         token before the current statement and all the whitespace between two statements
@@ -308,26 +327,9 @@ let rec id_of_lvalue {lval; _} =
     TODO: See if $sloc works better than $loc for this
 *)
 
-let rec get_loc_expr (e : untyped_expression) =
-  match e.expr with
-  | TernaryIf (e, _, _)
-   |BinOp (e, _, _)
-   |PostfixOp (e, _)
-   |Indexed (e, _)
-   |Promotion (e, _, _) ->
-      get_loc_expr e
-  | PrefixOp (_, e) | ArrayExpr (e :: _) | RowVectorExpr (e :: _) | Paren e ->
-      e.emeta.loc.begin_loc
-  | Variable _ | IntNumeral _ | RealNumeral _ | ImagNumeral _ | GetLP
-   |GetTarget
-   |ArrayExpr []
-   |RowVectorExpr [] ->
-      e.emeta.loc.end_loc
-  | FunApp (_, id, _) | CondDistApp (_, id, _) -> id.id_loc.end_loc
-
 let get_loc_dt (t : untyped_expression SizedType.t) =
   match t with
-  | SInt | SReal | SComplex -> None
+  | SInt | SReal | SComplex | STuple _ -> None
   | SVector (_, e)
    |SRowVector (_, e)
    |SMatrix (_, e, _)
@@ -364,10 +366,10 @@ let get_first_loc (s : untyped_statement) =
   | Assignment _ | Profile _ | Block _ | Tilde _ | Break | Continue
    |ReturnVoid | Print _ | Reject _ | Skip ->
       s.smeta.loc.begin_loc
-  | VarDecl {decl_type; transformation; identifier; _} -> (
+  | VarDecl {decl_type; transformation; variables; _} -> (
     match get_loc_dt decl_type with
     | Some loc -> loc
     | None -> (
       match get_loc_tf transformation with
       | Some loc -> loc
-      | None -> identifier.id_loc.begin_loc ) )
+      | None -> (List.hd_exn variables).identifier.id_loc.begin_loc ) )

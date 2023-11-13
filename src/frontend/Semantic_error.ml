@@ -4,7 +4,7 @@ open Middle
 (** Type errors that may arise during semantic check *)
 module TypeError = struct
   type t =
-    | MismatchedReturnTypes of UnsizedType.returntype * UnsizedType.returntype
+    | IncorrectReturnType of UnsizedType.t * UnsizedType.t
     | MismatchedArrayTypes of UnsizedType.t * UnsizedType.t
     | InvalidRowVectorTypes of UnsizedType.t
     | InvalidMatrixTypes of UnsizedType.t
@@ -16,17 +16,14 @@ module TypeError = struct
     | ArrayVectorRowVectorMatrixExpected of UnsizedType.t
     | IllTypedAssignment of Operator.t * UnsizedType.t * UnsizedType.t
     | IllTypedTernaryIf of UnsizedType.t * UnsizedType.t * UnsizedType.t
+    | IllTypedReduceSumNotArray of UnsizedType.t
+    | IllTypedReduceSumSlice of UnsizedType.t
     | IllTypedReduceSum of
         string
         * UnsizedType.t list
         * (UnsizedType.autodifftype * UnsizedType.t) list
         * SignatureMismatch.function_mismatch
-    | IllTypedReduceSumGeneric of
-        string
-        * UnsizedType.t list
-        * (UnsizedType.autodifftype * UnsizedType.t) list
-        * SignatureMismatch.function_mismatch
-    | IllTypedVariadicDE of
+    | IllTypedVariadic of
         string
         * UnsizedType.t list
         * (UnsizedType.autodifftype * UnsizedType.t) list
@@ -53,14 +50,16 @@ module TypeError = struct
     | IllTypedBinaryOperator of Operator.t * UnsizedType.t * UnsizedType.t
     | IllTypedPrefixOperator of Operator.t * UnsizedType.t
     | IllTypedPostfixOperator of Operator.t * UnsizedType.t
+    | TupleIndexInvalidIndex of int * int
+    | TupleIndexNotTuple of UnsizedType.t
     | NotIndexable of UnsizedType.t * int
 
   let pp ppf = function
-    | MismatchedReturnTypes (rt1, rt2) ->
+    | IncorrectReturnType (t1, t2) ->
         Fmt.pf ppf
-          "Branches of function definition need to have the same return type. \
-           Instead, found return types %a and %a."
-          UnsizedType.pp_returntype rt1 UnsizedType.pp_returntype rt2
+          "Invalid return statement. Function is declared to return %a, but \
+           this statement returns %a instead."
+          UnsizedType.pp t1 UnsizedType.pp t2
     | MismatchedArrayTypes (t1, t2) ->
         Fmt.pf ppf
           "Array expression must have entries of consistent type. Expected %a \
@@ -125,13 +124,23 @@ module TypeError = struct
         Fmt.pf ppf
           "Condition in ternary expression must be primitive int; found type=%a"
           UnsizedType.pp ut1
+    | IllTypedReduceSumNotArray ty ->
+        Fmt.pf ppf
+          "The second argument to reduce_sum must be an array but found %a"
+          UnsizedType.pp ty
+    | IllTypedReduceSumSlice ty ->
+        let rec pp ppf = function
+          | [] -> Fmt.pf ppf "<error>"
+          | [t] -> UnsizedType.pp ppf t
+          | [t1; t2] ->
+              Fmt.pf ppf "%a, or %a" UnsizedType.pp t1 UnsizedType.pp t2
+          | t :: ts -> Fmt.pf ppf "%a, %a" UnsizedType.pp t pp ts in
+        Fmt.pf ppf "The inner type in reduce_sum array must be %a but found %a"
+          pp Stan_math_signatures.reduce_sum_slice_types UnsizedType.pp ty
     | IllTypedReduceSum (name, arg_tys, expected_args, error) ->
         SignatureMismatch.pp_signature_mismatch ppf
           (name, arg_tys, ([((ReturnType UReal, expected_args), error)], false))
-    | IllTypedReduceSumGeneric (name, arg_tys, expected_args, error) ->
-        SignatureMismatch.pp_signature_mismatch ppf
-          (name, arg_tys, ([((ReturnType UReal, expected_args), error)], false))
-    | IllTypedVariadicDE (name, arg_tys, args, error, return_type) ->
+    | IllTypedVariadic (name, arg_tys, args, error, return_type) ->
         SignatureMismatch.pp_signature_mismatch ppf
           ( name
           , arg_tys
@@ -156,6 +165,17 @@ module TypeError = struct
           arg_tys
           (Fmt.list ~sep:Fmt.cut pp_sig)
           signatures
+    | TupleIndexInvalidIndex (ix_max, ix) ->
+        Fmt.pf ppf
+          "Tried to access index %d for a tuple of length %d.@ Only indices \
+           indices between 1 and %d are valid."
+          ix ix_max ix_max
+    | TupleIndexNotTuple ut ->
+        Fmt.pf ppf "Tried to index a non-tuple type. Expression has type %a."
+          UnsizedType.pp ut
+    | NotIndexable (ut, _) when UnsizedType.is_scalar_type ut ->
+        Fmt.pf ppf "Tried to index a scalar type. Expression has type %a."
+          UnsizedType.pp ut
     | NotIndexable (ut, nidcs) ->
         Fmt.pf ppf
           "Too many indexes, expression dimensions=%d, indexes found=%d."
@@ -286,7 +306,6 @@ end
 
 module ExpressionError = struct
   type t =
-    | InvalidMapRectFn of string
     | InvalidSizeDeclRng
     | InvalidRngFunction
     | InvalidUnnormalizedFunction
@@ -295,14 +314,10 @@ module ExpressionError = struct
     | ConditioningRequired
     | NotPrintable
     | EmptyArray
+    | EmptyTuple
     | IntTooLarge
 
   let pp ppf = function
-    | InvalidMapRectFn fn_name ->
-        Fmt.pf ppf
-          "Mapped function cannot be an _rng or _lp function, found function \
-           name: %s"
-          fn_name
     | InvalidSizeDeclRng ->
         Fmt.pf ppf
           "Random number generators are not allowed in top level size \
@@ -336,6 +351,8 @@ module ExpressionError = struct
     | NotPrintable -> Fmt.pf ppf "Functions cannot be printed."
     | EmptyArray ->
         Fmt.pf ppf "Array expressions must contain at least one element."
+    | EmptyTuple ->
+        Fmt.pf ppf "Tuple expressions must contain at least one element."
     | IntTooLarge ->
         Fmt.pf ppf "Integer literal cannot be larger than 2_147_483_647."
 end
@@ -348,10 +365,10 @@ module StatementError = struct
     | LValueMultiIndexing
     | InvalidSamplingPDForPMF
     | InvalidSamplingCDForCCDF of string
-    | InvalidSamplingNoSuchDistribution of string
+    | InvalidSamplingNoSuchDistribution of string * bool
     | TargetPlusEqualsOutsideModelOrLogProb
-    | InvalidTruncationCDForCCDF
-    | MultivariateTruncation
+    | InvalidTruncationCDForCCDF of
+        (UnsizedType.autodifftype * UnsizedType.t) list
     | BreakOutsideLoop
     | ContinueOutsideLoop
     | ExpressionReturnOutsideReturningFn
@@ -364,7 +381,7 @@ module StatementError = struct
         string * UnsizedType.returntype * UnsizedType.returntype
     | FuncDeclRedefined of string * UnsizedType.t * bool
     | FunDeclExists of string
-    | FunDeclNoDefn
+    | FunDeclNoDefn of string
     | FunDeclNeedsBlock
     | NonRealProbFunDef
     | ProbDensityNonRealVariate of UnsizedType.t option
@@ -401,17 +418,23 @@ module StatementError = struct
           "CDF and CCDF functions may not be used with sampling notation. Use \
            target += %s_log(...) instead."
           name
-    | InvalidSamplingNoSuchDistribution name ->
+    | InvalidSamplingNoSuchDistribution (name, true) ->
         Fmt.pf ppf
-          "Ill-typed arguments to '~' statement. No distribution '%s' was \
-           found."
-          name
-    | InvalidTruncationCDForCCDF ->
+          "Ill-typed arguments to '~' statement. No function '%s_lpmf' or \
+           '%s_lpdf' was found when looking for distribution '%s'."
+          name name name
+    | InvalidSamplingNoSuchDistribution (name, false) ->
+        Fmt.pf ppf
+          "Ill-typed arguments to '~' statement. No function '%s_lpdf' was \
+           found when looking for distribution '%s'."
+          name name
+    | InvalidTruncationCDForCCDF args ->
         Fmt.pf ppf
           "Truncation is only defined if distribution has _lcdf and _lccdf \
-           functions implemented with appropriate signature."
-    | MultivariateTruncation ->
-        Fmt.pf ppf "Outcomes in truncated distributions must be univariate."
+           functions implemented with appropriate signature.\n\
+           No matching signature for arguments: @[(%a)@]"
+          Fmt.(list ~sep:comma UnsizedType.pp_fun_arg)
+          args
     | BreakOutsideLoop ->
         Fmt.pf ppf "Break statements may only be used in loops."
     | ContinueOutsideLoop ->
@@ -442,19 +465,20 @@ module StatementError = struct
     | FuncDeclRedefined (name, ut, stan_math) ->
         Fmt.pf ppf "Function '%s' %s signature %a" name
           ( if stan_math then "is already declared in the Stan Math library with"
-          else "has already been declared to for" )
+          else "has already been declared for" )
           UnsizedType.pp ut
     | FunDeclExists name ->
         Fmt.pf ppf
           "Function '%s' has already been declared. A definition is expected."
           name
-    | FunDeclNoDefn ->
-        Fmt.pf ppf "Function is declared without specifying a definition."
+    | FunDeclNoDefn name ->
+        Fmt.pf ppf "Function '%s' is declared without specifying a definition."
+          name
     | FunDeclNeedsBlock ->
         Fmt.pf ppf "Function definitions must be wrapped in curly braces."
     | NonRealProbFunDef ->
         Fmt.pf ppf
-          "Real return type required for probability functions ending in _log, \
+          "Real return type required for probability functions ending in \
            _lpdf, _lupdf, _lpmf, _lupmf, _cdf, _lcdf, or _lccdf."
     | ProbDensityNonRealVariate (Some ut) ->
         Fmt.pf ppf
@@ -502,8 +526,8 @@ let location = function
 
 (* -- Constructors ---------------------------------------------------------- *)
 
-let mismatched_return_types loc rt1 rt2 =
-  TypeError (loc, TypeError.MismatchedReturnTypes (rt1, rt2))
+let invalid_return loc t1 t2 =
+  TypeError (loc, TypeError.IncorrectReturnType (t1, t2))
 
 let mismatched_array_types loc t1 t2 =
   TypeError (loc, TypeError.MismatchedArrayTypes (t1, t2))
@@ -540,34 +564,17 @@ let illtyped_ternary_if loc predt lt rt =
 let returning_fn_expected_nonreturning_found loc name =
   TypeError (loc, TypeError.ReturningFnExpectedNonReturningFound name)
 
+let illtyped_reduce_sum_not_array loc ty =
+  TypeError (loc, TypeError.IllTypedReduceSumNotArray ty)
+
+let illtyped_reduce_sum_slice loc ty =
+  TypeError (loc, TypeError.IllTypedReduceSumSlice ty)
+
 let illtyped_reduce_sum loc name arg_tys args error =
   TypeError (loc, TypeError.IllTypedReduceSum (name, arg_tys, args, error))
 
-let illtyped_reduce_sum_generic loc name arg_tys expected_args error =
-  TypeError
-    ( loc
-    , TypeError.IllTypedReduceSumGeneric (name, arg_tys, expected_args, error)
-    )
-
-let illtyped_variadic_ode loc name arg_tys args error =
-  TypeError
-    ( loc
-    , TypeError.IllTypedVariadicDE
-        ( name
-        , arg_tys
-        , args
-        , error
-        , Stan_math_signatures.variadic_ode_fun_return_type ) )
-
-let illtyped_variadic_dae loc name arg_tys args error =
-  TypeError
-    ( loc
-    , TypeError.IllTypedVariadicDE
-        ( name
-        , arg_tys
-        , args
-        , error
-        , Stan_math_signatures.variadic_dae_fun_return_type ) )
+let illtyped_variadic loc name arg_tys args fn_rt error =
+  TypeError (loc, TypeError.IllTypedVariadic (name, arg_tys, args, error, fn_rt))
 
 let ambiguous_function_promotion loc name arg_tys signatures =
   TypeError
@@ -613,6 +620,12 @@ let illtyped_postfix_op loc op ut =
 let not_indexable loc ut nidcs =
   TypeError (loc, TypeError.NotIndexable (ut, nidcs))
 
+let tuple_index_invalid_index loc ix_max ix =
+  TypeError (loc, TypeError.TupleIndexInvalidIndex (ix_max, ix))
+
+let tuple_index_not_tuple loc ut =
+  TypeError (loc, TypeError.TupleIndexNotTuple ut)
+
 let ident_is_keyword loc name =
   IdentifierError (loc, IdentifierError.IsKeyword name)
 
@@ -629,9 +642,6 @@ let ident_not_in_scope loc name sug =
 
 let ident_has_unnormalized_suffix loc name =
   IdentifierError (loc, IdentifierError.UnnormalizedSuffix name)
-
-let invalid_map_rect_fn loc name =
-  ExpressionError (loc, ExpressionError.InvalidMapRectFn name)
 
 let invalid_decl_rng_fn loc =
   ExpressionError (loc, ExpressionError.InvalidSizeDeclRng)
@@ -653,6 +663,7 @@ let conditioning_required loc =
 
 let not_printable loc = ExpressionError (loc, ExpressionError.NotPrintable)
 let empty_array loc = ExpressionError (loc, ExpressionError.EmptyArray)
+let empty_tuple loc = ExpressionError (loc, ExpressionError.EmptyTuple)
 let bad_int_literal loc = ExpressionError (loc, ExpressionError.IntTooLarge)
 
 let cannot_assign_to_read_only loc name =
@@ -673,17 +684,15 @@ let invalid_sampling_pdf_or_pmf loc =
 let invalid_sampling_cdf_or_ccdf loc name =
   StatementError (loc, StatementError.InvalidSamplingCDForCCDF name)
 
-let invalid_sampling_no_such_dist loc name =
-  StatementError (loc, StatementError.InvalidSamplingNoSuchDistribution name)
+let invalid_sampling_no_such_dist loc name is_int =
+  StatementError
+    (loc, StatementError.InvalidSamplingNoSuchDistribution (name, is_int))
 
-let target_plusequals_outisde_model_or_logprob loc =
+let target_plusequals_outside_model_or_logprob loc =
   StatementError (loc, StatementError.TargetPlusEqualsOutsideModelOrLogProb)
 
-let invalid_truncation_cdf_or_ccdf loc =
-  StatementError (loc, StatementError.InvalidTruncationCDForCCDF)
-
-let multivariate_truncation loc =
-  StatementError (loc, StatementError.MultivariateTruncation)
+let invalid_truncation_cdf_or_ccdf loc args =
+  StatementError (loc, StatementError.InvalidTruncationCDForCCDF args)
 
 let break_outside_loop loc =
   StatementError (loc, StatementError.BreakOutsideLoop)
@@ -694,7 +703,7 @@ let continue_outside_loop loc =
 let expression_return_outside_returning_fn loc =
   StatementError (loc, StatementError.ExpressionReturnOutsideReturningFn)
 
-let void_ouside_nonreturning_fn loc =
+let void_outside_nonreturning_fn loc =
   StatementError (loc, StatementError.VoidReturnOutsideNonReturningFn)
 
 let non_data_variable_size_decl loc =
@@ -715,7 +724,8 @@ let fn_decl_redefined loc name ~stan_math ut =
 let fn_decl_exists loc name =
   StatementError (loc, StatementError.FunDeclExists name)
 
-let fn_decl_without_def loc = StatementError (loc, StatementError.FunDeclNoDefn)
+let fn_decl_without_def loc name =
+  StatementError (loc, StatementError.FunDeclNoDefn name)
 
 let fn_decl_needs_block loc =
   StatementError (loc, StatementError.FunDeclNeedsBlock)

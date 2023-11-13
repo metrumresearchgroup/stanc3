@@ -198,10 +198,8 @@ model {
   c ~ poisson(3.0);
   c ~ poisson_log(3.0);
   c ~ poisson_log(3.0);
-  if (a) {
+  if (b != 0.0) {
     x ~ normal(0, 1);
-    x ~ normal_log(0, 1);
-    x ~ normal_log(0, 1);
     target += normal_log_lpdf(x | 1, 2);
     target += std_normal_lpdf(x);
   } else {
@@ -209,6 +207,11 @@ model {
     x ~ exponential(1);
     target += foo_lcdf(x | 1);
   }
+  while (0.0 != 0.0) {
+    
+  }
+  
+  int bool = !(b != 0.0) < 2 && (d != 0.0) || (x != 0.0);
   
   target += normal_lpdf(x | 0, 1) + normal_lcdf(2 | 0, 1)
             + normal_lccdf(3 | 0, 1);
@@ -235,11 +238,20 @@ generated quantities {
                                                      x_r, x_i);
 }
 
-Warning in 'deprecated.stan', line 36, column 2: Nested multi-indexing on the
-    left hand side of assignment does not behave the same as nested indexing
-    in expressions. This is considered a bug and will be disallowed in Stan
-    2.32.0. The indexing can be automatically fixed using the canonicalize
-    flag for stanc.
+  $ ../../../../../install/default/bin/stanc --print-canonical deprecated_tilde.stan
+functions {
+  real test_log_lpmf(int bar, real foo) {
+    return foo;
+  }
+  real test_log_lpdf(real bar, real foo) {
+    return foo;
+  }
+}
+model {
+  1 ~ test_log(2.5);
+  1.2 ~ test_log(2.5);
+}
+
   $ ../../../../../install/default/bin/stanc --print-canonical funs.stanfunctions
 // comment test comment
 void test(int x, int y) {
@@ -253,6 +265,8 @@ real deprecated_lp() {
 transformed data {
   int N = 12;
   real b = 1.5;
+  
+  tuple(real, tuple(real, int)) tpl = (3.1, (4.5, 2));
 }
 parameters {
   real<lower=((b > 3) ? 1.0 : b - 2)> x;
@@ -261,10 +275,12 @@ parameters {
 model {
   matrix[N - 3, 4] n;
   row_vector[N] v = ((1.0 + m)')[1];
+  
+  v = [1, 2, 3];
   for (i in 1 : (N - 3)) {
     n[i] = m[i : (i + 3), i]';
   }
-  if ((b < x) && (x < 1)) {
+  if ((b < x) && (!(x < 1))) {
     x + 4 ~ normal(0, 1 + 1) T[0, 8];
   }
   
@@ -272,8 +288,24 @@ model {
   real y;
   y = ((y_raw > 0) ? 1 : -1) - y_raw;
   y = ((y_raw > 0) ? 1 : -1) - y_raw;
+  
+  int bool = ((1 < 2) > 3) < 4;
+  
+  tuple(real, real) t = (3, 4);
+  t.2 = t.1;
+  t.2 = (3, 4).1;
 }
 
+Warning in 'parenthesize.stan', line 27, column 13: Found 1 < 2 < 3. This is
+    interpreted as (1 < 2) < 3. Consider if the intended meaning was 
+    1 > 2 && 2 < 3 instead.
+    You can silence this warning by adding explicit parenthesis. This can be
+    automatically changed using the canonicalize flag for stanc
+Warning in 'parenthesize.stan', line 27, column 13: Found 1 < 2 > 3 > 4. This
+    is interpreted as (1 < 2 > 3) > 4. Consider if the intended meaning was 
+    1 < 2 < 3 && 3 > 4 instead.
+    You can silence this warning by adding explicit parenthesis. This can be
+    automatically changed using the canonicalize flag for stanc
   $ ../../../../../install/default/bin/stanc --print-canonical squaremc.stan
 /*
  * BUGS Volume 3, funshapes, square minus circle

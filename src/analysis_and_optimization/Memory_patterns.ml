@@ -17,7 +17,8 @@ let rec matrix_set Expr.Fixed.{pattern; meta= Expr.Typed.Meta.{type_; _} as meta
         if UnsizedType.contains_eigen_type type_ then union_recur exprs
         else Set.Poly.empty
     | TernaryIf (_, expr2, expr3) -> union_recur [expr2; expr3]
-    | Indexed (expr, _) | Promotion (expr, _, _) -> matrix_set expr
+    | Indexed (expr, _) | Promotion (expr, _, _) | TupleProjection (expr, _) ->
+        matrix_set expr
     | EAnd (expr1, expr2) | EOr (expr1, expr2) -> union_recur [expr1; expr2]
   else Set.Poly.empty
 
@@ -42,32 +43,6 @@ let is_nonzero_subset ~set ~subset =
   Set.Poly.is_subset subset ~of_:set
   && (not (Set.Poly.is_empty set))
   && not (Set.Poly.is_empty subset)
-
-(**
- Check an expression to count how many times we see a single index.
- @param acc An accumulator from previous folds of multiple expressions.
- @param pattern The expression patterns to match against
- *)
-let rec count_single_idx_exprs (acc : int) Expr.Fixed.{pattern; _} : int =
-  match pattern with
-  | Expr.Fixed.Pattern.FunApp (_, (exprs : Expr.Typed.t list)) ->
-      List.fold_left ~init:acc ~f:count_single_idx_exprs exprs
-  | TernaryIf (predicate, texpr, fexpr) ->
-      acc
-      + count_single_idx_exprs 0 predicate
-      + count_single_idx_exprs 0 texpr
-      + count_single_idx_exprs 0 fexpr
-  | Indexed (idx_expr, indexed) ->
-      acc
-      + count_single_idx_exprs 0 idx_expr
-      + List.fold_left ~init:0 ~f:count_single_idx indexed
-  | Promotion (expr, _, _) -> count_single_idx_exprs acc expr
-  | EAnd (lhs, rhs) ->
-      acc + count_single_idx_exprs 0 lhs + count_single_idx_exprs 0 rhs
-  | EOr (lhs, rhs) ->
-      acc + count_single_idx_exprs 0 lhs + count_single_idx_exprs 0 rhs
-  | Var (_ : string) | Lit ((_ : Expr.Fixed.Pattern.litType), (_ : string)) ->
-      acc
 
 (**
  Check an Index to count how many times we see a single index.
@@ -113,9 +88,8 @@ let query_stan_math_mem_pattern_support (name : string)
     (args : (UnsizedType.autodifftype * UnsizedType.t) list) =
   let open Stan_math_signatures in
   match name with
+  | x when is_stan_math_variadic_function_name x -> false
   | x when is_reduce_sum_fn x -> false
-  | x when is_variadic_ode_fn x -> false
-  | x when is_variadic_dae_fn x -> false
   | _ ->
       let name =
         string_operator_to_stan_math_fns (Utils.stdlib_distribution_name name)
@@ -170,6 +144,7 @@ let rec query_initial_demotable_expr (in_loop : bool) ~(acc : string Set.Poly.t)
   | Var (_ : string) | Lit ((_ : Expr.Fixed.Pattern.litType), (_ : string)) ->
       acc
   | Promotion (expr, _, _) -> query_expr acc expr
+  | TupleProjection (expr, _) -> query_expr acc expr
   | TernaryIf (predicate, texpr, fexpr) ->
       let predicate_demotes = query_expr acc predicate in
       Set.Poly.union
@@ -220,110 +195,74 @@ and query_initial_demotable_funs (in_loop : bool) (acc : string Set.Poly.t)
   | UserDefined ((_ : string), (_ : bool Fun_kind.suffix)) ->
       Set.Poly.union acc demoted_and_top_level_names
 
-(**
-  Check whether any functions in the right hand side expression of an assignment
-  support SoA. If so then return true, otherwise return false.
- *)
-let rec is_any_soa_supported_expr
-    Expr.Fixed.{pattern; meta= Expr.Typed.Meta.{adlevel; type_; _}} : bool =
+(** 
+  * Recurse through subexpressions and return a list of Unsized types. 
+  * Recursion continues until 
+  * 1. A non-autodiffable type is found  
+  * 2. An autodiffable scalar is found 
+  * 3. A `Var` type is found that is an autodiffable matrix
+  *)
+let rec extract_nonderived_admatrix_types
+    Expr.Fixed.{pattern; meta= Expr.Typed.Meta.{adlevel; type_; _}} =
   if
-    UnsizedType.is_dataonlytype adlevel
-    || not (UnsizedType.contains_eigen_type type_)
-  then true
-  else
+    UnsizedType.is_autodifftype adlevel && UnsizedType.contains_eigen_type type_
+  then
     match pattern with
     | FunApp (kind, (exprs : Expr.Typed.t list)) ->
-        is_any_soa_supported_fun_expr kind exprs
-    | Indexed (expr, (_ : Expr.Typed.t Index.t list)) | Promotion (expr, _, _)
-      ->
-        is_any_soa_supported_expr expr
+        extract_nonderived_admatrix_types_fun kind exprs
+    | Indexed (expr, _) | Promotion (expr, _, _) | TupleProjection (expr, _) ->
+        extract_nonderived_admatrix_types expr
     | Var (_ : string) | Lit ((_ : Expr.Fixed.Pattern.litType), (_ : string)) ->
-        true
+        [(adlevel, type_)]
     | TernaryIf (_, texpr, fexpr) ->
-        is_any_soa_supported_expr texpr && is_any_soa_supported_expr fexpr
+        List.concat
+          [ extract_nonderived_admatrix_types texpr
+          ; extract_nonderived_admatrix_types fexpr ]
     | EAnd (lhs, rhs) | EOr (lhs, rhs) ->
-        is_any_soa_supported_expr lhs && is_any_soa_supported_expr rhs
+        List.concat
+          [ extract_nonderived_admatrix_types lhs
+          ; extract_nonderived_admatrix_types rhs ]
+  else [(adlevel, type_)]
 
 (**
-  Return false if the [Fun_kind.t] does not support [SoA]
+ * Recurse through functions to find nonderived ad matrix types. 
+ * Special cases for StanLib functions are for 
+ * - `check_matching_dims`: compiler function that has no effect on optimization
+ * - `rep_*vector` These are templated in the C++ to cast up to `Var<Matrix>` types 
+ * - `rep_matrix`. When it's only a scalar being propogated an math library overload can upcast to `Var<Matrix>` 
  *)
-and is_any_soa_supported_fun_expr (kind : 'a Fun_kind.t)
-    (exprs : Expr.Typed.t list) : bool =
-  match kind with
-  | CompilerInternal (Internal_fun.FnMakeArray | FnMakeRowVec) -> false
-  | UserDefined ((_ : string), (_ : bool Fun_kind.suffix)) -> false
-  | CompilerInternal (_ : 'a Internal_fun.t) -> true
-  | Fun_kind.StanLib (name, (_ : bool Fun_kind.suffix), _) -> (
-    match name with
-    | "check_matching_dims" -> true
-    | _ ->
-        is_fun_soa_supported name exprs
-        && List.exists ~f:is_any_soa_supported_expr exprs )
-
-(**
-  Return true if the rhs expression of an assignment contains only
-   combinations of AutoDiffable Reals and Data Matrices
- *)
-let rec is_any_ad_real_data_matrix_expr
-    Expr.Fixed.{pattern; meta= Expr.Typed.Meta.{adlevel; _}} : bool =
-  if UnsizedType.is_dataonlytype adlevel then false
-  else
-    match pattern with
-    | FunApp (kind, (exprs : Expr.Typed.t list)) ->
-        is_any_ad_real_data_matrix_expr_fun kind exprs
-    | Indexed (expr, _) | Promotion (expr, _, _) ->
-        is_any_ad_real_data_matrix_expr expr
-    | Var (_ : string) | Lit ((_ : Expr.Fixed.Pattern.litType), (_ : string)) ->
-        false
-    | TernaryIf (_, texpr, fexpr) ->
-        is_any_ad_real_data_matrix_expr texpr
-        || is_any_ad_real_data_matrix_expr fexpr
-    | EAnd (lhs, rhs) | EOr (lhs, rhs) ->
-        is_any_ad_real_data_matrix_expr lhs
-        && is_any_ad_real_data_matrix_expr rhs
-
-(**
-  Return true if the expressions in a function call are all
-   combinations of AutoDiffable Reals and Data Matrices
- *)
-and is_any_ad_real_data_matrix_expr_fun (kind : 'a Fun_kind.t)
-    (exprs : Expr.Typed.t list) : bool =
+and extract_nonderived_admatrix_types_fun (kind : 'a Fun_kind.t)
+    (exprs : Expr.Typed.t list) =
   match kind with
   | Fun_kind.StanLib (name, (_ : bool Fun_kind.suffix), _) -> (
     match name with
-    | "check_matching_dims" -> false
-    | _ -> (
-        let fun_args = List.map ~f:Expr.Typed.fun_arg exprs in
-        (*Right now we can't handle AD real and data matrix funcs
-           that return a matrix :-/*)
-        let is_args_autodiff_real_data_matrix =
-          (*If there are any autodiffable vars*)
-          List.exists
-            ~f:(fun (x, y) ->
-              match (x, y) with
-              | UnsizedType.AutoDiffable, UnsizedType.UReal -> true
-              | _ -> false )
-            fun_args
-          (*And there are any data matrices*)
-          && List.exists
-               ~f:(fun (x, y) ->
-                 match (x, UnsizedType.is_container y) with
-                 | UnsizedType.DataOnly, true -> true
-                 | _ -> false )
-               fun_args
-          (*And there are no Autodiffable matrices*)
-          && List.exists
-               ~f:(fun (x, y) ->
-                 match (x, UnsizedType.contains_eigen_type y) with
-                 | UnsizedType.AutoDiffable, true -> false
-                 | _ -> true )
-               fun_args in
-        match is_args_autodiff_real_data_matrix with
-        | true -> true
-        | false -> List.exists ~f:is_any_ad_real_data_matrix_expr exprs ) )
-  | CompilerInternal (Internal_fun.FnMakeArray | FnMakeRowVec) -> true
-  | CompilerInternal (_ : 'a Internal_fun.t) -> false
-  | UserDefined ((_ : string), (_ : bool Fun_kind.suffix)) -> false
+    | "check_matching_dims" -> []
+    | "rep_vector" -> [(UnsizedType.AutoDiffable, UnsizedType.UVector)]
+    | "rep_row_vector" -> [(UnsizedType.AutoDiffable, UnsizedType.URowVector)]
+    | "rep_matrix"
+      when match List.map ~f:Expr.Typed.fun_arg exprs with
+           | [(_, UnsizedType.UReal); _; _] -> true
+           | _ -> false ->
+        [(UnsizedType.AutoDiffable, UnsizedType.UMatrix)]
+    | _ -> List.concat_map ~f:extract_nonderived_admatrix_types exprs )
+  (*While not "true", we need to tell the optimizer these are danger functions*)
+  | CompilerInternal Internal_fun.FnMakeArray ->
+      [(AutoDiffable, UReal); (DataOnly, UArray UReal)]
+  | CompilerInternal Internal_fun.FnMakeRowVec ->
+      [(AutoDiffable, UReal); (DataOnly, URowVector)]
+  | CompilerInternal (_ : 'a Internal_fun.t) -> []
+  | UserDefined ((_ : string), (_ : bool Fun_kind.suffix)) -> []
+
+(**Checks if a list of types contains at least on ad matrix or if everything is derived from data*)
+let contains_at_least_one_ad_matrix_or_all_data
+    (fun_args : (UnsizedType.autodifftype * UnsizedType.t) list) =
+  List.is_empty fun_args
+  || List.exists
+       ~f:(fun x ->
+         UnsizedType.is_autodifftype (fst x)
+         && UnsizedType.is_eigen_type (snd x) )
+       fun_args
+  || List.for_all ~f:(fun x -> UnsizedType.is_dataonlytype (fst x)) fun_args
 
 (**
   Query to find the initial set of objects in statements that cannot be SoA.
@@ -332,17 +271,18 @@ and is_any_ad_real_data_matrix_expr_fun (kind : 'a Fun_kind.t)
  *
   For assignments:
    We demote the LHS variable if any of the following are true:
-   1. None of the RHS's functions are able to accept SoA matrices
-    and the rhs is not an internal compiler function.
-   2. A single cell of the LHS is being assigned within a loop.
-   3. The top level expression on the RHS is a combination of only
+   1. A single cell of the LHS is being assigned within a loop.
+   2. The top level expression on the RHS is a combination of only
     data matrices and scalar types. Operations on data matrix and
     scalar values in Stan math will return a AoS matrix. We currently
     have no way to tell Stan math to return a SoA matrix.
+   3. None of the RHS's functions are able to accept SoA matrices
+    and the rhs is not an internal compiler function.
  *
    We demote RHS variables if any of the following are true:
    1. The LHS variable has previously or through this iteration
     been marked AoS.
+   2. The LHS is a tuple projection
  *
   For functions see the documentation for [query_initial_demotable_funs] for
    the logic on demotion rules.
@@ -355,51 +295,70 @@ let rec query_initial_demotable_stmt (in_loop : bool) (acc : string Set.Poly.t)
     query_initial_demotable_expr in_loop ~acc:accum in
   match pattern with
   | Stmt.Fixed.Pattern.Assignment
-      ( ((name : string), (ut : UnsizedType.t), idx)
+      ( lval
+      , (ut : UnsizedType.t)
       , (Expr.Fixed.{meta= Expr.Typed.Meta.{type_; adlevel; _}; _} as rhs) ) ->
-      let idx_list =
-        List.fold ~init:acc
-          ~f:(fun accum x ->
-            Index.folder accum
-              (fun acc -> query_initial_demotable_expr in_loop ~acc)
-              x )
-          idx in
+      let name = Stmt.Helpers.lhs_variable lval in
+      (* LHS (1)*)
       let idx_demotable =
-        (* RHS (2)*)
+        let idx = Stmt.Helpers.lhs_indices lval in
+        let idx_list =
+          List.fold ~init:acc
+            ~f:(fun accum x ->
+              Index.folder accum
+                (fun acc -> query_initial_demotable_expr in_loop ~acc)
+                x )
+            idx in
         match is_uni_eigen_loop_indexing in_loop ut idx with
         | true -> Set.Poly.add idx_list name
         | false -> idx_list in
       let rhs_demotable_names = query_expr acc rhs in
-      (* RHS (3)*)
-      let check_if_rhs_ad_real_data_matrix_expr =
-        match (UnsizedType.contains_eigen_type type_, adlevel) with
-        | true, UnsizedType.AutoDiffable ->
-            is_any_ad_real_data_matrix_expr rhs
-            || not (is_any_soa_supported_expr rhs)
-        | _ -> false in
+      let rhs_and_idx_demotions =
+        Set.Poly.union idx_demotable rhs_demotable_names in
       (* RHS (1)*)
-      let is_all_rhs_aos =
-        let all_rhs_eigen_names = query_var_eigen_names rhs in
-        is_nonzero_subset ~subset:all_rhs_eigen_names ~set:rhs_demotable_names
-      in
-      let is_not_supported_func =
-        match rhs.pattern with
-        | FunApp (CompilerInternal _, _) -> false
-        | FunApp (UserDefined _, _) -> true
-        | _ -> false in
-      let is_eigen_stmt = UnsizedType.contains_eigen_type rhs.meta.type_ in
-      let assign_demotes =
-        if
-          is_eigen_stmt
-          && ( is_all_rhs_aos || check_if_rhs_ad_real_data_matrix_expr
-             || is_not_supported_func )
-        then
-          let base_set = Set.Poly.union idx_demotable rhs_demotable_names in
-          Set.Poly.add
-            (Set.Poly.union base_set (query_var_eigen_names rhs))
-            name
-        else Set.Poly.union idx_demotable rhs_demotable_names in
-      Set.Poly.union acc assign_demotes
+      let tuple_demotions =
+        match lval with
+        | LTupleProjection _, _ ->
+            Set.Poly.add
+              (Set.Poly.union rhs_and_idx_demotions (query_var_eigen_names rhs))
+              name
+        | _ -> rhs_and_idx_demotions in
+      let assign_demotions =
+        let is_eigen_stmt = UnsizedType.contains_eigen_type rhs.meta.type_ in
+        if is_eigen_stmt then
+          (* LHS (2)*)
+          let is_rhs_not_promoteable_to_soa =
+            match (UnsizedType.contains_eigen_type type_, adlevel) with
+            | true, UnsizedType.AutoDiffable ->
+                not
+                  (contains_at_least_one_ad_matrix_or_all_data
+                     (extract_nonderived_admatrix_types rhs) )
+            | _ -> false in
+          (* LHS (3) rhs unsupported function*)
+          let is_not_supported_func =
+            match rhs.pattern with
+            | FunApp (UserDefined _, _) -> true
+            | FunApp (CompilerInternal _, _) -> false
+            | FunApp (StanLib (name, _, _), exprs) ->
+                not
+                  (query_stan_math_mem_pattern_support name
+                     (List.map ~f:Expr.Typed.fun_arg exprs) )
+            | _ -> false in
+          (* LHS (3) all rhs aos*)
+          let is_all_rhs_aos =
+            is_nonzero_subset
+              ~subset:(query_var_eigen_names rhs)
+              ~set:rhs_demotable_names in
+          if
+            is_all_rhs_aos || is_rhs_not_promoteable_to_soa
+            || is_not_supported_func
+          then
+            Set.Poly.add
+              (Set.Poly.union tuple_demotions (query_var_eigen_names rhs))
+              name
+          else tuple_demotions
+        else tuple_demotions in
+      Set.Poly.union acc assign_demotions
   | NRFunApp (kind, exprs) ->
       query_initial_demotable_funs in_loop acc kind exprs
   | IfElse (predicate, true_stmt, op_false_stmt) ->
@@ -417,14 +376,15 @@ let rec query_initial_demotable_stmt (in_loop : bool) (acc : string Set.Poly.t)
       Set.Poly.union_list
         (List.map ~f:(query_initial_demotable_stmt in_loop acc) lst)
   | TargetPE expr -> query_expr acc expr
-  (*NOTE: loops generated by inlining are not actually loops*)
+  (* NOTE: loops generated by inlining are not actually loops;
+     we do not unconditionally set "in_loop" *)
   | For
       { lower= Expr.Fixed.{pattern= Lit (Int, lb); _}
       ; upper= Expr.Fixed.{pattern= Lit (Int, ub); _}
       ; body
       ; _ }
     when lb = "1" && ub = "1" ->
-      query_initial_demotable_stmt false acc body
+      query_initial_demotable_stmt in_loop acc body
   | For {lower; upper; body; _} ->
       Set.Poly.union
         (Set.Poly.union (query_expr acc lower) (query_expr acc upper))
@@ -454,10 +414,8 @@ let query_demotable_stmt (aos_exits : string Set.Poly.t)
     (pattern : (Expr.Typed.t, int) Stmt.Fixed.Pattern.t) : string Set.Poly.t =
   match pattern with
   | Stmt.Fixed.Pattern.Assignment
-      ( ( (assign_name : string)
-        , (_ : UnsizedType.t)
-        , (_ : Expr.Typed.t Index.t list) )
-      , (rhs : Expr.Typed.t) ) -> (
+      (lval, (_ : UnsizedType.t), (rhs : Expr.Typed.t)) -> (
+      let assign_name = Stmt.Helpers.lhs_variable lval in
       let all_rhs_eigen_names = query_var_eigen_names rhs in
       if Set.Poly.mem aos_exits assign_name then
         Set.Poly.add all_rhs_eigen_names assign_name
@@ -549,6 +507,7 @@ and modify_expr_pattern ?force_demotion:(force = false)
       Indexed
         ( mod_expr idx_expr
         , List.map ~f:(Index.map (mod_expr ~force_demotion:force)) indexed )
+  | TupleProjection (idx_expr, idx) -> TupleProjection (mod_expr idx_expr, idx)
   | EAnd (lhs, rhs) -> EAnd (mod_expr lhs, mod_expr rhs)
   | EOr (lhs, rhs) -> EOr (mod_expr lhs, mod_expr rhs)
   | Promotion (expr, type_, ad_level) ->
@@ -603,12 +562,15 @@ let rec modify_stmt_pattern
       let kind', exprs' = modify_kind modifiable_set kind exprs in
       NRFunApp (kind', exprs')
   | Assignment
-      ( (name, ut, lhs)
+      ( lval
+      , ut
       , ( {pattern= FunApp (CompilerInternal (FnReadParam read_param), args); _}
         as assigner ) ) ->
+      let name = Stmt.Helpers.lhs_variable lval in
       if Set.Poly.mem modifiable_set name then
         Assignment
-          ( (name, ut, List.map ~f:(Index.map (mod_expr false)) lhs)
+          ( lval
+          , ut
           , { assigner with
               pattern=
                 FunApp
@@ -617,23 +579,20 @@ let rec modify_stmt_pattern
                   , List.map ~f:(mod_expr true) args ) } )
       else
         Assignment
-          ( (name, ut, List.map ~f:(Index.map (mod_expr false)) lhs)
+          ( lval
+          , ut
           , { assigner with
               pattern=
                 FunApp
                   ( CompilerInternal
                       (FnReadParam {read_param with mem_pattern= SoA})
                   , List.map ~f:(mod_expr false) args ) } )
-  | Assignment (((name : string), (ut : UnsizedType.t), idx), rhs) ->
+  | Assignment (lval, (ut : UnsizedType.t), rhs) ->
+      let name = Stmt.Helpers.lhs_variable lval in
       if Set.Poly.mem modifiable_set name then
         (*If assignee is in bad set, force demotion of rhs functions*)
-        Assignment
-          ( (name, ut, List.map ~f:(Index.map (mod_expr false)) idx)
-          , mod_expr true rhs )
-      else
-        Assignment
-          ( (name, ut, List.map ~f:(Index.map (mod_expr false)) idx)
-          , (mod_expr false) rhs )
+        Assignment (lval, ut, mod_expr true rhs)
+      else Assignment (lval, ut, (mod_expr false) rhs)
   | IfElse (predicate, true_stmt, op_false_stmt) ->
       IfElse
         ( (mod_expr false) predicate
@@ -676,7 +635,7 @@ let collect_mem_pattern_variables stmts =
   Mir_utils.fold_stmts ~take_expr:(fun acc _ -> acc) ~take_stmt ~init:[] stmts
   |> List.rev
 
-let pp_mem_patterns ppf (Program.{log_prob; _} : Program.Typed.t) =
+let pp_mem_patterns ppf (Program.{reverse_mode_log_prob; _} : Program.Typed.t) =
   let pp_var ppf (name, stype) =
     Fmt.pf ppf "%a %s: %a"
       (SizedType.pp Expr.Typed.pp)
@@ -684,5 +643,5 @@ let pp_mem_patterns ppf (Program.{log_prob; _} : Program.Typed.t) =
       (SizedType.get_mem_pattern stype) in
   let mem_vars =
     (* Collect all the sizedtypes which have a mem pattern *)
-    collect_mem_pattern_variables log_prob in
+    collect_mem_pattern_variables reverse_mode_log_prob in
   Fmt.(pf ppf "@[<v>%a@.@]" (list pp_var)) mem_vars
