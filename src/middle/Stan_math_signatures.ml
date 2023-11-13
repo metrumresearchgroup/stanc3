@@ -2700,6 +2700,16 @@ let () =
       ~required_fn_rt:variadic_ode_fun_return_type
       ~required_fn_args:variadic_ode_mandatory_fun_args () in
   Set.iter ~f:add_ode variadic_ode_nonadjoint_fns ;
+  (* Torsten ODES - same for all *)
+  let add_ode name =
+    add_variadic_fn name ~return_type:variadic_ode_return_type
+      ~control_args:
+        ( if String.is_suffix name ~suffix:Torsten.pmx_ode_control_suffix then
+          variadic_ode_mandatory_arg_types @ variadic_ode_tol_arg_types
+        else variadic_ode_mandatory_arg_types )
+      ~required_fn_rt:variadic_ode_fun_return_type
+      ~required_fn_args:variadic_ode_mandatory_fun_args () in
+  Set.iter ~f:add_ode Torsten.pmx_variadic_ode_fns ;
   (* Adjoint ODE function *)
   add_variadic_fn variadic_ode_adjoint_fn ~return_type:variadic_ode_return_type
     ~control_args:
@@ -2732,17 +2742,7 @@ let () =
         ; (DataOnly, UInt) ]
     ~required_fn_rt:UnsizedType.UVector
     ~required_fn_args:[UnsizedType.(AutoDiffable, UVector)]
-    () ;
-  (* Torsten ODES - same for all *)
-  let add_ode name =
-    add_variadic_fn name ~return_type:variadic_ode_return_type
-      ~control_args:
-        ( if String.is_suffix name ~suffix:Torsten.pmx_ode_control_suffix then
-          variadic_ode_mandatory_arg_types @ variadic_ode_tol_arg_types
-        else variadic_ode_mandatory_arg_types )
-      ~required_fn_rt:variadic_ode_fun_return_type
-      ~required_fn_args:variadic_ode_mandatory_fun_args () in
-  Set.iter ~f:add_ode Torsten.pmx_variadic_ode_fns ;
+    ()
 
 let%expect_test "dist name suffix" =
   dist_name_suffix [] "normal" |> print_endline ;
