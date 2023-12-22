@@ -8,12 +8,14 @@ Display all Stan math distributions exposed in the language
   bernoulli_logit_glm: lpmf
   binomial: lpmf, rng, ccdf, cdf, log (deprecated)
   binomial_logit: lpmf, log (deprecated)
+  binomial_logit_glm: lpmf
   categorical: lpmf, log (deprecated)
   categorical_logit: lpmf, log (deprecated)
   categorical_logit_glm: lpmf
   cauchy: lpdf, rng, ccdf, cdf, log (deprecated)
   chi_square: lpdf, rng, ccdf, cdf, log (deprecated)
   dirichlet: lpdf, log (deprecated)
+  dirichlet_multinomial: lpmf
   discrete_range: lpmf, rng, ccdf, cdf, log (deprecated)
   double_exponential: lpdf, rng, ccdf, cdf, log (deprecated)
   exp_mod_normal: lpdf, rng, ccdf, cdf, log (deprecated)

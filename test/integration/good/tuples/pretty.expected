@@ -20,12 +20,65 @@ parameters {
                  tuple(real, array[5] tuple(complex, matrix[6, 7]))) very_deep_p;
 }
 
+  $ ../../../../../install/default/bin/stanc --auto-format basic_unpacking.stan
+transformed data {
+  int x = 3;
+  int y = 4;
+  print(x, y);
+  (x, y) = (5, 6);
+  print(x, y);
+  (x, y) = (y, x);
+  print(x, y);
+  (/* comment 1*/ x /*comment 2*/, /*comment 3*/ y /* comment 4 */) = (y, x);
+  
+  /* ^^^:comment 5*/
+  (//comment 1
+   x //comment 2
+   , //comment 3
+   y //comment 4
+   ) = (y, x);
+  
+  // ^^^: comment 5
+}
+
   $ ../../../../../install/default/bin/stanc --auto-format infer_tuple_ad.stan
 parameters {
   real x;
 }
 model {
   array[2] tuple(real, real) z = {(1, x), (x, 1)};
+}
+
+  $ ../../../../../install/default/bin/stanc --auto-format nested_unpacking.stan
+data {
+  tuple(array[3] real, tuple(real, vector[4], array[4] real), int) complicated;
+}
+model {
+  array[3] real x;
+  real y;
+  vector[4] z;
+  array[4] real w;
+  int i;
+  
+  (x, (y, z, w), i) = complicated;
+}
+
+  $ ../../../../../install/default/bin/stanc --auto-format qr_unpack.stan
+data {
+  int<lower=1> N;
+  int<lower=1> M;
+}
+parameters {
+  matrix[N, M] A;
+}
+model {
+  matrix[N, M] Q;
+  matrix[M, M] R;
+  
+  (Q, R) = qr_thin(A);
+  
+  // ... do something with Q and R ...
+  target += sum(Q) + dot_self(to_vector(R));
 }
 
   $ ../../../../../install/default/bin/stanc --auto-format simple.stan
@@ -78,12 +131,30 @@ functions {
   real foo(data tuple(real, real) x) {
     return x.1;
   }
+  real bar(data array[] tuple(real, real) x) {
+    return x[1].2;
+  }
+  real baz(data array[] tuple(array[] matrix, real) x) {
+    return x[1].1[1][1, 1];
+  }
 }
 data {
   tuple(real, real) d;
 }
 model {
   target += foo(d);
+  target += bar({d, d});
+  target += baz({({[[1]]}, d.2)});
+}
+
+  $ ../../../../../install/default/bin/stanc --auto-format tuple-dataonly2.stan
+functions {
+  real tuple_tester(data tuple(array[] real, int) x) {
+    return x.1[1];
+  }
+}
+model {
+  print(tuple_tester(({1.0}, 2)));
 }
 
   $ ../../../../../install/default/bin/stanc --auto-format tuple-foreach.stan
@@ -221,7 +292,68 @@ generated quantities {
   foo2({(m1 + m2, 1)});
   
   // a whole bunch of painful
-  overly_complicated(({m1 + m2}, (1, m1), 3.5), {(1, m1), (2, m2)});
+  overly_complicated(({m1 + m2}, (1, m1 + m2), 3.5),
+                     {(1, m1 * 2), (2, m2 * 3)});
+  overly_complicated(({m1}, (1, m1), 3.5), {(1, m1), (2, m2)});
+}
+
+  $ ../../../../../install/default/bin/stanc --auto-format tuple_copying.stan
+functions {
+  void f(tuple(matrix, matrix) x) {
+    print(x.1);
+    print(x.2);
+  }
+  
+  void g(tuple(matrix, int, array[] real) x) {
+    print(x.1);
+    print(x.2);
+    print(x.3);
+  }
+  
+  void h(tuple(real, tuple(matrix, array[] real)) x) {
+    print(x.1);
+    print(x.2.1);
+    print(x.2.2);
+  }
+}
+data {
+  matrix[2, 2] x;
+  array[10] real y;
+}
+transformed data {
+  tuple(matrix[2, 2], array[10] real) data_tuple;
+}
+parameters {
+  matrix[3, 3] m1, m2;
+}
+model {
+  tuple(matrix[2, 2], matrix[3, 3]) temp = (x, m1 * m2);
+  f(temp);
+  
+  f((x, m1 * m2));
+  
+  tuple(matrix[3, 3], int, array[10] real) temp2 = (m1 + m2, 1, y);
+  g(temp2);
+  
+  g((m1 + m2, 1, y));
+  
+  // note: these will have additional copies for now
+  tuple(real, tuple(matrix[2, 2], array[10] real)) temp3 = (1, data_tuple);
+  h(temp3);
+  h((1, data_tuple));
+  h((1, (x, y)));
+}
+
+  $ ../../../../../install/default/bin/stanc --auto-format tuple_exprs.stan
+generated quantities {
+  int x = 3;
+  int y = 4;
+  complex z;
+  matrix[2, 4] foo;
+  
+  print(((z, x), {1, 2}, 3));
+  print((x, (1, x)));
+  print((foo, 2, 3, x));
 }
 
   $ ../../../../../install/default/bin/stanc --auto-format tuple_hof.stan
@@ -256,6 +388,16 @@ model {
   (1.5, 2) ~ foo((1.2, 1.5, 4.5));
 }
 
+  $ ../../../../../install/default/bin/stanc --auto-format tuple_lpdf2.stan
+functions {
+  real foo_lpdf(tuple(real, int) x) {
+    return 0;
+  }
+}
+model {
+  (1.5, 2) ~ foo();
+}
+
   $ ../../../../../install/default/bin/stanc --auto-format tuple_lpmf.stan
 functions {
   real foo_lpmf(tuple(int, int) x, real y) {
@@ -264,5 +406,45 @@ functions {
 }
 model {
   (1, 3) ~ foo(0.5);
+}
+
+  $ ../../../../../install/default/bin/stanc --auto-format tuple_temporary.stan
+generated quantities {
+  matrix[1, 1] m = [[1.5]];
+  // m * 2.0 is a temporary:
+  tuple(real, matrix[1, 1]) t = (1.2, m * 2.0);
+  // m is both data and an Eigen type, but not a map:
+  tuple(real, matrix[1, 1]) s = (t.1, m);
+}
+
+  $ ../../../../../install/default/bin/stanc --auto-format unpack_promote.stan
+data {
+  int<lower=0> N;
+  vector[N] x;
+  array[N] int y;
+}
+transformed data {
+  tuple(array[N] int, vector[N]) td = (y, x);
+}
+parameters {
+  array[N] real alpha;
+  vector[N] theta;
+}
+model {
+  array[N] real r;
+  array[N] complex z;
+  complex_vector[N] v;
+  
+  (r, v) = td;
+  print(r, v);
+  (r, z[ : ], v) = (y, y, x);
+  print(r, z, v);
+  (r, z, v) = (alpha, alpha, theta);
+  print(r, z, v);
+  
+  tuple(complex_vector[N], int) tup;
+  
+  (tup.1, tup.2) = (theta, 1);
+  print(tup);
 }
 

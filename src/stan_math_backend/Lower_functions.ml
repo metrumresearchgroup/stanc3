@@ -1,29 +1,8 @@
-open Core_kernel
+open Core
 open Middle
 open Lower_expr
 open Lower_stmt
 open Cpp
-
-let rec lower_type_eigen_expr (t : UnsizedType.t) (inner_type : type_) : type_ =
-  match t with
-  | UInt -> Int
-  | UReal | UMatrix | URowVector | UVector | UComplexVector | UComplexMatrix
-   |UComplexRowVector | UTuple _ ->
-      inner_type
-  | UComplex -> Types.complex inner_type
-  | UArray t when UnsizedType.contains_tuple t ->
-      StdVector (lower_type_eigen_expr t inner_type)
-  | UArray t ->
-      (* Expressions are not accepted for arrays of Eigen::Matrix *)
-      StdVector (lower_type t inner_type)
-  | UMathLibraryFunction | UFun _ ->
-      Common.FatalError.fatal_error_msg
-        [%message "Function types not implemented"]
-
-let arg_type custom_scalar ut =
-  let scalar =
-    match custom_scalar with None -> stantype_prim ut | Some s -> s in
-  lower_type_eigen_expr ut scalar
 
 let lower_arg ~is_possibly_eigen_expr type_ (_, name, ut) =
   (* we add the _arg suffix for any Eigen types *)
@@ -33,33 +12,57 @@ let lower_arg ~is_possibly_eigen_expr type_ (_, name, ut) =
     else name in
   (Types.const_ref type_, opt_arg_suffix)
 
+(** Generate the require_* templates to constrain an argument to a specific type
+    NB: Currently, tuples are not handled by this function *)
 let requires ut t =
-  match ut with
-  | UnsizedType.URowVector ->
-      [ RequireIs ("stan::is_row_vector", t)
-      ; RequireIs ("stan::is_vt_not_complex", t) ]
-  | UComplexRowVector ->
-      [ RequireIs ("stan::is_row_vector", t)
-      ; RequireIs ("stan::is_vt_complex", t) ]
-  | UVector ->
-      [ RequireIs ("stan::is_col_vector", t)
-      ; RequireIs ("stan::is_vt_not_complex", t) ]
-  | UComplexVector ->
-      [ RequireIs ("stan::is_col_vector", t)
-      ; RequireIs ("stan::is_vt_complex", t) ]
-  | UMatrix ->
-      [ RequireIs ("stan::is_eigen_matrix_dynamic", t)
-      ; RequireIs ("stan::is_vt_not_complex", t) ]
-  | UComplexMatrix ->
-      [ RequireIs ("stan::is_eigen_matrix_dynamic", t)
-      ; RequireIs ("stan::is_vt_complex", t) ]
-      (* NB: Not unwinding array types due to the way arrays of eigens are printed *)
-  | _ -> [RequireIs ("stan::is_stan_scalar", t)]
+  let t = TemplateType t in
+  let rec requires_in ut t =
+    match ut with
+    | UnsizedType.URowVector ->
+        [ RequireAllCondition (`Exact "stan::is_row_vector", t)
+        ; RequireAllCondition (`Exact "stan::is_vt_not_complex", t) ]
+    | UComplexRowVector ->
+        [ RequireAllCondition (`Exact "stan::is_row_vector", t)
+        ; RequireAllCondition (`Exact "stan::is_vt_complex", t) ]
+    | UVector ->
+        [ RequireAllCondition (`Exact "stan::is_col_vector", t)
+        ; RequireAllCondition (`Exact "stan::is_vt_not_complex", t) ]
+    | UComplexVector ->
+        [ RequireAllCondition (`Exact "stan::is_col_vector", t)
+        ; RequireAllCondition (`Exact "stan::is_vt_complex", t) ]
+    | UMatrix ->
+        [ RequireAllCondition (`Exact "stan::is_eigen_matrix_dynamic", t)
+        ; RequireAllCondition (`Exact "stan::is_vt_not_complex", t) ]
+    | UComplexMatrix ->
+        [ RequireAllCondition (`Exact "stan::is_eigen_matrix_dynamic", t)
+        ; RequireAllCondition (`Exact "stan::is_vt_complex", t) ]
+    | UInt -> [RequireAllCondition (`Exact "std::is_integral", t)]
+    | UComplex ->
+        RequireAllCondition (`Exact "stan::is_complex", t)
+        :: requires_in UReal (TypeTrait ("stan::base_type_t", [t]))
+    | UArray inner_ut ->
+        RequireAllCondition (`Exact "stan::is_std_vector", t)
+        :: requires_in inner_ut (TypeTrait ("stan::value_type_t", [t]))
+    | UReal ->
+        (* not using stan::is_stan_scalar to explictly exclude int *)
+        [ RequireAllCondition
+            (`OneOf ["stan::is_autodiff"; "std::is_floating_point"], t) ]
+    | UTuple _ | UMathLibraryFunction | UFun _ ->
+        Common.FatalError.fatal_error_msg
+          [%message
+            "Cannot formulate require templates for type " (ut : UnsizedType.t)]
+  in
+  requires_in ut t
 
+(** Identify the templates which need to be considered in
+      the return type of the function (i.e., the scalar types) *)
 let return_optional_arg_types (args : Program.fun_arg_decl) =
   let rec template_p start i (ad, typ) =
     match (ad, typ) with
-    | _, t when UnsizedType.is_int_type t -> []
+    | _, t when UnsizedType.is_int_type t ->
+        (* integers are templated,
+           but can never make the return type into a var *)
+        []
     | _, ut when UnsizedType.contains_tuple ut -> (
         let internal, _ = UnsizedType.unwind_array_type ut in
         match internal with
@@ -76,12 +79,14 @@ let return_optional_arg_types (args : Program.fun_arg_decl) =
                  unwrapped scalar is not tuple"
                   (typ : UnsizedType.t)
                   (internal : UnsizedType.t)
-                  (ad : UnsizedType.autodifftype)] )
+                  (ad : UnsizedType.autodifftype)])
     | UnsizedType.DataOnly, ut when not (UnsizedType.is_eigen_type ut) -> []
-    | _ ->
-        if UnsizedType.is_eigen_type typ then
-          [sprintf "stan::base_type_t<%s%d__>" start i]
-        else [sprintf "%s%d__" start i] in
+    | ( _
+      , ( UnsizedType.UArray _ | UComplex | UVector | URowVector | UMatrix
+        | UComplexRowVector | UComplexVector | UComplexMatrix ) ) ->
+        [ TypeTrait
+            ("stan::base_type_t", [TemplateType (sprintf "%s%d__" start i)]) ]
+    | _ -> [TemplateType (sprintf "%s%d__" start i)] in
   List.mapi args ~f:(fun i (ad, _, ty) -> template_p "T" i (ad, ty))
 
 (** Print template arguments for C++ functions that need templates
@@ -90,9 +95,10 @@ let return_optional_arg_types (args : Program.fun_arg_decl) =
  *)
 let template_parameters (args : Program.fun_arg_decl) =
   let rec template_p start i (ad, typ) =
-    match (ad, fst (UnsizedType.unwind_array_type typ)) with
-    | _, UInt -> ([], [], arg_type None typ)
-    | _, UTuple tys ->
+    match (ad, UnsizedType.unwind_array_type typ) with
+    | _, (UTuple tys, dims) ->
+        (* (arrays of) Tuples directly print std::tuple *)
+        (* TODO/future: use [std::tuple_element] to fully templatize tuples *)
         let temps, reqs, sclrs =
           List.map ~f:(fun ty -> (ad, ty)) tys
           |> List.mapi ~f:(template_p (sprintf "%s%d__" start i))
@@ -100,54 +106,64 @@ let template_parameters (args : Program.fun_arg_decl) =
         let templates = List.concat temps in
         let requires = List.concat reqs in
         let scalar = Tuple sclrs in
-        (templates, requires, arg_type (Some scalar) typ)
-    | UnsizedType.DataOnly, ut when not (UnsizedType.is_eigen_type ut) ->
-        ([], [], arg_type None typ)
+        (templates, requires, Types.std_vector ~dims scalar)
+    | UnsizedType.DataOnly, _ when not (UnsizedType.is_eigen_type typ) ->
+        (* For types that are [DataOnly] as not either a tuple or eigen type,
+           we can just directly print the type *)
+        ([], [], lower_type typ (stantype_prim typ))
     | _ ->
+        (* all other types are templated *)
         let template = sprintf "%s%d__" start i in
-        ( [template]
-        , requires typ template
-        , arg_type (Some (TemplateType template)) typ ) in
+        ([template], requires typ template, TemplateType template) in
   List.mapi args ~f:(fun i (ad, _, ty) -> template_p "T" i (ad, ty))
 
 let%expect_test "arg types templated correctly" =
-  [(AutoDiffable, "xreal", UReal); (DataOnly, "yint", UInt)]
+  [(AutoDiffable, "xreal", UReal); (AutoDiffable, "yint", UInt)]
   |> template_parameters |> List.map ~f:fst3 |> List.concat
-  |> String.concat ~sep:"," |> print_endline ;
-  [%expect {| T0__ |}]
+  |> String.concat ~sep:"," |> print_endline;
+  [%expect {| T0__,T1__ |}]
 
 let%expect_test "arg types tuple template" =
   let templates, reqs, type_ =
-    [(AutoDiffable, "xreal", UTuple [UReal; UMatrix])]
+    [ ( TupleAD [AutoDiffable; AutoDiffable; DataOnly]
+      , "xreal"
+      , UTuple [UReal; UMatrix; UInt] ) ]
     |> template_parameters |> List.unzip3 in
-  templates |> List.concat |> String.concat ~sep:"," |> print_endline ;
-  reqs |> List.concat |> List.sexp_of_t sexp_of_template_parameter |> print_s ;
+  templates |> List.concat |> String.concat ~sep:"," |> print_endline;
+  reqs |> List.concat |> List.sexp_of_t sexp_of_template_parameter |> print_s;
   type_
   |> Fmt.to_to_string (Fmt.list ~sep:Fmt.comma Cpp.Printing.pp_type_)
-  |> print_endline ;
+  |> print_endline;
   [%expect
     {|
-    T0__0__,T0__1__
-    ((RequireIs stan::is_stan_scalar T0__0__)
-     (RequireIs stan::is_eigen_matrix_dynamic T0__1__)
-     (RequireIs stan::is_vt_not_complex T0__1__))
-    std::tuple<T0__0__, T0__1__> |}]
+    T0__0__,T0__1__,T0__2__
+    ((RequireAllCondition (OneOf (stan::is_autodiff std::is_floating_point))
+      (TemplateType T0__0__))
+     (RequireAllCondition (Exact stan::is_eigen_matrix_dynamic)
+      (TemplateType T0__1__))
+     (RequireAllCondition (Exact stan::is_vt_not_complex) (TemplateType T0__1__))
+     (RequireAllCondition (Exact std::is_integral) (TemplateType T0__2__)))
+    std::tuple<T0__0__, T0__1__, T0__2__> |}]
 
 let%expect_test "arg types tuple template" =
   let templates, reqs, type_ =
     [(AutoDiffable, "xreal", UArray (UTuple [UArray UInt; UMatrix]))]
     |> template_parameters |> List.unzip3 in
-  templates |> List.concat |> String.concat ~sep:"," |> print_endline ;
-  reqs |> List.concat |> List.sexp_of_t sexp_of_template_parameter |> print_s ;
+  templates |> List.concat |> String.concat ~sep:"," |> print_endline;
+  reqs |> List.concat |> List.sexp_of_t sexp_of_template_parameter |> print_s;
   type_
   |> Fmt.to_to_string (Fmt.list ~sep:Fmt.comma Cpp.Printing.pp_type_)
-  |> print_endline ;
+  |> print_endline;
   [%expect
     {|
-  T0__1__
-  ((RequireIs stan::is_eigen_matrix_dynamic T0__1__)
-   (RequireIs stan::is_vt_not_complex T0__1__))
-  std::vector<std::tuple<std::vector<int>, T0__1__>> |}]
+  T0__0__,T0__1__
+  ((RequireAllCondition (Exact stan::is_std_vector) (TemplateType T0__0__))
+   (RequireAllCondition (Exact std::is_integral)
+    (TypeTrait stan::value_type_t ((TemplateType T0__0__))))
+   (RequireAllCondition (Exact stan::is_eigen_matrix_dynamic)
+    (TemplateType T0__1__))
+   (RequireAllCondition (Exact stan::is_vt_not_complex) (TemplateType T0__1__)))
+  std::vector<std::tuple<T0__0__, T0__1__>> |}]
 
 let lower_promoted_scalar args =
   match args with
@@ -163,11 +179,7 @@ let lower_promoted_scalar args =
             TypeTrait ("stan::promote_args_t", hd @ chunk_till_empty list_tail)
       in
       promote_args_chunked
-        List.(
-          chunks_of ~length:5
-            (List.map
-               ~f:(fun t -> TemplateType t)
-               (concat (return_optional_arg_types args)) ))
+        List.(chunks_of ~length:5 (concat (return_optional_arg_types args)))
 
 (** Pretty-prints a function's return-type, taking into account templated argument
 promotion.*)
@@ -183,13 +195,13 @@ let lower_eigen_args_to_ref arg_types =
       (make_variable_defn ~type_:(Types.const_ref Auto) ~name
          ~init:
            (Assignment
-              (Exprs.fun_call "stan::math::to_ref" [Var (name ^ "_arg__")]) )
-         () ) in
+              (Exprs.fun_call "stan::math::to_ref" [Var (name ^ "_arg__")]))
+         ()) in
   List.map ~f:lower_ref
     (List.filter_map
        ~f:(fun (_, name, ut) ->
-         if UnsizedType.is_eigen_type ut then Some name else None )
-       arg_types )
+         if UnsizedType.is_eigen_type ut then Some name else None)
+       arg_types)
 
 let typename parameter_name = Typename parameter_name
 
@@ -219,10 +231,10 @@ let lower_fun_body fdargs fdsuffix fdbody =
     | FnPlain | FnRng ->
         VariableDefn
           (make_variable_defn ~static:true ~constexpr:true ~type_:Types.bool
-             ~name:"propto__" ~init:(Assignment (Literal "true")) () )
+             ~name:"propto__" ~init:(Assignment (Literal "true")) ())
         :: Stmts.unused "propto__" in
   let body = lower_statement fdbody in
-  (local_scalar :: Decls.current_statement :: to_refs)
+  ((local_scalar :: Decls.current_statement) @ to_refs)
   @ propto @ Decls.dummy_var @ Stmts.rethrow_located body
 
 let mk_extra_args templates args =
@@ -249,6 +261,14 @@ let extra_suffix_args fdsuffix =
   | FnRng -> (["base_rng__"], ["RNG"])
   | FnLpdf _ | FnPlain -> ([], [])
 
+let signature_comment Program.{fdrt; fdname; fdargs; _} =
+  GlobalComment
+    Fmt.(
+      str "@[<1>@[<v>%a@]@ %s(@[<hov>%a@])@]" UnsizedType.pp_returntype fdrt
+        fdname
+        (list ~sep:comma (box UnsizedType.pp_fun_arg))
+        (List.map ~f:(fun (ad, _id, ty) -> (ad, ty)) fdargs))
+
 let lower_fun_def (functors : Lower_expr.variadic list)
     Program.{fdrt; fdname; fdsuffix; fdargs; fdbody; _} :
     fun_defn * struct_defn list =
@@ -269,9 +289,7 @@ let lower_fun_def (functors : Lower_expr.variadic list)
   let cpp_arg_gen = lower_args extra_template_names extra_arg_names in
   let cpp_args = cpp_arg_gen templated_args FixedArgs in
   let almost_fn =
-    make_fun_defn
-      ~templates_init:([template_params], true)
-      ~name:fdname
+    make_fun_defn ~templates_init:([template_params], true) ~name:fdname
       ~return_type:(lower_returntype fdargs fdrt)
       ~args:cpp_args in
   let fd =
@@ -304,9 +322,7 @@ let lower_fun_def (functors : Lower_expr.variadic list)
       [Return (Some (Exprs.templated_fun_call fdname defn_template defn_args))]
     in
     let functor_decl =
-      make_fun_defn
-        ~templates_init:([arg_templates], true)
-        ~name:"operator()"
+      make_fun_defn ~templates_init:([arg_templates], true) ~name:"operator()"
         ~return_type:(lower_returntype fdargs fdrt)
         ~args:cpp_args ~cv_qualifiers:[Const] ~body:defn_body () in
     make_struct_defn ~param:struct_template ~name:functor_name
@@ -344,15 +360,16 @@ let collect_functors_functions (p : Program.Numbered.t) : defn list =
   let register_functors (d : _ Program.fun_def) =
     let functors =
       Map.find_multi functor_required d.fdname
-      |> List.stable_dedup
-      |> List.filter_map ~f:(fun (hof, types) ->
-             if matching_argtypes d types then Some hof else None ) in
+      |> Set.Poly.of_list
+      |> Set.Poly.filter_map ~f:(fun (hof, types) ->
+             if matching_argtypes d types then Some hof else None)
+      |> Set.to_list in
     let fn, st = lower_fun_def functors d in
     List.iter st ~f:(fun s ->
         (* Side effecting, collates functor structs *)
         Hashtbl.update structs s.struct_name ~f:(function
           | Some x -> {x with body= x.body @ s.body}
-          | None -> s ) ) ;
+          | None -> s));
     fn in
   let fun_decls, fun_defns =
     p.functions_block
@@ -361,10 +378,10 @@ let collect_functors_functions (p : Program.Numbered.t) : defn list =
            if Option.is_none d.fdbody then None
            else
              let decl, defn = Cpp.split_fun_decl_defn fn in
-             Some (FunDef decl, FunDef defn) )
+             Some (FunDef decl, [signature_comment d; FunDef defn]))
     |> List.unzip in
   let structs = Hashtbl.data structs |> List.map ~f:(fun s -> Struct s) in
-  fun_decls @ structs @ fun_defns
+  fun_decls @ structs @ List.concat fun_defns
 
 let lower_standalone_fun_def namespace_fun
     Program.{fdname; fdsuffix; fdargs; fdrt; _} =
@@ -377,7 +394,7 @@ let lower_standalone_fun_def namespace_fun
   let args =
     List.map
       ~f:(fun (_, name, ut) ->
-        (Types.const_ref (lower_type ut (stantype_prim ut)), name) )
+        (Types.const_ref (lower_type ut (stantype_prim ut)), name))
       fdargs in
   let all_args =
     args
@@ -409,8 +426,8 @@ module Testing = struct
 
   let pp_fun_def_test ppf a =
     let defn, st = lower_fun_def [FixedArgs] a in
-    Cpp.Printing.pp_fun_defn ppf defn ;
-    cut ppf () ;
+    Cpp.Printing.pp_fun_defn ppf defn;
+    cut ppf ();
     (list ~sep:cut Cpp.Printing.pp_struct_defn) ppf st
 
   let%expect_test "udf" =
@@ -424,15 +441,15 @@ module Testing = struct
     ; fdbody=
         Stmt.Fixed.Pattern.Return
           (Some
-             ( w
+             (w
              @@ FunApp
                   ( StanLib ("add", FnPlain, AoS)
-                  , [w @@ Var "x"; w @@ Lit (Int, "1")] ) ) )
+                  , [w @@ Var "x"; w @@ Lit (Int, "1")] )))
         |> with_no_loc |> List.return |> Stmt.Fixed.Pattern.Block |> with_no_loc
         |> Some
     ; fdloc= Location_span.empty }
     |> str "@[<v>%a" pp_fun_def_test
-    |> print_endline ;
+    |> print_endline;
     [%expect
       {|
     template <typename T0__, typename T1__,
@@ -444,6 +461,8 @@ module Testing = struct
       using local_scalar_t__ = stan::promote_args_t<stan::base_type_t<T0__>,
                                  stan::base_type_t<T1__>>;
       int current_statement__ = 0;
+      // suppress unused var warning
+      (void) current_statement__;
       const auto& x = stan::math::to_ref(x_arg__);
       const auto& y = stan::math::to_ref(y_arg__);
       static constexpr bool propto__ = true;
@@ -484,15 +503,15 @@ module Testing = struct
     ; fdbody=
         Stmt.Fixed.Pattern.Return
           (Some
-             ( w
+             (w
              @@ FunApp
                   ( StanLib ("add", FnPlain, AoS)
-                  , [w @@ Var "x"; w @@ Lit (Int, "1")] ) ) )
+                  , [w @@ Var "x"; w @@ Lit (Int, "1")] )))
         |> with_no_loc |> List.return |> Stmt.Fixed.Pattern.Block |> with_no_loc
         |> Some
     ; fdloc= Location_span.empty }
     |> str "@[<v>%a" pp_fun_def_test
-    |> print_endline ;
+    |> print_endline;
     [%expect
       {|
     template <typename T0__, typename T1__, typename T2__, typename T3__,
@@ -502,15 +521,21 @@ module Testing = struct
                                   stan::is_vt_not_complex<T1__>,
                                   stan::is_row_vector<T2__>,
                                   stan::is_vt_not_complex<T2__>,
-                                  stan::is_stan_scalar<T3__>>* = nullptr>
+                                  stan::is_std_vector<T3__>,
+                                  stan::is_eigen_matrix_dynamic<stan::value_type_t<T3__>>,
+                                  stan::is_vt_not_complex<stan::value_type_t<T3__>>>* = nullptr>
     Eigen::Matrix<stan::promote_args_t<stan::base_type_t<T0__>,
-                    stan::base_type_t<T1__>, stan::base_type_t<T2__>, T3__>,-1,-1>
+                    stan::base_type_t<T1__>, stan::base_type_t<T2__>,
+                    stan::base_type_t<T3__>>,-1,-1>
     sars(const T0__& x_arg__, const T1__& y_arg__, const T2__& z_arg__,
-         const std::vector<Eigen::Matrix<T3__,-1,-1>>& w, std::ostream* pstream__) {
+         const T3__& w, std::ostream* pstream__) {
       using local_scalar_t__ = stan::promote_args_t<stan::base_type_t<T0__>,
                                  stan::base_type_t<T1__>,
-                                 stan::base_type_t<T2__>, T3__>;
+                                 stan::base_type_t<T2__>,
+                                 stan::base_type_t<T3__>>;
       int current_statement__ = 0;
+      // suppress unused var warning
+      (void) current_statement__;
       const auto& x = stan::math::to_ref(x_arg__);
       const auto& y = stan::math::to_ref(y_arg__);
       const auto& z = stan::math::to_ref(z_arg__);
@@ -534,12 +559,14 @@ module Testing = struct
                                     stan::is_vt_not_complex<T1__>,
                                     stan::is_row_vector<T2__>,
                                     stan::is_vt_not_complex<T2__>,
-                                    stan::is_stan_scalar<T3__>>* = nullptr>
+                                    stan::is_std_vector<T3__>,
+                                    stan::is_eigen_matrix_dynamic<stan::value_type_t<T3__>>,
+                                    stan::is_vt_not_complex<stan::value_type_t<T3__>>>* = nullptr>
       Eigen::Matrix<stan::promote_args_t<stan::base_type_t<T0__>,
-                      stan::base_type_t<T1__>, stan::base_type_t<T2__>, T3__>,-1,-1>
-      operator()(const T0__& x, const T1__& y, const T2__& z,
-                 const std::vector<Eigen::Matrix<T3__,-1,-1>>& w, std::ostream*
-                 pstream__) const {
+                      stan::base_type_t<T1__>, stan::base_type_t<T2__>,
+                      stan::base_type_t<T3__>>,-1,-1>
+      operator()(const T0__& x, const T1__& y, const T2__& z, const T3__& w,
+                 std::ostream* pstream__) const {
         return sars(x, y, z, w, pstream__);
       }
     }; |}]
