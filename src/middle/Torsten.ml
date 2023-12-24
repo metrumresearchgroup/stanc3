@@ -36,14 +36,6 @@ let pmx_coupled_ode_func =
         , FnPlain
         , Mem_pattern.AoS ) ) ]
 
-let pmx_variadic_ode_fns =
-  String.Set.of_list
-    [ "pmx_ode_bdf_ctrl"; "pmx_ode_rk45_ctrl"; "pmx_ode_adams_ctrl"
-    ; "pmx_ode_bdf"; "pmx_ode_rk45"; "pmx_ode_adams"; "pmx_ode_ckrk"
-    ; "pmx_ode_ckrk_ctrl" ]
-
-let pmx_ode_control_suffix = "_ctrl"
-
 let pmx_integrate_ode_arg =
   [ (UnsizedType.AutoDiffable, UnsizedType.UArray UReal) (* y0 *)
   ; (UnsizedType.AutoDiffable, UReal) (* t0 *)

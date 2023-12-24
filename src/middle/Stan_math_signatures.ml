@@ -2684,6 +2684,16 @@ let variadic_ode_nonadjoint_fns =
     [ "ode_bdf_tol"; "ode_rk45_tol"; "ode_adams_tol"; "ode_bdf"; "ode_rk45"
     ; "ode_adams"; "ode_ckrk"; "ode_ckrk_tol" ]
 
+(* torsten ode *)
+let pmx_variadic_ode_fns =
+  String.Set.of_list
+    [ "pmx_ode_bdf_ctrl"; "pmx_ode_rk45_ctrl"; "pmx_ode_adams_ctrl"
+    ; "pmx_ode_bdf"; "pmx_ode_rk45"; "pmx_ode_adams"; "pmx_ode_ckrk"
+    ; "pmx_ode_ckrk_ctrl" ]
+
+let pmx_ode_control_suffix = "_ctrl"
+(* end of torsten ode *)
+
 let ode_tolerances_suffix = "_tol"
 let is_reduce_sum_fn f = Set.mem reduce_sum_functions f
 let variadic_dae_fun_return_type = UnsizedType.UVector
@@ -2720,12 +2730,12 @@ let () =
   let add_ode name =
     add_variadic_fn name ~return_type:variadic_ode_return_type
       ~control_args:
-        ( if String.is_suffix name ~suffix:Torsten.pmx_ode_control_suffix then
+        ( if String.is_suffix name ~suffix:pmx_ode_control_suffix then
           variadic_ode_mandatory_arg_types @ variadic_ode_tol_arg_types
         else variadic_ode_mandatory_arg_types )
       ~required_fn_rt:variadic_ode_fun_return_type
       ~required_fn_args:variadic_ode_mandatory_fun_args () in
-  Set.iter ~f:add_ode Torsten.pmx_variadic_ode_fns ;
+  Set.iter ~f:add_ode pmx_variadic_ode_fns ;
   (* Adjoint ODE function *)
   add_variadic_fn variadic_ode_adjoint_fn ~return_type:variadic_ode_return_type
     ~control_args:
