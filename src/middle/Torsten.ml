@@ -1,4 +1,4 @@
-open Core_kernel
+open Core
 
 (* old ODE RHS def *)
 let pmx_ode_func =
