@@ -2,7 +2,6 @@ data{
   int<lower = 1> nt;  // number of events
   int<lower = 1> nObs;  // number of observation
   array[nObs] int<lower = 1> iObs;  // index of observation
-  
   // NONMEM data
   array[nt] int<lower = 1> cmt;
   array[nt] int evid;
@@ -27,17 +26,14 @@ transformed parameters{
   array[5] real theta;  // ODE parameters
   row_vector<lower = 0>[nt] cHat;
   matrix<lower = 0>[3, nt] x;
-
   theta[1] = CL;
   theta[2] = Q;
   theta[3] = V1;
   theta[4] = V2;
   theta[5] = ka;
-
   x = pmx_solve_twocpt(time, amt, rate, ii, evid, cmt, addl, ss, theta);
-
   cHat = x[2, :] ./ V1; // we're interested in the amount in the second compartment
 }
-
 model{
+  // omit
 }
