@@ -320,14 +320,14 @@ let add_torsten_qualified add_func =
 
   (* linear interpolation *)
   add_func
-    ( "pmx_linear_interpolation"
+    ( "pmx_ln_interpolate"
     , ReturnType UReal
     , [ (AutoDiffable, UReal) (* x_out *); (AutoDiffable, UArray UReal) (* x *)
       ; (AutoDiffable, UArray UReal) ]
     , Mem_pattern.AoS ) ;
   (* y *)
   add_func
-    ( "pmx_linear_interpolation"
+    ( "pmx_ln_interpolate"
     , ReturnType (UArray UReal)
     , [ (AutoDiffable, UArray UReal) (* x_out *)
       ; (AutoDiffable, UArray UReal) (* x *); (AutoDiffable, UArray UReal) ]

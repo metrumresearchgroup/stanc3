@@ -19400,8 +19400,8 @@ Display all Stan math signatures exposed in the language
   pmx_integrate_ode_group_bdf((real, array[] real, array[] real, data array[] real, data array[] int) => array[] real, array[,] real, real, array[] int, array[] real, array[,] real, array[,] real, array[,] int, real, real, real) => matrix
   pmx_integrate_ode_group_rk45((real, array[] real, array[] real, data array[] real, data array[] int) => array[] real, array[,] real, real, array[] int, array[] real, array[,] real, array[,] real, array[,] int) => matrix
   pmx_integrate_ode_group_rk45((real, array[] real, array[] real, data array[] real, data array[] int) => array[] real, array[,] real, real, array[] int, array[] real, array[,] real, array[,] real, array[,] int, real, real, real) => matrix
-  pmx_linear_interpolation(real, array[] real, array[] real) => real
-  pmx_linear_interpolation(array[] real, array[] real, array[] real) => array[] real
+  pmx_ln_interpolate(real, array[] real, array[] real) => real
+  pmx_ln_interpolate(array[] real, array[] real, array[] real) => array[] real
   pmx_solve_adams((real, vector, array[] real, data array[] real, data array[] int) => vector, int, array[] real, array[] real, array[] real, array[] real, array[] int, array[] int, array[] int, array[] int, array[] real) => matrix
   pmx_solve_adams((real, vector, array[] real, data array[] real, data array[] int) => vector, int, array[] real, array[] real, array[] real, array[] real, array[] int, array[] int, array[] int, array[] int, array[] real, real, real, real) => matrix
   pmx_solve_adams((real, vector, array[] real, data array[] real, data array[] int) => vector, int, array[] real, array[] real, array[] real, array[] real, array[] int, array[] int, array[] int, array[] int, array[] real, real, real, real, real, real, real) => matrix
