@@ -88,7 +88,6 @@ transformed data {
   zd = pmx_ode_adams(f_2_arg, vd, rd, rad, id, rd);
   zd = pmx_ode_adams(f_1_arg, vd, rd, rad, rd);
   zd = pmx_ode_adams(f_0_arg, vd, rd, rad);
-
   // ODE with control
   zd = pmx_ode_adams_ctrl(f_12_arg, vd, rd, rad, 1e-6, 1e-6,
                                         100, mad, rvad, vad, iaad, raad, md,
