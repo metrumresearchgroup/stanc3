@@ -1,24 +1,20 @@
 all:
 	dune build src/stanc/stanc.exe
 
-TEST_DUNES := $(foreach d,$(shell find test/integration -type d),$(d)/dune)
-TEST_TORSTEN := $(foreach d,$(shell find test/integration/good/torsten -type d),$(d)/dune)
-test: $(TEST_DUNES)
-
-.PHONY: doc test
+.PHONY: doc test testcoverage format cross static clean re
 
 test:
 	dune runtest
 
-test_torsten: $(TEST_TORSTEN)
-	dune runtest test/integration/good/torsten
+PARALLEL ?= auto
+BISECT_FLAGS = --expect src/ --do-not-expect src/stancjs/ --do-not-expect src/stan_math_signatures/Generate.ml --do-not-expect src/frontend/parser_strip_redundant_state.ml --do-not-expect src/frontend/parser_messages_add_type.ml
 
-testcoverage:
-	@find . -name '*.coverage' | xargs rm -f
-	dune clean
-	BISECT_FILE=`pwd`/bisect dune runtest --instrument-with bisect_ppx --force
-	bisect-ppx-report html --expect src/ --do-not-expect src/stancjs/
-	bisect-ppx-report summary --expect src/ --do-not-expect src/stancjs/
+
+testcoverage: clean
+	BISECT_FILE=`pwd`/bisect dune runtest --instrument-with bisect_ppx --force --root=. -j$(PARALLEL)
+	bisect-ppx-report html $(BISECT_FLAGS)
+	bisect-ppx-report summary $(BISECT_FLAGS)
+	bisect-ppx-report coveralls coverage.json $(BISECT_FLAGS)
 	@rm *.coverage
 
 format:

@@ -18,19 +18,16 @@ type node_dep_info =
   ; reaching_defn_exit: reaching_defn Set.Poly.t
   ; meta: Location_span.t }
 
-(**
-   Find all of the reaching definitions of a variable in an RD set
-*)
+(** Find all of the reaching definitions of a variable in an RD set *)
 let reaching_defn_lookup (rds : reaching_defn Set.Poly.t) (var : vexpr) :
     label Set.Poly.t =
   Set.Poly.map (Set.filter rds ~f:(fun (var', _) -> var' = var)) ~f:snd
 
 let node_immediate_dependencies
     (statement_map :
-      ( label
-      , (Expr.Typed.t, label) Stmt.Fixed.Pattern.t * node_dep_info )
-      Map.Poly.t) ?(blockers : vexpr Set.Poly.t = Set.Poly.empty)
-    (label : label) : label Set.Poly.t =
+      (label, (Expr.Typed.t, label) Stmt.Pattern.t * node_dep_info) Map.Poly.t)
+    ?(blockers : vexpr Set.Poly.t = Set.Poly.empty) (label : label) :
+    label Set.Poly.t =
   let stmt, info = Map.Poly.find_exn statement_map label in
   let rhs_set = Set.Poly.map (stmt_rhs_var_set stmt) ~f:fst in
   let rhs_deps =
@@ -39,16 +36,13 @@ let node_immediate_dependencies
       ~f:(reaching_defn_lookup info.reaching_defn_entry) in
   Set.union info.parents rhs_deps
 
-(*
-   This is doing an explicit graph traversal with edges defined by
-   node_immediate_dependencies.
-*)
+(* This is doing an explicit graph traversal with edges defined by
+   node_immediate_dependencies. *)
 let rec node_dependencies_rec
     (statement_map :
-      ( label
-      , (Expr.Typed.t, label) Stmt.Fixed.Pattern.t * node_dep_info )
-      Map.Poly.t) ?(blockers : vexpr Set.Poly.t = Set.Poly.empty)
-    (visited : label Set.Poly.t) (label : label) : label Set.Poly.t =
+      (label, (Expr.Typed.t, label) Stmt.Pattern.t * node_dep_info) Map.Poly.t)
+    ?(blockers : vexpr Set.Poly.t = Set.Poly.empty) (visited : label Set.Poly.t)
+    (label : label) : label Set.Poly.t =
   if Set.mem visited label then visited
   else
     let visited' = Set.add visited label in
@@ -57,17 +51,15 @@ let rec node_dependencies_rec
 
 let node_dependencies
     (statement_map :
-      ( label
-      , (Expr.Typed.t, label) Stmt.Fixed.Pattern.t * node_dep_info )
-      Map.Poly.t) (label : label) : label Set.Poly.t =
+      (label, (Expr.Typed.t, label) Stmt.Pattern.t * node_dep_info) Map.Poly.t)
+    (label : label) : label Set.Poly.t =
   node_dependencies_rec statement_map Set.Poly.empty label
 
 let node_vars_dependencies
     (statement_map :
-      ( label
-      , (Expr.Typed.t, label) Stmt.Fixed.Pattern.t * node_dep_info )
-      Map.Poly.t) ?(blockers : vexpr Set.Poly.t = Set.Poly.empty)
-    (vars : vexpr Set.Poly.t) (label : label) : label Set.Poly.t =
+      (label, (Expr.Typed.t, label) Stmt.Pattern.t * node_dep_info) Map.Poly.t)
+    ?(blockers : vexpr Set.Poly.t = Set.Poly.empty) (vars : vexpr Set.Poly.t)
+    (label : label) : label Set.Poly.t =
   let _, info = Map.Poly.find_exn statement_map label in
   let var_deps =
     union_map (Set.diff vars blockers)
@@ -77,17 +69,15 @@ let node_vars_dependencies
     ~init:Set.Poly.empty
     ~f:(node_dependencies_rec statement_map ~blockers)
 
-(*
-   The strategy here is to write an update function on the whole dependency graph in terms
-   of node_immediate_dependencies, and then to find a fixed-point. Since it's updating the
-   dependencies for the whole graph at a time, it should be more efficient than doing a
-   graph traversal for each node.
-*)
+(* The strategy here is to write an update function on the whole dependency
+   graph in terms of node_immediate_dependencies, and then to find a
+   fixed-point. Since it's updating the dependencies for the whole graph at a
+   time, it should be more efficient than doing a graph traversal for each
+   node. *)
 let all_node_dependencies
     (statement_map :
-      ( label
-      , (Expr.Typed.t, label) Stmt.Fixed.Pattern.t * node_dep_info )
-      Map.Poly.t) : (label, label Set.Poly.t) Map.Poly.t =
+      (label, (Expr.Typed.t, label) Stmt.Pattern.t * node_dep_info) Map.Poly.t)
+    : (label, label Set.Poly.t) Map.Poly.t =
   let immediate_map =
     Map.mapi statement_map ~f:(fun ~key:label ~data:_ ->
         node_immediate_dependencies statement_map label) in
@@ -165,11 +155,9 @@ let stmt_uninitialized_variables (exceptions : string Set.Poly.t)
 let mir_uninitialized_variables (mir : Program.Typed.t) :
     (Location_span.t * string) Set.Poly.t =
   let flag_variables = List.map ~f:Flag_vars.to_string Flag_vars.enumerate in
+  let function_names = function_names mir in
   let data_vars = data_set ~exclude_transformed:true mir in
-  let trans_data_vars = data_set ~exclude_transformed:false mir in
-  let globals =
-    Set.union (Set.Poly.of_list flag_variables) (Set.Poly.singleton "target")
-  in
+  let globals = Set.union function_names (Set.Poly.of_list flag_variables) in
   let parameters =
     Set.Poly.of_list
       (List.map ~f:fst3
@@ -177,21 +165,22 @@ let mir_uninitialized_variables (mir : Program.Typed.t) :
             ~f:(fun (_, _, {out_block; _}) -> out_block = Parameters)
             mir.output_vars)) in
   let globals_data = Set.union globals data_vars in
-  let globals_data_prep =
-    Set.Poly.union_list [globals_data; trans_data_vars; parameters] in
+  let check_against_data b =
+    stmt_uninitialized_variables globals_data
+      {pattern= SList b; meta= Location_span.empty} in
+  let check_against_data_params b =
+    let globals_data_prep = Set.union globals_data parameters in
+    stmt_uninitialized_variables globals_data_prep
+      (* prepend prepare_data to detect bad transformed data usages *)
+      {pattern= SList (mir.prepare_data @ b); meta= Location_span.empty} in
   Set.Poly.union_list
     [ (* prepare_data scope: data *)
-      stmt_uninitialized_variables globals_data
-        {pattern= SList mir.prepare_data; meta= Location_span.empty}
+      check_against_data mir.prepare_data
       (* log_prob scope: data, prep declarations *)
-    ; stmt_uninitialized_variables globals_data_prep
-        {pattern= SList mir.log_prob; meta= Location_span.empty}
-      (* log_prob scope: data, prep declarations *)
-    ; stmt_uninitialized_variables globals_data_prep
-        {pattern= SList mir.reverse_mode_log_prob; meta= Location_span.empty}
+    ; check_against_data_params mir.log_prob
+    ; check_against_data_params mir.reverse_mode_log_prob
       (* gen quant scope: data, prep declarations *)
-    ; stmt_uninitialized_variables globals_data_prep
-        {pattern= SList mir.generate_quantities; meta= Location_span.empty}
+    ; check_against_data_params mir.generate_quantities
       (* functions scope: arguments *)
     ; Set.Poly.union_list
         (List.map mir.functions_block ~f:(fun {fdbody; fdargs; _} ->
@@ -204,13 +193,11 @@ let mir_uninitialized_variables (mir : Program.Typed.t) :
                    fdbody))) ]
 
 let build_dep_info_map (mir : Program.Typed.t) (stmt : Stmt.Located.t) :
-    ( label
-    , (Expr.Typed.t, label) Stmt.Fixed.Pattern.t * node_dep_info )
-    Map.Poly.t =
+    (label, (Expr.Typed.t, label) Stmt.Pattern.t * node_dep_info) Map.Poly.t =
   let statement_map =
     build_statement_map
-      (fun Stmt.Fixed.{pattern; _} -> pattern)
-      (fun Stmt.Fixed.{meta; _} -> meta)
+      (fun Stmt.{pattern; _} -> pattern)
+      (fun Stmt.{meta; _} -> meta)
       stmt in
   let _, preds, parents = build_cf_graphs statement_map in
   let rd_map = mir_reaching_definitions mir stmt in
@@ -224,11 +211,9 @@ let build_dep_info_map (mir : Program.Typed.t) (stmt : Stmt.Located.t) :
         ; meta } ))
 
 let log_prob_build_dep_info_map (mir : Program.Typed.t) :
-    ( label
-    , (Expr.Typed.t, label) Stmt.Fixed.Pattern.t * node_dep_info )
-    Map.Poly.t =
+    (label, (Expr.Typed.t, label) Stmt.Pattern.t * node_dep_info) Map.Poly.t =
   let log_prob_stmt =
-    Stmt.Fixed.{meta= Location_span.empty; pattern= SList mir.log_prob} in
+    Stmt.{meta= Location_span.empty; pattern= SList mir.log_prob} in
   build_dep_info_map mir log_prob_stmt
 
 let log_prob_dependency_graph (mir : Program.Typed.t) :

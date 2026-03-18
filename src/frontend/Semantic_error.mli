@@ -13,6 +13,7 @@ val invalid_row_vector_types : Location_span.t -> UnsizedType.t -> t
 val invalid_matrix_types : Location_span.t -> UnsizedType.t -> t
 val int_expected : Location_span.t -> string -> UnsizedType.t -> t
 val int_or_real_expected : Location_span.t -> string -> UnsizedType.t -> t
+val tuple_expected : Location_span.t -> string -> UnsizedType.t -> t
 val int_intarray_or_range_expected : Location_span.t -> UnsizedType.t -> t
 val int_or_real_container_expected : Location_span.t -> UnsizedType.t -> t
 
@@ -47,7 +48,7 @@ val illtyped_reduce_sum :
      Location_span.t
   -> string
   -> UnsizedType.t list
-  -> (UnsizedType.autodifftype * UnsizedType.t) list
+  -> UnsizedType.argumentlist
   -> SignatureMismatch.function_mismatch
   -> t
 
@@ -55,18 +56,53 @@ val ambiguous_function_promotion :
      Location_span.t
   -> string
   -> UnsizedType.t list option
-  -> (UnsizedType.returntype * (UnsizedType.autodifftype * UnsizedType.t) list)
-     list
+  -> (UnsizedType.returntype * UnsizedType.argumentlist) list
   -> t
 
 val illtyped_variadic :
      Location_span.t
   -> string
   -> UnsizedType.t list
-  -> (UnsizedType.autodifftype * UnsizedType.t) list
+  -> UnsizedType.argumentlist
   -> UnsizedType.t
   -> SignatureMismatch.function_mismatch
   -> t
+
+val forwarded_function_signature_error :
+  Location_span.t -> string -> string -> SignatureMismatch.details -> t
+
+val forwarded_function_application_error :
+     Location_span.t
+  -> string
+  -> string
+  -> string list
+  -> SignatureMismatch.details
+  -> t
+
+val illtyped_laplace_helper_args :
+     Location_span.t
+  -> string
+  -> UnsizedType.argumentlist
+  -> SignatureMismatch.details
+  -> t
+
+val illtyped_laplace_generic :
+  Location_span.t -> string -> bool -> UnsizedType.argumentlist -> t
+(** Generic failure. This means too few arguments were supplied, or that the
+    function arguments are misplaced, both of which prevent us from giving a
+    better message *)
+
+val laplace_compatibility : Location_span.t -> string -> t
+val illtyped_laplace_extra_args : Location_span.t -> string -> int -> t
+
+val illtyped_laplace_hessian_block_size_arg :
+     Location_span.t
+  -> string
+  -> (UnsizedType.autodifftype * UnsizedType.t) option
+  -> t
+
+val illtyped_laplace_tolerance_args :
+  Location_span.t -> string -> SignatureMismatch.function_mismatch -> t
 
 val nonreturning_fn_expected_returning_found : Location_span.t -> string -> t
 val nonreturning_fn_expected_nonfn_found : Location_span.t -> string -> t
@@ -114,13 +150,14 @@ val cannot_assign_duplicate_unpacking :
   Location_span.t -> Ast.untyped_lval list -> t
 
 val cannot_access_assigning_var : Location_span.t -> string list -> t
-val invalid_sampling_pdf_or_pmf : Location_span.t -> t
-val invalid_sampling_cdf_or_ccdf : Location_span.t -> string -> t
-val invalid_sampling_no_such_dist : Location_span.t -> string -> bool -> t
+val invalid_tilde_pdf_or_pmf : Location_span.t -> t
+val invalid_tilde_cdf_or_ccdf : Location_span.t -> string -> t
+val invalid_tilde_no_such_dist : Location_span.t -> string -> bool -> t
 val target_plusequals_outside_model_or_logprob : Location_span.t -> t
+val jacobian_plusequals_not_allowed : Location_span.t -> t
 
 val invalid_truncation_cdf_or_ccdf :
-  Location_span.t -> (UnsizedType.autodifftype * UnsizedType.t) list -> t
+  Location_span.t -> UnsizedType.argumentlist -> t
 
 val break_outside_loop : Location_span.t -> t
 val continue_outside_loop : Location_span.t -> t
@@ -129,7 +166,7 @@ val void_outside_nonreturning_fn : Location_span.t -> t
 val non_data_variable_size_decl : Location_span.t -> t
 val non_int_bounds : Location_span.t -> t
 val complex_transform : Location_span.t -> t
-val transformed_params_int : Location_span.t -> t
+val no_int_params : Location_span.t -> bool -> t
 
 val fn_overload_rt_only :
      Location_span.t
@@ -144,8 +181,8 @@ val fn_decl_redefined :
 val fn_decl_exists : Location_span.t -> string -> t
 val fn_decl_without_def : Location_span.t -> string -> t
 val fn_decl_needs_block : Location_span.t -> t
-val non_real_prob_fn_def : Location_span.t -> t
+val non_real_prob_fn_def : Location_span.t -> UnsizedType.returntype -> t
 val prob_density_non_real_variate : Location_span.t -> UnsizedType.t option -> t
 val prob_mass_non_int_variate : Location_span.t -> UnsizedType.t option -> t
-val duplicate_arg_names : Location_span.t -> t
+val duplicate_arg_names : Location_span.t -> string -> t
 val incompatible_return_types : Location_span.t -> t
