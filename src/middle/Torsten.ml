@@ -61,7 +61,7 @@ let rec pmx_ode_group add_func name args_list =
         ( name
         , UnsizedType.ReturnType UMatrix
         , pmx_ode_func @ head
-        , Mem_pattern.AoS ) ;
+        , Mem_pattern.AoS );
       pmx_ode_group add_func name tail
 
 (* from rosettacode.org *)
@@ -101,7 +101,7 @@ let rec pmx_solve_cpt add_func name args_list =
         ( name
         , UnsizedType.ReturnType UMatrix
         , pmx_event_args @ head
-        , Mem_pattern.AoS ) ;
+        , Mem_pattern.AoS );
       pmx_solve_cpt add_func name tail
 
 let rec pmx_solve add_func name args_list =
@@ -123,7 +123,7 @@ let rec pmx_solve add_func name args_list =
         ( name
         , UnsizedType.ReturnType UMatrix
         , pmx_solve_ode_func @ pmx_event_args @ head
-        , Mem_pattern.AoS ) ;
+        , Mem_pattern.AoS );
       pmx_solve add_func name tail
 
 let rec pmx_solve_coupled add_func name args_list =
@@ -145,7 +145,7 @@ let rec pmx_solve_coupled add_func name args_list =
         ( name
         , UnsizedType.ReturnType UMatrix
         , pmx_coupled_ode_func @ pmx_event_args @ head
-        , Mem_pattern.AoS ) ;
+        , Mem_pattern.AoS );
       pmx_solve_coupled add_func name tail
 
 let rec pmx_solve_group add_func name args_list =
@@ -168,7 +168,7 @@ let rec pmx_solve_group add_func name args_list =
         ( name
         , UnsizedType.ReturnType UMatrix
         , pmx_solve_ode_func @ pmx_event_args @ head
-        , Mem_pattern.AoS ) ;
+        , Mem_pattern.AoS );
       pmx_solve_group add_func name tail
 
 let pmx_solve_args, pmx_group_args, pmx_solve_cpt_args =
@@ -229,30 +229,30 @@ let pmx_solve_coupled_args =
 let add_torsten_qualified add_func =
   let sol_names =
     List.map ~f:(fun sol -> "pmx_solve_" ^ sol) ["adams"; "bdf"; "rk45"] in
-  List.iter ~f:(fun sol -> pmx_solve add_func sol pmx_solve_args) sol_names ;
+  List.iter ~f:(fun sol -> pmx_solve add_func sol pmx_solve_args) sol_names;
   let sol_names =
     List.map ~f:(fun sol -> "pmx_solve_group_" ^ sol) ["adams"; "bdf"; "rk45"]
   in
   List.iter
     ~f:(fun sol -> pmx_solve_group add_func sol pmx_group_args)
-    sol_names ;
+    sol_names;
   let sol_names =
     List.map
       ~f:(fun sol -> "pmx_solve_" ^ sol)
       ["onecpt"; "twocpt"; "onecpt_effcpt"; "twocpt_effcpt"] in
   List.iter
     ~f:(fun sol -> pmx_solve_cpt add_func sol pmx_solve_cpt_args)
-    sol_names ;
+    sol_names;
   let sol_names =
     List.map ~f:(fun sol -> "pmx_solve_onecpt_" ^ sol) ["bdf"; "rk45"] in
   List.iter
     ~f:(fun sol -> pmx_solve_coupled add_func sol pmx_solve_coupled_args)
-    sol_names ;
+    sol_names;
   let sol_names =
     List.map ~f:(fun sol -> "pmx_solve_twocpt_" ^ sol) ["bdf"; "rk45"] in
   List.iter
     ~f:(fun sol -> pmx_solve_coupled add_func sol pmx_solve_coupled_args)
-    sol_names ;
+    sol_names;
   (* pmx_solve_linode *)
   add_func
     ( "pmx_solve_linode"
@@ -266,7 +266,7 @@ let add_torsten_qualified add_func =
       ; (AutoDiffable, UArray UMatrix) (* pMatrix *)
       ; (AutoDiffable, UArray (UArray UReal)) (* biovar *)
       ; (AutoDiffable, UArray (UArray UReal)) ]
-    , Mem_pattern.AoS ) ;
+    , Mem_pattern.AoS );
   (* tlag *)
   add_func
     ( "pmx_solve_linode"
@@ -280,7 +280,7 @@ let add_torsten_qualified add_func =
       ; (AutoDiffable, UMatrix) (* pMatrix *)
       ; (AutoDiffable, UArray UReal) (* biovar *); (AutoDiffable, UArray UReal)
       ]
-    , Mem_pattern.AoS ) ;
+    , Mem_pattern.AoS );
   (* tlag *)
   add_func
     ( "pmx_solve_linode"
@@ -294,7 +294,7 @@ let add_torsten_qualified add_func =
       ; (AutoDiffable, UArray UMatrix) (* pMatrix *)
       ; (AutoDiffable, UArray UReal) (* biovar *); (AutoDiffable, UArray UReal)
       ]
-    , Mem_pattern.AoS ) ;
+    , Mem_pattern.AoS );
   (* tlag *)
 
   (* linear interpolation *)
@@ -303,7 +303,7 @@ let add_torsten_qualified add_func =
     , ReturnType UReal
     , [ (AutoDiffable, UReal) (* x_out *); (AutoDiffable, UArray UReal) (* x *)
       ; (AutoDiffable, UArray UReal) ]
-    , Mem_pattern.AoS ) ;
+    , Mem_pattern.AoS );
   (* y *)
   add_func
     ( "pmx_ln_interpolate"

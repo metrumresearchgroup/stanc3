@@ -1,4 +1,3 @@
-  $ ../../../../../install/default/bin/stanc --auto-format pmx_ln_interp.stan
 data {
   int nObs;
   array[nObs] real xObs;
@@ -35,7 +34,6 @@ model {
   
 }
 
-  $ ../../../../../install/default/bin/stanc --auto-format pmx_solve_group.stan
 functions {
   vector ode(real t, vector y, array[] real theta, array[] real x,
              array[] int x_int) {
@@ -79,72 +77,66 @@ transformed data {
    pmx_solve_rk45/adams/bdf full sig
    *****************************************************************/
   x_data = pmx_solve_group_rk45(ode, nCmt, len, time, amt, rate, ii, evid,
-                                cmt, addl, ss, theta_data, biovar_data,
-                                tlag_data, 1e-8, 1e-8, 1e8);
+             cmt, addl, ss, theta_data, biovar_data, tlag_data, 1e-8, 1e-8,
+             1e8);
   x_data = pmx_solve_group_bdf(ode, nCmt, len, time, amt, rate, ii, evid,
-                               cmt, addl, ss, theta_data, biovar_data,
-                               tlag_data, 1e-8, 1e-8, 1e8);
+             cmt, addl, ss, theta_data, biovar_data, tlag_data, 1e-8, 1e-8,
+             1e8);
   x_data = pmx_solve_group_adams(ode, nCmt, len, time, amt, rate, ii, evid,
-                                 cmt, addl, ss, theta_data, biovar_data,
-                                 tlag_data, 1e-8, 1e-8, 1e8);
+             cmt, addl, ss, theta_data, biovar_data, tlag_data, 1e-8, 1e-8,
+             1e8);
   
   /*****************************************************************
    pmx_solve_rk45/adams/bdf default tlag
    *****************************************************************/
   
   x_data = pmx_solve_group_rk45(ode, nCmt, len, time, amt, rate, ii, evid,
-                                cmt, addl, ss, theta_data, biovar_data, 1e-8,
-                                1e-8, 1e8);
+             cmt, addl, ss, theta_data, biovar_data, 1e-8, 1e-8, 1e8);
   x_data = pmx_solve_group_bdf(ode, nCmt, len, time, amt, rate, ii, evid,
-                               cmt, addl, ss, theta_data, biovar_data, 1e-8,
-                               1e-8, 1e8);
+             cmt, addl, ss, theta_data, biovar_data, 1e-8, 1e-8, 1e8);
   x_data = pmx_solve_group_adams(ode, nCmt, len, time, amt, rate, ii, evid,
-                                 cmt, addl, ss, theta_data, biovar_data,
-                                 1e-8, 1e-8, 1e8);
+             cmt, addl, ss, theta_data, biovar_data, 1e-8, 1e-8, 1e8);
   
   /*****************************************************************
    pmx_solve_rk45/adams/bdf default F & tlag
    *****************************************************************/
   
   x_data = pmx_solve_group_rk45(ode, nCmt, len, time, amt, rate, ii, evid,
-                                cmt, addl, ss, theta_data, 1e-8, 1e-8, 1e8);
+             cmt, addl, ss, theta_data, 1e-8, 1e-8, 1e8);
   x_data = pmx_solve_group_bdf(ode, nCmt, len, time, amt, rate, ii, evid,
-                               cmt, addl, ss, theta_data, 1e-8, 1e-8, 1e8);
+             cmt, addl, ss, theta_data, 1e-8, 1e-8, 1e8);
   x_data = pmx_solve_group_adams(ode, nCmt, len, time, amt, rate, ii, evid,
-                                 cmt, addl, ss, theta_data, 1e-8, 1e-8, 1e8);
+             cmt, addl, ss, theta_data, 1e-8, 1e-8, 1e8);
   
   /*****************************************************************
    pmx_solve_group_rk45/adams/bdf w/o ODE controls
    *****************************************************************/
   x_data = pmx_solve_group_rk45(ode, nCmt, len, time, amt, rate, ii, evid,
-                                cmt, addl, ss, theta_data, biovar_data,
-                                tlag_data);
+             cmt, addl, ss, theta_data, biovar_data, tlag_data);
   x_data = pmx_solve_group_bdf(ode, nCmt, len, time, amt, rate, ii, evid,
-                               cmt, addl, ss, theta_data, biovar_data,
-                               tlag_data);
+             cmt, addl, ss, theta_data, biovar_data, tlag_data);
   x_data = pmx_solve_group_adams(ode, nCmt, len, time, amt, rate, ii, evid,
-                                 cmt, addl, ss, theta_data, biovar_data,
-                                 tlag_data);
+             cmt, addl, ss, theta_data, biovar_data, tlag_data);
   
   /*****************************************************************
    pmx_solve_group_rk45/adams/bdf w/o ODE controls or tlag
    *****************************************************************/
   x_data = pmx_solve_group_rk45(ode, nCmt, len, time, amt, rate, ii, evid,
-                                cmt, addl, ss, theta_data, biovar_data);
+             cmt, addl, ss, theta_data, biovar_data);
   x_data = pmx_solve_group_bdf(ode, nCmt, len, time, amt, rate, ii, evid,
-                               cmt, addl, ss, theta_data, biovar_data);
+             cmt, addl, ss, theta_data, biovar_data);
   x_data = pmx_solve_group_adams(ode, nCmt, len, time, amt, rate, ii, evid,
-                                 cmt, addl, ss, theta_data, biovar_data);
+             cmt, addl, ss, theta_data, biovar_data);
   
   /*****************************************************************
    pmx_solve_group_rk45/adams/bdf w/o ODE controls or tlag
    *****************************************************************/
   x_data = pmx_solve_group_rk45(ode, nCmt, len, time, amt, rate, ii, evid,
-                                cmt, addl, ss, theta_data);
+             cmt, addl, ss, theta_data);
   x_data = pmx_solve_group_bdf(ode, nCmt, len, time, amt, rate, ii, evid,
-                               cmt, addl, ss, theta_data);
+             cmt, addl, ss, theta_data);
   x_data = pmx_solve_group_adams(ode, nCmt, len, time, amt, rate, ii, evid,
-                                 cmt, addl, ss, theta_data);
+             cmt, addl, ss, theta_data);
 }
 parameters {
   real y_p;
@@ -162,101 +154,88 @@ transformed parameters {
    pmx_solve_group_ode
    ****************************************************************/
   x_parm = pmx_solve_group_rk45(ode, nCmt, len, time, amt, rate, ii, evid,
-                                cmt, addl, ss, theta_parm, biovar_parm,
-                                tlag_parm, 1e-8, 1e-8, 1e8);
+             cmt, addl, ss, theta_parm, biovar_parm, tlag_parm, 1e-8, 1e-8,
+             1e8);
   x_parm = pmx_solve_group_bdf(ode, nCmt, len, time, amt, rate, ii, evid,
-                               cmt, addl, ss, theta_parm, biovar_parm,
-                               tlag_parm, 1e-8, 1e-8, 1e8);
+             cmt, addl, ss, theta_parm, biovar_parm, tlag_parm, 1e-8, 1e-8,
+             1e8);
   x_parm = pmx_solve_group_adams(ode, nCmt, len, time, amt, rate, ii, evid,
-                                 cmt, addl, ss, theta_parm, biovar_parm,
-                                 tlag_parm, 1e-8, 1e-8, 1e8);
+             cmt, addl, ss, theta_parm, biovar_parm, tlag_parm, 1e-8, 1e-8,
+             1e8);
   x_parm = pmx_solve_group_rk45(ode, nCmt, len, time, amt, rate, ii, evid,
-                                cmt, addl, ss, theta_parm, biovar_parm, 1e-8,
-                                1e-8, 1e8);
+             cmt, addl, ss, theta_parm, biovar_parm, 1e-8, 1e-8, 1e8);
   x_parm = pmx_solve_group_bdf(ode, nCmt, len, time, amt, rate, ii, evid,
-                               cmt, addl, ss, theta_parm, biovar_parm, 1e-8,
-                               1e-8, 1e8);
+             cmt, addl, ss, theta_parm, biovar_parm, 1e-8, 1e-8, 1e8);
   x_parm = pmx_solve_group_adams(ode, nCmt, len, time, amt, rate, ii, evid,
-                                 cmt, addl, ss, theta_parm, biovar_parm,
-                                 1e-8, 1e-8, 1e8);
+             cmt, addl, ss, theta_parm, biovar_parm, 1e-8, 1e-8, 1e8);
   x_parm = pmx_solve_group_rk45(ode, nCmt, len, time, amt, rate, ii, evid,
-                                cmt, addl, ss, theta_parm, 1e-8, 1e-8, 1e8);
+             cmt, addl, ss, theta_parm, 1e-8, 1e-8, 1e8);
   x_parm = pmx_solve_group_bdf(ode, nCmt, len, time, amt, rate, ii, evid,
-                               cmt, addl, ss, theta_parm, 1e-8, 1e-8, 1e8);
+             cmt, addl, ss, theta_parm, 1e-8, 1e-8, 1e8);
   x_parm = pmx_solve_group_adams(ode, nCmt, len, time, amt, rate, ii, evid,
-                                 cmt, addl, ss, theta_parm, 1e-8, 1e-8, 1e8);
+             cmt, addl, ss, theta_parm, 1e-8, 1e-8, 1e8);
   
   /*****************************************************************
    pmx_solve_group_ode no ODE controls
    ****************************************************************/
   x_parm = pmx_solve_group_rk45(ode, nCmt, len, time, amt, rate, ii, evid,
-                                cmt, addl, ss, theta_parm, biovar_parm,
-                                tlag_parm);
+             cmt, addl, ss, theta_parm, biovar_parm, tlag_parm);
   x_parm = pmx_solve_group_bdf(ode, nCmt, len, time, amt, rate, ii, evid,
-                               cmt, addl, ss, theta_parm, biovar_parm,
-                               tlag_parm);
+             cmt, addl, ss, theta_parm, biovar_parm, tlag_parm);
   x_parm = pmx_solve_group_adams(ode, nCmt, len, time, amt, rate, ii, evid,
-                                 cmt, addl, ss, theta_parm, biovar_parm,
-                                 tlag_parm);
+             cmt, addl, ss, theta_parm, biovar_parm, tlag_parm);
   x_parm = pmx_solve_group_rk45(ode, nCmt, len, time, amt, rate, ii, evid,
-                                cmt, addl, ss, theta_parm, biovar_parm);
+             cmt, addl, ss, theta_parm, biovar_parm);
   x_parm = pmx_solve_group_bdf(ode, nCmt, len, time, amt, rate, ii, evid,
-                               cmt, addl, ss, theta_parm, biovar_parm);
+             cmt, addl, ss, theta_parm, biovar_parm);
   x_parm = pmx_solve_group_adams(ode, nCmt, len, time, amt, rate, ii, evid,
-                                 cmt, addl, ss, theta_parm, biovar_parm);
+             cmt, addl, ss, theta_parm, biovar_parm);
   x_parm = pmx_solve_group_rk45(ode, nCmt, len, time, amt, rate, ii, evid,
-                                cmt, addl, ss, theta_parm);
+             cmt, addl, ss, theta_parm);
   x_parm = pmx_solve_group_bdf(ode, nCmt, len, time, amt, rate, ii, evid,
-                               cmt, addl, ss, theta_parm);
+             cmt, addl, ss, theta_parm);
   x_parm = pmx_solve_group_adams(ode, nCmt, len, time, amt, rate, ii, evid,
-                                 cmt, addl, ss, theta_parm);
+             cmt, addl, ss, theta_parm);
   
   /*****************************************************************
    pmx_solve_group_ode with data & w/o ODE controls
    ****************************************************************/
   x_parm = pmx_solve_group_rk45(ode, nCmt, len, time, amt, rate, ii, evid,
-                                cmt, addl, ss, theta_parm, biovar_parm,
-                                tlag_parm, x_r, x_i);
+             cmt, addl, ss, theta_parm, biovar_parm, tlag_parm, x_r, x_i);
   x_parm = pmx_solve_group_rk45(ode, nCmt, len, time, amt, rate, ii, evid,
-                                cmt, addl, ss, theta_parm, biovar_parm,
-                                tlag_parm, x_r);
+             cmt, addl, ss, theta_parm, biovar_parm, tlag_parm, x_r);
   x_parm = pmx_solve_group_bdf(ode, nCmt, len, time, amt, rate, ii, evid,
-                               cmt, addl, ss, theta_parm, biovar_parm,
-                               tlag_parm, x_r, x_i);
+             cmt, addl, ss, theta_parm, biovar_parm, tlag_parm, x_r, x_i);
   x_parm = pmx_solve_group_bdf(ode, nCmt, len, time, amt, rate, ii, evid,
-                               cmt, addl, ss, theta_parm, biovar_parm,
-                               tlag_parm, x_r);
+             cmt, addl, ss, theta_parm, biovar_parm, tlag_parm, x_r);
   x_parm = pmx_solve_group_adams(ode, nCmt, len, time, amt, rate, ii, evid,
-                                 cmt, addl, ss, theta_parm, biovar_parm,
-                                 tlag_parm, x_r, x_i);
+             cmt, addl, ss, theta_parm, biovar_parm, tlag_parm, x_r, x_i);
   x_parm = pmx_solve_group_adams(ode, nCmt, len, time, amt, rate, ii, evid,
-                                 cmt, addl, ss, theta_parm, biovar_parm,
-                                 tlag_parm, x_r);
+             cmt, addl, ss, theta_parm, biovar_parm, tlag_parm, x_r);
   
   x_parm = pmx_solve_group_rk45(ode, nCmt, len, time, amt, rate, ii, evid,
-                                cmt, addl, ss, theta_parm, biovar_parm,
-                                tlag_parm, x_r, x_i, 1e-8, 1e-8, 1e8);
+             cmt, addl, ss, theta_parm, biovar_parm, tlag_parm, x_r, x_i,
+             1e-8, 1e-8, 1e8);
   x_parm = pmx_solve_group_rk45(ode, nCmt, len, time, amt, rate, ii, evid,
-                                cmt, addl, ss, theta_parm, biovar_parm,
-                                tlag_parm, x_r, 1e-8, 1e-8, 1e8);
+             cmt, addl, ss, theta_parm, biovar_parm, tlag_parm, x_r, 1e-8,
+             1e-8, 1e8);
   x_parm = pmx_solve_group_bdf(ode, nCmt, len, time, amt, rate, ii, evid,
-                               cmt, addl, ss, theta_parm, biovar_parm,
-                               tlag_parm, x_r, x_i, 1e-8, 1e-8, 1e8);
+             cmt, addl, ss, theta_parm, biovar_parm, tlag_parm, x_r, x_i,
+             1e-8, 1e-8, 1e8);
   x_parm = pmx_solve_group_bdf(ode, nCmt, len, time, amt, rate, ii, evid,
-                               cmt, addl, ss, theta_parm, biovar_parm,
-                               tlag_parm, x_r, 1e-8, 1e-8, 1e8);
+             cmt, addl, ss, theta_parm, biovar_parm, tlag_parm, x_r, 1e-8,
+             1e-8, 1e8);
   x_parm = pmx_solve_group_adams(ode, nCmt, len, time, amt, rate, ii, evid,
-                                 cmt, addl, ss, theta_parm, biovar_parm,
-                                 tlag_parm, x_r, x_i, 1e-8, 1e-8, 1e8);
+             cmt, addl, ss, theta_parm, biovar_parm, tlag_parm, x_r, x_i,
+             1e-8, 1e-8, 1e8);
   x_parm = pmx_solve_group_adams(ode, nCmt, len, time, amt, rate, ii, evid,
-                                 cmt, addl, ss, theta_parm, biovar_parm,
-                                 tlag_parm, x_r, 1e-8, 1e-8, 1e8);
+             cmt, addl, ss, theta_parm, biovar_parm, tlag_parm, x_r, 1e-8,
+             1e-8, 1e8);
 }
 model {
   y_p ~ normal(0, 1);
 }
 
-  $ ../../../../../install/default/bin/stanc --auto-format pmx_solve_linode.stan
 data {
   // General data items
   int<lower=1> nID;
@@ -353,8 +332,9 @@ transformed parameters {
   
   //  Omega = quad_form_diag(rho, omega); // diag_matrix(omega) * rho * diag_matrix(omega)
   theta[ : , 1 : 2] = (rep_matrix(thetaHat[1 : 2], nID)
-                       .* exp(diag_pre_multiply(omega[1 : 2],
-                                                L * eta[1 : 2,  : ])))';
+                       .* exp(
+                              diag_pre_multiply(omega[1 : 2],
+                                L * eta[1 : 2,  : ])))';
   for (i in 3 : nRandom) 
     theta[ : , i] = thetaHat[i] * exp(omega[i] * eta[i,  : ])';
   
@@ -427,8 +407,9 @@ generated quantities {
       etaPred[i, j] = normal_rng(0, 1);
   
   thetaPred[ : , 1 : 2] = (rep_matrix(thetaHat[1 : 2], nID)
-                           .* exp(diag_pre_multiply(omega[1 : 2],
-                                                    L * etaPred[1 : 2,  : ])))';
+                           .* exp(
+                                  diag_pre_multiply(omega[1 : 2],
+                                    L * etaPred[1 : 2,  : ])))';
   for (i in 3 : nRandom) 
     thetaPred[ : , i] = thetaHat[i] * exp(omega[i] * etaPred[i,  : ])';
   
@@ -468,7 +449,6 @@ generated quantities {
   }
 }
 
-  $ ../../../../../install/default/bin/stanc --auto-format pmx_solve_ode.stan
 functions {
   vector ode_rhs(real t, vector x, array[] real parms, array[] real x_r,
                  array[] int x_i) {
@@ -644,7 +624,6 @@ model {
   // ignore
 }
 
-  $ ../../../../../install/default/bin/stanc --auto-format pmx_solve_onecpt.stan
 data {
   int<lower=1> nt; // number of events
   int<lower=1> nObs; // number of observation
@@ -679,7 +658,6 @@ model {
   // omit
 }
 
-  $ ../../../../../install/default/bin/stanc --auto-format pmx_solve_onecpt_effcpt.stan
 data {
   int<lower=1> nt; // number of events
   int<lower=1> nObs; // number of observation
@@ -710,14 +688,13 @@ transformed parameters {
   theta[3] = ka;
   theta[4] = ke;
   x = pmx_solve_onecpt_effcpt(time, amt, rate, ii, evid, cmt, addl, ss,
-                              theta);
+        theta);
   cHat = x[2,  : ] ./ V1; // we're interested in the amount in the second compartment
 }
 model {
   // omit
 }
 
-  $ ../../../../../install/default/bin/stanc --auto-format pmx_solve_twocpt.stan
 data {
   int<lower=1> nt; // number of events
   int<lower=1> nObs; // number of observation
@@ -756,7 +733,6 @@ model {
   // omit
 }
 
-  $ ../../../../../install/default/bin/stanc --auto-format pmx_solve_twocpt_effcpt.stan
 data {
   int<lower=1> nt; // number of events
   int<lower=1> nObs; // number of observation
@@ -791,14 +767,13 @@ transformed parameters {
   theta[5] = ka;
   theta[6] = ke;
   x = pmx_solve_twocpt_effcpt(time, amt, rate, ii, evid, cmt, addl, ss,
-                              theta);
+        theta);
   cHat = x[2,  : ] ./ V1; // we're interested in the amount in the second compartment
 }
 model {
   // omit
 }
 
-  $ ../../../../../install/default/bin/stanc --auto-format pmx_solve_twocpt_ode.stan
 functions {
   vector FK_ODE(real t, vector y, vector y_pk, array[] real theta,
                 array[] real rdummy, array[] int idummy) {
@@ -912,19 +887,16 @@ transformed parameters {
   theta[9] = gamma;
   
   x2 = pmx_solve_twocpt_rk45(FK_ODE, nOde, time, amt, rate, ii, evid, cmt,
-                             addl, ss, theta, biovar, tlag, rtol, atol,
-                             max_step);
+         addl, ss, theta, biovar, tlag, rtol, atol, max_step);
   x2 = pmx_solve_twocpt_bdf(FK_ODE, nOde, time, amt, rate, ii, evid, cmt,
-                            addl, ss, theta, biovar, tlag, rtol, atol,
-                            max_step);
+         addl, ss, theta, biovar, tlag, rtol, atol, max_step);
   x1 = pmx_solve_onecpt_rk45(FK_ODE, nOde, time, amt, rate, ii, evid, cmt,
-                             addl, ss, theta, biovar, tlag, rtol, atol,
-                             max_step);
+         addl, ss, theta, biovar, tlag, rtol, atol, max_step);
   x1 = pmx_solve_onecpt_bdf(FK_ODE, nOde, time, amt, rate, ii, evid, cmt,
-                            addl, ss, theta, biovar, tlag, rtol, atol,
-                            max_step);
+         addl, ss, theta, biovar, tlag, rtol, atol, max_step);
 }
 model {
   
 }
+
 

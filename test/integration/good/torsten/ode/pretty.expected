@@ -20,8 +20,14 @@ functions {
                  int b, real a) {
     return z;
   }
-  vector f_6_arg(real t, vector z, row_vector f, vector e, array[] int d,
-                 array[] real c, int b, real a) {
+  vector f_6_arg(real t,
+		 vector z,
+		 row_vector f,
+		 vector e,
+		 array[] int d,
+		 array[] real c,
+		 int b,
+		 real a) {
     return z;
   }
   vector f_7_arg(real t, vector z, matrix g, row_vector f, vector e,
