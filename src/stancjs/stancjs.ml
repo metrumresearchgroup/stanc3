@@ -1,18 +1,18 @@
-open Core
+open Std
 open Frontend
-open Analysis_and_optimization
+open Conversion
 open Js_of_ocaml
 
 let invoke_driver model_name model flags =
   let warnings = ref [] in
   let compilation_result =
-    With_return.with_return @@ fun {return} ->
+    Return.with_return @@ fun return ->
     let output_callback : Driver.Entry.other_output -> unit = function
       | Warnings w -> warnings := !warnings @ w
+      | Info i -> return (Ok (Yojson.Basic.pretty_to_string i))
       | Formatted s
        |DebugOutput s
        |Memory_patterns s
-       |Info s
        |Version s
        |Generated s ->
           (* stanc.js will only ever return one output, so we break out
@@ -21,225 +21,128 @@ let invoke_driver model_name model flags =
     Driver.Entry.stan2cpp model_name (`Code model) flags output_callback in
   (compilation_result, !warnings)
 
-let wrap_warnings ~warnings =
-  ( "warnings"
-  , Js.Unsafe.coerce (Js.array (List.to_array (List.map ~f:Js.string warnings)))
-  )
-
-let wrap_error ~warnings e =
-  Js.Unsafe.obj
-    [| ( "errors"
-       , (* NB: The "0" entry is due to a historical mistake that led the first
-            entry always being a 0 (this element is a 'tag' used by jsoo
-            internally, but was not meant to be exposed to the user). For
-            backward compatibility with existing consumers of stanc.js we have
-            to keep this behavior. *)
-         Js.Unsafe.coerce (Js.array (Array.map ~f:Js.string [| "0"; e |])) )
-     ; wrap_warnings ~warnings |]
-
-(** similar to [Fmt.str_like] but directly sets style rendering rather than
-    copying from another ppf *)
-let str_color ~color_output =
-  let buf = Buffer.create 64 in
-  let ppf = Format.formatter_of_buffer buf in
-  Fmt.set_style_renderer ppf (if color_output then `Ansi_tty else `None);
-  let flush ppf =
-    Format.pp_print_flush ppf ();
-    let s = Buffer.contents buf in
-    Buffer.reset buf;
-    s in
-  Format.kfprintf flush ppf
-
-let wrap_result ?printed_filename ~color_output ~code ~warnings res =
-  match res with
-  | Result.Ok s ->
-      Js.Unsafe.obj
-        [| ("result", Js.Unsafe.coerce (Js.string s)); wrap_warnings ~warnings
-        |]
-  | Error e ->
-      let e =
-        str_color ~color_output "%a"
-          (Errors.pp ?printed_filename ?code:(Some (Js.to_string code)))
-          e in
-      wrap_error ~warnings e
-
-let typecheck e typ = String.equal (Js.to_string (Js.typeof e)) typ
-
-let bad_arg_message ~name ~expected value =
-  Fmt.str
-    "Failed to convert stanc.js argument '%s'!@ It had type '%s' instead of \
-     '%s'."
-    name
-    (Js.typeof value |> Js.to_string)
-    expected
-
-let checked_to_string ~name value =
-  if not (typecheck value "string") then
-    Error (bad_arg_message ~name ~expected:"string" value)
-  else Ok (Js.to_string value)
-
-let checked_to_array ~name value =
-  if
-    not
-      (Js.to_bool
-         (Js.Unsafe.meth_call
-            (Js.Unsafe.pure_js_expr "Array")
-            "isArray"
-            [| Js.Unsafe.coerce value |]))
-  then
-    Error
-      (Fmt.str
-         "Failed to convert stanc.js argument '%s'!@ Array.isArray returned \
-          false for value of type '%s'."
-         name
-         (Js.typeof value |> Js.to_string))
-  else Ok (Js.to_array value)
-
-(** Converts from a [{ [s:string]:string }] JS object type to an OCaml map, with
-    error messages on bad input. *)
-let get_includes includes : string String.Map.t * string list =
-  let open Common.Let_syntax.Result in
-  let map, warnings =
-    match Js.Opt.to_option includes with
-    | None -> (String.Map.empty, [] (* normal use: argument not supplied *))
-    | Some includes when not (typecheck includes "object") ->
-        ( String.Map.empty
-        , [bad_arg_message ~name:"includes" ~expected:"object" includes] )
-    | Some includes ->
-        let keys = Js.object_keys includes |> Js.to_array |> List.of_array in
-        let lookup k =
-          let value_js = Js.Unsafe.get includes k in
-          let k_str = Js.to_string k in
-          let+ value_str =
-            checked_to_string ~name:("includes[\"" ^ k_str ^ "\"]") value_js
-          in
-          (k_str, value_str) in
-        let alist, warnings = List.map keys ~f:lookup |> List.partition_result in
-        ( (* JS objects cannot have duplicate keys *)
-          String.Map.of_alist_exn alist
-        , warnings ) in
-  ( map
-  , List.map
-      ~f:
-        (Fmt.str "Warning: stanc.js failed to parse included file mapping:@ %s")
-      warnings )
-
-type flags = {driver_flags: Driver.Flags.t; color_output: bool}
-
-(** Turn our array of flags into a Driver.Flags.t *)
-let process_flags (flags : 'a Js.opt) includes : (flags, string) result =
-  let open Result in
-  let open Common.Let_syntax.Result in
-  let+ flags =
-    match Js.Opt.to_option flags with
-    | None -> Ok None
-    | Some flags ->
-        let* flags_array = checked_to_array ~name:"flags" flags in
-        let+ ocaml_flags =
-          Array.mapi flags_array ~f:(fun i v ->
-              checked_to_string ~name:("flags[" ^ string_of_int i ^ "]") v)
-          |> Array.to_list |> Result.all >>| Array.of_list in
-        Driver.Flags.set_backend_args_list
-          (ocaml_flags |> Array.to_list |> List.map ~f:(fun o -> "--" ^ o));
-        Some ocaml_flags in
-  match flags with
-  | None ->
-      { driver_flags=
-          { Driver.Flags.default with
-            include_source= Include_files.InMemory includes }
-      ; color_output= false }
-  | Some flags ->
-      let is_flag_set flag = Array.mem ~equal:String.equal flags flag in
-      let flag_val flag =
-        let prefix = flag ^ "=" in
-        Array.find_map flags ~f:(String.chop_prefix ~prefix) in
-      { driver_flags=
-          { optimization_level=
-              (if is_flag_set "O0" then Optimize.O0
-               else if is_flag_set "O1" || is_flag_set "O" then Optimize.O1
-               else if is_flag_set "Oexperimental" then Optimize.Oexperimental
-               else Optimize.O0)
-          ; allow_undefined= is_flag_set "allow-undefined"
-          ; functions_only= is_flag_set "functions-only"
-          ; standalone_functions= is_flag_set "standalone-functions"
-          ; use_opencl= is_flag_set "use-opencl"
-          ; include_source= Include_files.InMemory includes
-          ; info= is_flag_set "info"
-          ; version= is_flag_set "version"
-          ; auto_format=
-              is_flag_set "auto-format" || is_flag_set "print-canonical"
-          ; debug_settings=
-              { print_ast= is_flag_set "debug-ast"
-              ; print_typed_ast= is_flag_set "debug-typed-ast"
-              ; print_mir=
-                  (if is_flag_set "debug-mir" then Basic
-                   else if is_flag_set "debug-mir-pretty" then Pretty
-                   else Off)
-              ; print_transformed_mir=
-                  (if is_flag_set "debug-transformed-mir" then Basic
-                   else if is_flag_set "debug-transformed-mir-pretty" then
-                     Pretty
-                   else Off)
-              ; print_optimized_mir=
-                  (if is_flag_set "debug-optimized-mir" then Basic
-                   else if is_flag_set "debug-optimized-mir-pretty" then Pretty
-                   else Off)
-              ; print_mem_patterns= is_flag_set "debug-mem-patterns"
-              ; force_soa= None
-              ; print_lir= is_flag_set "debug-lir"
-              ; debug_generate_data= is_flag_set "debug-generate-data"
-              ; debug_generate_inits= is_flag_set "debug-generate-inits"
-              ; debug_data_json=
-                  flag_val "debug-data-json"
-                  |> Option.map ~f:(fun s -> ("debug-data-json", s)) }
-          ; line_length=
-              flag_val "max-line-length"
-              |> Option.map ~f:int_of_string
-              |> Option.value ~default:78
-          ; canonicalizer_settings=
-              (if is_flag_set "print-canonical" then Canonicalize.legacy
-               else
-                 match flag_val "canonicalize" with
-                 | None -> Canonicalize.none
-                 | Some s ->
-                     let parse settings s =
-                       match String.lowercase s with
-                       | "deprecations" ->
-                           Canonicalize.{settings with deprecations= true}
-                       | "parentheses" -> {settings with parentheses= true}
-                       | "braces" -> {settings with braces= true}
-                       | "strip-comments" -> {settings with strip_comments= true}
-                       | "includes" -> {settings with inline_includes= true}
-                       | _ -> settings in
-                     List.fold ~f:parse ~init:Canonicalize.none
-                       (String.split ~on:',' s))
-          ; warn_pedantic= is_flag_set "warn-pedantic"
-          ; warn_uninitialized= is_flag_set "warn-uninitialized"
-          ; filename_in_msg= flag_val "filename-in-msg" }
-      ; color_output= is_flag_set "color-output" }
-
 (** Handle conversion of JS <-> OCaml values invoke driver *)
-let stan2cpp_wrapped name code flags includes =
-  let open Common.Let_syntax.Result in
-  let includes, include_reader_warnings = get_includes includes in
+let stan2cpp_wrapped name code flags includes : stancReturn Js.t =
+  let includes, include_reader_warnings = get_includes_lenient includes in
   let compilation_result =
-    let* name = checked_to_string ~name:"name" name in
-    let* code = checked_to_string ~name:"code" code in
-    let* {driver_flags; color_output} = process_flags flags includes in
+    let open Result.Syntax in
+    let* {name; code; driver_flags; color_output} =
+      process_flags name code flags includes in
     let+ result, warnings =
       Common.ICE.with_exn_message (fun () ->
           invoke_driver name code driver_flags) in
-    (result, warnings, driver_flags.filename_in_msg, color_output) in
+    (result, warnings, driver_flags.filename_in_msg, code, color_output) in
   match compilation_result with
-  | Ok (result, warnings, printed_filename, color_output) ->
-      let warnings =
-        include_reader_warnings
-        @ List.map
-            ~f:(str_color ~color_output "%a" (Warnings.pp ?printed_filename))
-            warnings in
+  | Ok (result, warnings, printed_filename, code, color_output) ->
+      let warnings = include_reader_warnings @ warnings in
       wrap_result ?printed_filename ~color_output ~code result ~warnings
   | Error non_compilation_error (* either an ICE or malformed JS input *) ->
-      wrap_error ~warnings:include_reader_warnings non_compilation_error
+      wrap_error ~color_output:false ~warnings:include_reader_warnings
+        non_compilation_error
+
+(** Like [stan2cpp_wrapped] but just checks the model for correctness, doesn't
+    return the generated C++. The output is in a rich object form. Throws errors
+    on bad input or ICEs *)
+let check_model name code flags includes =
+  let includes = get_includes includes in
+  let {name; code; driver_flags; color_output= _} =
+    process_flags name code flags includes |> res_or_throw in
+  let driver_flags =
+    { driver_flags with
+      warn_uninitialized= true
+    ; (* Disable certain flags that we know won't have an affect here *)
+      auto_format= false
+    ; info= false
+    ; version= false
+    ; debug_settings= Driver.Flags.default.debug_settings } in
+  let warnings = ref [] in
+  let output : Driver.Entry.other_output -> unit = function
+    | Warnings w -> warnings := !warnings @ w
+    | _ -> () in
+  let result =
+    Common.ICE.with_exn_message (fun () ->
+        Driver.Entry.stan2cpp name (`Code code) driver_flags output)
+    |> res_or_throw in
+  let printed_filename = driver_flags.filename_in_msg in
+  let warnings =
+    List.map ~f:(Warnings.to_grace ?printed_filename ~code) !warnings in
+  let errors =
+    match result with
+    | Ok _ -> []
+    | Error e -> [Errors.to_grace ?printed_filename ~code e] in
+  object%js
+    val errors = json_of_diagnostics errors
+    val warnings = json_of_diagnostics warnings
+  end
+
+(** Like [stan2cpp_wrapped] but always formats the model, doesn't return the
+    generated C++. The output is in a rich object form. Throws errors on bad
+    input or ICEs *)
+let format_model name code flags includes =
+  let includes = get_includes includes in
+  let {name; code; driver_flags; color_output= _} =
+    process_flags name code flags includes |> res_or_throw in
+  let driver_flags =
+    { driver_flags with
+      auto_format= true
+    ; allow_undefined= true
+    ; debug_settings= Driver.Flags.default.debug_settings } in
+  let warnings = ref [] in
+  let run () =
+    Return.with_return @@ fun return ->
+    let output = function
+      | Driver.Entry.Warnings w -> warnings := !warnings @ w
+      | Formatted s -> return (Ok s)
+      | _ -> () in
+    Driver.Entry.stan2cpp name (`Code code) driver_flags output in
+  let result = Common.ICE.with_exn_message run |> res_or_throw in
+  let printed_filename = driver_flags.filename_in_msg in
+  let warnings =
+    List.map ~f:(Warnings.to_grace ?printed_filename ~code) !warnings in
+  let result, errors =
+    match result with
+    | Ok formatted -> (Js.def (Js.string formatted), [])
+    | Error e -> (Js.undefined, [Errors.to_grace ?printed_filename ~code e])
+  in
+  object%js
+    val result = result [@@optdef]
+    val errors = json_of_diagnostics errors
+    val warnings = json_of_diagnostics warnings
+  end
+
+let model_info name code flags includes =
+  let includes = get_includes includes in
+  let {name; code; driver_flags; color_output= _} =
+    process_flags name code flags includes |> res_or_throw in
+  let driver_flags =
+    { driver_flags with
+      info= true
+    ; allow_undefined= true
+    ; debug_settings= Driver.Flags.default.debug_settings } in
+  let warnings = ref [] in
+  let run () =
+    Return.with_return @@ fun return ->
+    let output : Driver.Entry.other_output -> unit = function
+      | Warnings w -> warnings := !warnings @ w
+      | Info i -> return (Ok i)
+      | _ -> () in
+    let _ = Driver.Entry.stan2cpp name (`Code code) driver_flags output in
+    (* impossible, but needed for typing *)
+    return (Ok `Null) in
+  let result = Common.ICE.with_exn_message run |> res_or_throw in
+  let printed_filename = driver_flags.filename_in_msg in
+  let warnings =
+    List.map ~f:(Warnings.to_grace ?printed_filename ~code) !warnings in
+  let info, errors =
+    match result with
+    | Ok info -> (Js.def (js_of_yojson info), [])
+    | Error e -> (Js.undefined, [Errors.to_grace ?printed_filename ~code e])
+  in
+  object%js
+    val info = info [@@optdef]
+    val errors = json_of_diagnostics errors
+    val warnings = json_of_diagnostics warnings
+  end
 
 let dump_stan_math_signatures () =
   Js.string @@ Fmt.str "%a" Stan_math_signatures.pretty_print_all_math_sigs ()
@@ -249,8 +152,16 @@ let dump_stan_math_distributions () =
   @@ Fmt.str "%a" Stan_math_signatures.pretty_print_all_math_distributions ()
 
 let () =
+  (* the stanc function is roughly equivalent to the full CLI *)
+  Js.export "stanc" (Js.Unsafe.callback stan2cpp_wrapped);
   Js.export "dump_stan_math_signatures"
-    (Js.Unsafe.callback dump_stan_math_signatures);
+    (Js.wrap_callback dump_stan_math_signatures);
   Js.export "dump_stan_math_distributions"
-    (Js.Unsafe.callback dump_stan_math_distributions);
-  Js.export "stanc" (Js.Unsafe.callback stan2cpp_wrapped)
+    (Js.wrap_callback dump_stan_math_distributions);
+  (* these functions are all cut-down versions of stanc above, with different
+     default behavior and easier-to-use return types (e.g., errors are
+     represented as an object, rather than text) *)
+  Js.export "check_model" (Js.Unsafe.callback check_model);
+  Js.export "format_model" (Js.Unsafe.callback format_model);
+  Js.export "model_info" (Js.Unsafe.callback model_info);
+  Js.export "version" (Js.string Driver.Entry.version)

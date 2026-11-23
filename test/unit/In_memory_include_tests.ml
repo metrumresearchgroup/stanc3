@@ -1,4 +1,5 @@
-open Core
+open Std
+open Std.Sexp_conv
 open Frontend
 
 let print_ast_or_error code =
@@ -21,37 +22,27 @@ let%expect_test "no includes" =
   print_ast_or_error include_model;
   [%expect
     {|
-    Syntax error in 'string', line 2, column 0 to column 19, include error:
-       -------------------------------------------------
-         1:
-         2:  #include <foo.stan>
-             ^
-         3:  data {
-         4:      int a;
-       -------------------------------------------------
+    error: Could not find include file 'foo.stan'.
 
-    Could not find include file 'foo.stan'.
-    stanc was given information about the following files:
-    None |}]
+        ┌─ string:2:1
+      2 │  #include <foo.stan>
+        │  ^^^^^^^^^^^^^^^^^^^ here.
+        = stanc was not given information about any files to include.
+    |}]
 
 let%expect_test "wrong include" =
   Include_files.include_provider :=
-    InMemory (String.Map.of_alist_exn [("bar.stan", "functions { }")]);
+    InMemory (String.Map.of_list [("bar.stan", "functions { }")]);
   print_ast_or_error include_model;
   [%expect
     {|
-    Syntax error in 'string', line 2, column 0 to column 19, include error:
-       -------------------------------------------------
-         1:
-         2:  #include <foo.stan>
-             ^
-         3:  data {
-         4:      int a;
-       -------------------------------------------------
+    error: Could not find include file 'foo.stan'.
 
-    Could not find include file 'foo.stan'.
-    stanc was given information about the following files:
-    bar.stan |}]
+        ┌─ string:2:1
+      2 │  #include <foo.stan>
+        │  ^^^^^^^^^^^^^^^^^^^ here.
+        = stanc was given information about the following files: bar.stan
+    |}]
 
 let a = {|
 // comment here
@@ -65,23 +56,26 @@ let b = {|
 
 let%expect_test "recursive include" =
   Include_files.include_provider :=
-    InMemory
-      (String.Map.of_alist_exn [("include/a.stan", a); ("include/b.stan", b)]);
+    InMemory (String.Map.of_list [("include/a.stan", a); ("include/b.stan", b)]);
   print_ast_or_error a;
   [%expect
     {|
-    Syntax error in 'include/b.stan', line 2, column 0, included from
-    'include/a.stan', line 3, column 0, included from
-    'include/b.stan', line 2, column 0, included from
-    'string', line 3, column 0, include error:
-       -------------------------------------------------
-         1:
-         2:  #include <include/a.stan>
-             ^
-         3:  // comment here
-       -------------------------------------------------
+    error: File 'include/b.stan' recursively included itself.
 
-    File include/a.stan recursively included itself. |}]
+        ┌─ include/a.stan:3:1
+      3 │  #include <include/b.stan>
+        │  ^^^^^^^^^^^^^^^^^^^^^^^^^ here.
+        ┌─ include/b.stan:2:1
+      1 │
+      2 │  #include <include/a.stan>
+        │  -------- file 'include/a.stan' included here
+      3 │  // comment here
+        ┌─ string:3:1
+      2 │  // comment here
+      3 │  #include <include/b.stan>
+        │  -------- file 'include/b.stan' included here
+      4 │
+    |}]
 
 let foo = {|
 functions {
@@ -93,7 +87,7 @@ functions {
 
 let%expect_test "good include" =
   Include_files.include_provider :=
-    InMemory (String.Map.of_alist_exn [("foo.stan", foo)]);
+    InMemory (String.Map.of_list [("foo.stan", foo)]);
   print_ast_or_error include_model;
   [%expect
     {|
@@ -103,6 +97,7 @@ let%expect_test "good include" =
             (FunDef (returntype (ReturnType UInt))
              (funname ((name foo) (id_loc <opaque>)))
              (arguments ((AutoDiffable UReal ((name a) (id_loc <opaque>)))))
+             (annotations ())
              (body
               ((stmt
                 (Block
@@ -116,6 +111,7 @@ let%expect_test "good include" =
       (((stmts
          (((stmt
             (VarDecl (decl_type SInt) (transformation Identity) (is_global true)
+             (annotations ())
              (variables
               (((identifier ((name a) (id_loc <opaque>))) (initial_value ()))))))
            (smeta ((loc <opaque>))))))

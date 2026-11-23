@@ -1,6 +1,8 @@
 (** Types which have a concrete size associated, e.g. [vector[n]] *)
 
-open Core
+open Std
+open Std.Compare
+open Std.Sexp_conv
 
 type 'a t =
   | SInt
@@ -14,7 +16,7 @@ type 'a t =
   | SComplexMatrix of 'a * 'a
   | SArray of 'a t * 'a
   | STuple of 'a t list
-[@@deriving sexp, compare, map, hash, fold]
+[@@deriving sexp_of, compare, map, fold]
 
 let rec pp pp_e ppf = function
   | SInt -> Fmt.string ppf "int"
@@ -70,29 +72,25 @@ let rec get_dims_io st =
   | SComplexMatrix (dim1, dim2) -> [dim1; dim2; two]
   | SArray (t, dim) -> dim :: get_dims_io t
   | STuple _ ->
-      Common.ICE.internal_compiler_error
-        [%message
-          "Tried to get IO dims of a tuple, which is not rectangular"
-            (st : Expr.Typed.t t)]
+      Common.ICE.(
+        internal_errorf
+          "Tried to get IO dims of a tuple, which is not rectangular: %t"
+          [pp Expr.Typed.pp $ st]) [@coverage off]
 
 let rec io_size st =
-  let two = Expr.Helpers.int 2 in
+  let open Expr.Helpers in
+  let two = int 2 in
   match st with
-  | SInt | SReal -> Expr.Helpers.one
+  | SInt | SReal -> one
   | STuple subtypes ->
-      Expr.Helpers.binop_list
-        (List.map ~f:io_size subtypes)
-        Operator.Plus ~default:Expr.Helpers.zero
+      binop_list (List.map ~f:io_size subtypes) Plus ~default:zero
   | SComplex -> two
   | SVector (_, d) | SRowVector (_, d) -> d
-  | SMatrix (_, dim1, dim2) -> Expr.Helpers.binop dim1 Operator.Times dim2
-  | SComplexVector d | SComplexRowVector d ->
-      Expr.Helpers.binop d Operator.Times two
-  | SComplexMatrix (dim1, dim2) ->
-      Expr.Helpers.binop dim1 Operator.Times
-        (Expr.Helpers.binop dim2 Operator.Times two)
+  | SMatrix (_, dim1, dim2) -> binop dim1 Times dim2
+  | SComplexVector d | SComplexRowVector d -> binop d Times two
+  | SComplexMatrix (dim1, dim2) -> binop dim1 Times (binop dim2 Times two)
   | SArray ((SReal | SInt), dim) -> dim
-  | SArray (t, dim) -> Expr.Helpers.binop dim Operator.Times (io_size t)
+  | SArray (t, dim) -> binop dim Times (io_size t)
 
 (** Get the dimensions of an object. {b Note}: Tuples are treated as scalars by
     this function due to the inherent assumption of rectangularity. Carefully

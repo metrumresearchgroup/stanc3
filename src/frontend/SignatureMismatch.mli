@@ -1,4 +1,3 @@
-open Core
 open Middle
 
 type type_mismatch = private
@@ -6,7 +5,7 @@ type type_mismatch = private
   | TypeMismatch of UnsizedType.t * UnsizedType.t * details option
 
 and details =
-  | SuffixMismatch of unit Fun_kind.suffix * unit Fun_kind.suffix
+  | SuffixMismatch of Fun_kind.suffix * Fun_kind.suffix
   | ReturnTypeMismatch of UnsizedType.returntype * UnsizedType.returntype
   | InputMismatch of function_mismatch
 
@@ -15,18 +14,24 @@ and function_mismatch = private
   | ArgNumMismatch of int * int
 
 type signature_error =
-  (UnsizedType.returntype * UnsizedType.argumentlist) * function_mismatch
+  (UnsizedType.returntype * UnsizedType.argumentlist * Location_span.t option)
+  * function_mismatch
 
 type ('unique, 'error) generic_match_result =
   | UniqueMatch of 'unique
-  | AmbiguousMatch of (UnsizedType.returntype * UnsizedType.argumentlist) list
+  | AmbiguousMatch of
+      (UnsizedType.returntype
+      * UnsizedType.argumentlist
+      * Location_span.t option)
+      list
   | SignatureErrors of 'error
 
 (** The match result for general (non-variadic) functions *)
 type match_result =
   ( UnsizedType.returntype
-    * (bool Middle.Fun_kind.suffix -> Ast.fun_kind)
+    * (Middle.Fun_kind.suffix -> Ast.fun_kind)
     * Promotion.t list
+    * Location_span.t option
   , signature_error list * bool )
   generic_match_result
 
@@ -60,10 +65,11 @@ val check_variadic_args :
      allow_lpdf:bool
   -> UnsizedType.argumentlist
   -> UnsizedType.argumentlist
+  -> Location_span.t option
   -> UnsizedType.t
   -> UnsizedType.argumentlist
-  -> ( UnsizedType.t * Promotion.t list
-     , UnsizedType.argumentlist * function_mismatch )
+  -> ( (UnsizedType.t * Location_span.t option) * Promotion.t list
+     , UnsizedType.argumentlist * function_mismatch * Location_span.t option )
      result
 (** Check variadic function arguments. If a match is found, returns [Ok] of the
     function type and a list of promotions (see [promote]) If none is found,
@@ -86,15 +92,10 @@ val quoted : string Fmt.t
 val pp_mismatch_details :
   skipped:string list -> Format.formatter -> details -> unit
 
-val pp_signature_mismatch :
-     Format.formatter
-  -> string
-     * UnsizedType.t list
-     * (((UnsizedType.returntype * UnsizedType.argumentlist)
-        * function_mismatch)
-        list
-       * bool)
-  -> unit
+val to_grace :
+     string * UnsizedType.t list * (signature_error list * bool)
+  -> (summary:Grace.Diagnostic.Message.t
+     * notes:Grace.Diagnostic.Message.t list)
 
 val list_valid_assignmentoperator_rhs :
   UnsizedType.t -> Operator.t -> UnsizedType.t list

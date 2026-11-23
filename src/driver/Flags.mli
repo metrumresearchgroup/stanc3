@@ -33,13 +33,15 @@ and debug_settings =
   ; print_transformed_mir: debug_options
   ; print_optimized_mir: debug_options
   ; print_mem_patterns: bool
-  ; force_soa: bool option
-        (** if None, do nothing. If Some true, force on, if Some false, force
-            off *)
+  ; optimization_overrides:
+      (Analysis_and_optimization.Optimize.optimization_pass * bool) list
+        (** applied in order on top of [optimization_level], each turning one
+            optimization on or off *)
   ; print_lir: bool
   ; debug_generate_data: bool
   ; debug_generate_inits: bool
-  ; debug_data_json: (string * string) option }
+  ; debug_data_json: (string * string) option
+  ; debug_print_factor_graph: bool }
 
 and debug_options = Off | Basic | Pretty
 
@@ -51,6 +53,3 @@ val get_optimization_settings :
 val set_backend_args_list : string list -> unit
 (** This is a helper function to set the [model_compile_info] method of the
     generated C++ to contain a copy of the (relevant) compiler flags *)
-
-val remove_dotstan : string -> string
-(** Strip '.stan' or '.stanfunctions' from a filename *)

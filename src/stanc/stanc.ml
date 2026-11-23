@@ -1,5 +1,5 @@
 (** stanc console application *)
-open Core
+open Std
 
 open Frontend
 
@@ -17,7 +17,8 @@ let dump_math_dists () =
 
 let write filename data =
   try
-    Out_channel.write_all filename ~data;
+    ( Out_channel.with_open_bin filename @@ fun oc ->
+      Out_channel.output_string oc data );
     exit_ok
   with Sys_error msg ->
     Fmt.epr "Error writing to file '%s': %s@." filename msg;
@@ -31,9 +32,9 @@ let print_or_write_and_exit output_file data =
   if not (String.equal output_file "") then write output_file data
   else print_and_exit data
 
-let output_callback break output_file printed_filename :
+let output_callback break output_file printed_filename code :
     Driver.Entry.other_output -> unit = function
-  | Info s -> break (print_and_exit s)
+  | Info i -> break (print_and_exit (Yojson.Basic.pretty_to_string i))
   | Version s ->
       (* note: in practice, handled by Cmdliner for this driver *)
       break (print_and_exit (s ^ " (" ^ Sys.os_type ^ ")"))
@@ -43,7 +44,7 @@ let output_callback break output_file printed_filename :
   | DebugOutput s | Memory_patterns s ->
       (* historically, these flags didn't prevent you from continuing *)
       print_string s
-  | Warnings ws -> Warnings.pp_warnings Fmt.stderr ?printed_filename ws
+  | Warnings ws -> Warnings.pp_warnings Fmt.stderr ?printed_filename ?code ws
 
 let stanc ?tty_colors ?(debug_lex : bool = false) ?(debug_parse : bool = false)
     ?(print_cpp : bool = false) ?name ~output_file ~model_file
@@ -53,7 +54,7 @@ let stanc ?tty_colors ?(debug_lex : bool = false) ?(debug_parse : bool = false)
   Debugging.grammar_logging := debug_parse;
   (* if we only have functions, always compile as standalone *)
   let flags =
-    if String.is_suffix model_file ~suffix:".stanfunctions" then
+    if Common.Files.is_stanfunctions model_file then
       {flags with standalone_functions= true; functions_only= true}
     else flags in
   let model_file_name, model_source, printed_filename =
@@ -62,24 +63,24 @@ let stanc ?tty_colors ?(debug_lex : bool = false) ?(debug_parse : bool = false)
       , `Code (In_channel.input_all In_channel.stdin)
       , Option.first_some flags.filename_in_msg (Some "stdin") )
     else (model_file, `File model_file, flags.filename_in_msg) in
-  With_return.with_return @@ fun {return} ->
+  Return.with_return @@ fun return ->
+  let code =
+    match model_source with `File _ -> None | `Code code -> Some code in
   match
     Driver.Entry.stan2cpp
       (Option.value ~default:model_file_name name)
       model_source flags
-      (output_callback return output_file printed_filename)
+      (output_callback return output_file printed_filename code)
   with
   | Ok cpp_str ->
       if print_cpp then print_endline cpp_str;
       let out =
         if String.equal output_file "" then
-          Driver.Flags.remove_dotstan model_file_name ^ ".hpp"
+          Common.Files.remove_dotstan model_file_name ^ ".hpp"
         else output_file in
       write out cpp_str
   | Error e ->
-      (match model_source with
-      | `File _ -> Errors.pp Fmt.stderr ?printed_filename e
-      | `Code code -> Errors.pp Fmt.stderr ?printed_filename ~code e);
+      Errors.pp Fmt.stderr ?printed_filename ?code e;
       exit_err
 
 (** Deal with multiple modalities. [Cmdliner.Cmd.groups] would probably be
@@ -105,14 +106,14 @@ let dispatch_commands args =
   match Common.ICE.with_exn_message go with
   | Ok code -> code
   | Error internal_error ->
-      Out_channel.output_string stderr internal_error;
-      Out_channel.flush stderr;
+      Out_channel.output_string Out_channel.stderr internal_error;
+      Out_channel.flush Out_channel.stderr;
       CLI.exit_ice
 
 let main () =
   let open Cmdliner in
   let stanc_cmd = Cmd.make CLI.info (Term.map dispatch_commands CLI.commands) in
-  let argv = Sys.get_argv () in
+  let argv = Sys.argv in
   Driver.Flags.set_backend_args_list
     (* remove executable itself from list before passing *)
     (argv |> Array.to_list |> List.tl_exn);
@@ -120,7 +121,7 @@ let main () =
   Array.map_inplace argv ~f:(function
     | "--O" -> "--O1"
     | "--o" -> "-o" (* legacy shorthand for --output *)
-    | s when String.is_prefix s ~prefix:"--o=" ->
+    | s when String.starts_with s ~prefix:"--o=" ->
         "-o" ^ String.chop_prefix_exn s ~prefix:"--o="
     | s -> s);
   Cmd.eval' ~argv ~catch:false stanc_cmd

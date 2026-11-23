@@ -1,5 +1,4 @@
-open Core
-open Core.Poly
+open Std
 open Middle
 open Lower_expr
 open Lower_stmt
@@ -39,7 +38,8 @@ let lower_data_decl (vident, ut) : defn =
     else vident in
   GlobalVariableDefn
     (lower_unsized_decl data_vident ut
-       (UnsizedType.fill_adtype_for_type DataOnly ut))
+       (UnsizedType.fill_adtype_for_type DataOnly ut)
+       Uninit)
 
 (** Create maps of Eigen types *)
 let lower_map_decl (vident, ut) : defn =
@@ -48,7 +48,8 @@ let lower_map_decl (vident, ut) : defn =
       (make_variable_defn ~type_:(Types.eigen_map t) ~name:vident
          ~init:
            (InitializerList
-              (Literal "nullptr" :: List.init ndims ~f:(fun _ -> Literal "0")))
+              (Literal "nullptr"
+              :: List.init ~len:ndims ~f:(fun _ -> Literal "0")))
          ()) in
   let scalar = local_scalar ut DataOnly in
   let open Types in
@@ -60,10 +61,9 @@ let lower_map_decl (vident, ut) : defn =
   | UComplexRowVector -> eigen_map_def (row_vector (complex scalar)) 1
   | UComplexVector -> eigen_map_def (vector (complex scalar)) 1
   | x ->
-      Common.ICE.internal_compiler_error
-        [%message
-          "Error during Map data construction for " vident " of type "
-            (x : UnsizedType.t)]
+      Common.ICE.(
+        internal_errorf "Error during Map data construction for %s of type %t"
+          [vident; UnsizedType.pp $ x]) [@coverage off]
 
 let rec top_level_decls Stmt.{pattern; _} =
   match pattern with
@@ -83,14 +83,14 @@ let lower_model_private {Program.prepare_data; _} =
   @ List.map ~f:lower_map_decl eigen_map_decls
 
 let rec validate_dims ~stage name st =
-  if String.is_suffix ~suffix:"__" name then []
+  if String.ends_with ~suffix:"__" name then []
   else if SizedType.contains_tuple st then
     (* We know tuples are given as flattened names containing "." in
        var_contexts *)
     let names =
       UnsizedType.enumerate_tuple_names_io name (SizedType.to_unsized st) in
     let subtypes = SizedType.flatten_tuple_io st in
-    List.map2_exn ~f:(validate_dims ~stage) names subtypes |> List.concat
+    List.map2 ~f:(validate_dims ~stage) names subtypes |> List.concat
   else
     let open Cpp.DSL in
     let vector args =
@@ -108,45 +108,50 @@ let rec validate_dims ~stage name st =
                    ; vector (SizedType.get_dims_io st) ] )) in
     [Expression validate]
 
-let gen_assign_data decl_id st =
-  let lower_placement_new decl_id st =
-    let open Cpp.DSL in
+let gen_assign_data decl_id st init =
+  let open Cpp.DSL in
+  let underlying_variable, init =
+    match st with
+    | SizedType.SVector _ | SRowVector _ | SMatrix _ | SComplexVector _
+     |SComplexRowVector _ | SComplexMatrix _ ->
+        (decl_id ^ "_data__", Stmt.Pattern.Default)
+    | SInt | SReal | SComplex | SArray _ | STuple _ -> (decl_id, init) in
+  let initialize =
+    let open Option.Syntax in
+    let+ value =
+      lower_assign_sized st
+        (UnsizedType.fill_adtype_for_type UnsizedType.DataOnly
+           (SizedType.to_unsized st))
+        init in
+    underlying_variable := value in
+  let placement_new =
     match st with
     | SizedType.SVector (_, d)
      |SRowVector (_, d)
      |SComplexVector d
      |SComplexRowVector d ->
-        let data = Var (decl_id ^ "_data__") in
-        [ Expression
-            (OperatorNew
-               ( decl_id
-               , Types.eigen_map (lower_st st DataOnly)
-               , [data.@!("data"); lower_expr d] )) ]
+        let data = Var underlying_variable in
+        Some
+          (Expression
+             (OperatorNew
+                ( decl_id
+                , Types.eigen_map (lower_st st DataOnly)
+                , [data.@!("data"); lower_expr d] )))
     | SMatrix (_, d1, d2) | SComplexMatrix (d1, d2) ->
-        let data = Var (decl_id ^ "_data__") in
-        [ Expression
-            (OperatorNew
-               ( decl_id
-               , Types.eigen_map (lower_st st DataOnly)
-               , [data.@!("data"); lower_expr d1; lower_expr d2] )) ]
-    | _ -> [] in
-  let underlying_variable decl_id st =
-    match st with
-    | SizedType.SVector _ | SRowVector _ | SMatrix _ | SComplexVector _
-     |SComplexRowVector _ | SComplexMatrix _ ->
-        decl_id ^ "_data__"
-    | SInt | SReal | SComplex | SArray _ | STuple _ -> decl_id in
-  Cpp.DSL.(
-    underlying_variable decl_id st
-    := initialize_value st
-         (UnsizedType.fill_adtype_for_type UnsizedType.DataOnly
-            (SizedType.to_unsized st)))
-  :: lower_placement_new decl_id st
+        let data = Var underlying_variable in
+        Some
+          (Expression
+             (OperatorNew
+                ( decl_id
+                , Types.eigen_map (lower_st st DataOnly)
+                , [data.@!("data"); lower_expr d1; lower_expr d2] )))
+    | SInt | SReal | SComplex | SArray (_, _) | STuple _ -> None in
+  List.filter_map ~f:Fun.id [initialize; placement_new]
 
 let sum_expr_sizes es =
-  match lower_exprs es |> List.reduce ~f:Cpp.DSL.( + ) with
-  | None -> Literal "0U"
-  | Some e -> e
+  match lower_exprs es with
+  | [] -> Literal "0U"
+  | init :: rest -> List.fold_left ~init ~f:Cpp.DSL.( + ) rest
 
 let lower_constructor
     {Program.prog_name; input_vars; prepare_data; output_vars; _} =
@@ -170,15 +175,16 @@ let lower_constructor
   let data_idents = List.map ~f:fst3 input_vars |> String.Set.of_list in
   let lower_data (Stmt.{pattern; meta} as s) =
     match pattern with
-    | Decl {decl_id; decl_type; _} when decl_id <> "pos__" -> (
+    | Decl {decl_id; decl_type; initialize; decl_annotations= _; decl_adtype= _}
+      when decl_id <> "pos__" -> (
         match decl_type with
         | Sized st ->
             Numbering.assign_loc meta
             @
-            if Set.mem data_idents decl_id then
+            if String.Set.mem decl_id data_idents then
               validate_dims ~stage:"data initialization" decl_id st
-              @ gen_assign_data decl_id st
-            else gen_assign_data decl_id st
+              @ gen_assign_data decl_id st initialize
+            else gen_assign_data decl_id st initialize
         | Unsized _ -> [])
     | _ -> lower_statement s in
   let data =
@@ -277,6 +283,37 @@ let gen_write_array {Program.prog_name; generate_quantities; _} =
        ~body:
          (intro @ Stmts.rethrow_located (lower_statements generate_quantities))
        ~cv_qualifiers:[Const] ())
+
+let write_tdata_json {Program.prepare_data; input_vars; _} =
+  let data_ids = String.Set.of_list (List.map ~f:fst3 input_vars) in
+  let tdata_ids =
+    List.filter_map prepare_data ~f:(fun s ->
+        match s.Stmt.pattern with
+        | Decl {decl_id; _}
+          when Utils.is_user_ident decl_id
+               && not (String.Set.mem decl_id data_ids) ->
+            Some decl_id
+        | _ -> None) in
+  let open Cpp.DSL in
+  let stream_name = "json_stream__" in
+  let stream_ptr = Var stream_name in
+  let stream = Deref stream_ptr in
+  let write_object entries =
+    let write_data_item i m =
+      (if i > 0 then [stream <<: literal_string ",\n"] else [])
+      @ [ Expression
+            (fun_call "stan::json::write_key" [stream_ptr; literal_string m])
+        ; Expression
+            (fun_call "stan::json::write_json_value" [stream_ptr; Var m]) ]
+    in
+    (stream <<: literal_string "{")
+    :: List.concat_mapi ~f:write_data_item entries
+    @ [stream <<: literal_string "}"] in
+  FunDef
+    (make_fun_defn ~inline:true ~return_type:Void
+       ~name:"write_transformed_data_json"
+       ~args:[(Pointer Types.ostream, stream_name)]
+       ~body:(write_object tdata_ids) ~cv_qualifiers:[Const] ())
 
 let gen_transform_inits_impl {Program.transform_inits; output_vars; _} =
   let templates =
@@ -439,7 +476,7 @@ let gen_get_dims {Program.output_vars; _} =
 
 let rec gen_indexing_loop ?(index_ids = []) iteratee dims gen_body =
   let iter d gen_body =
-    let loopvar, gensym_exit = Common.Gensym.enter () in
+    let loopvar, gensym_exit = Common.Gensym.enter ~prefix:"idx" in
     let forloop =
       Stmts.fori loopvar
         (lower_expr Expr.Helpers.loop_bottom)
@@ -464,7 +501,7 @@ let emplace_name_stmt name idcs =
   Expression
     param_names__.@?(( "emplace_back"
                      , [ null_string
-                         + List.fold ~init:(literal_string name)
+                         + List.fold_left ~init:(literal_string name)
                              ~f:(fun acc (typ, idx) ->
                                acc + sep typ + to_string idx)
                              idcs ] ))
@@ -477,7 +514,7 @@ let rec gen_param_names ?(outer_idcs = []) (decl_id, st) =
     | SizedType.STuple subtypes ->
         let idxes_subtypes =
           List.mapi
-            ~f:(fun i typ -> ((`Tuple, string_of_int (i + 1)), (name, typ)))
+            ~f:(fun i typ -> ((`Tuple, Int.to_string (i + 1)), (name, typ)))
             subtypes in
         List.concat_map
           ~f:(fun (idx, sub) -> gen_param_names ~outer_idcs:(idcs @ [idx]) sub)
@@ -772,7 +809,7 @@ let lower_model_public p =
     ; (* Begin metadata methods *) gen_get_param_names p
     ; (* Post-data metadata methods *) gen_get_dims p
     ; gen_constrained_param_names p; gen_unconstrained_param_names p
-    ; gen_constrained_types p; gen_unconstrained_types p ]
+    ; gen_constrained_types p; gen_unconstrained_types p; write_tdata_json p ]
   (* Boilerplate *)
   @ gen_overloads p
 
@@ -924,12 +961,13 @@ module Testing = struct
     |> print_endline;
     [%expect
       {|
-          for (int sym1__ = 1; sym1__ <= N; ++sym1__) {
-            param_names__.emplace_back(std::string() + "foo" + '.' +
-              std::to_string(sym1__) + '.' + "real");
-            param_names__.emplace_back(std::string() + "foo" + '.' +
-              std::to_string(sym1__) + '.' + "imag");
-          } |}]
+      for (int idx1__ = 1; idx1__ <= N; ++idx1__) {
+        param_names__.emplace_back(std::string() + "foo" + '.' +
+          std::to_string(idx1__) + '.' + "real");
+        param_names__.emplace_back(std::string() + "foo" + '.' +
+          std::to_string(idx1__) + '.' + "imag");
+      }
+      |}]
 
   let%expect_test "tuple names" =
     gen_param_names
@@ -942,10 +980,11 @@ module Testing = struct
     [%expect
       {|
       param_names__.emplace_back(std::string() + "tuple" + ':' + std::to_string(1));
-      for (int sym1__ = 1; sym1__ <= nested; ++sym1__) {
+      for (int idx1__ = 1; idx1__ <= nested; ++idx1__) {
         param_names__.emplace_back(std::string() + "tuple" + ':' +
-          std::to_string(2) + '.' + std::to_string(sym1__));
-      } |}]
+          std::to_string(2) + '.' + std::to_string(idx1__));
+      }
+      |}]
 
   let%expect_test "array of tuple names" =
     gen_param_names
@@ -959,13 +998,14 @@ module Testing = struct
     |> print_endline;
     [%expect
       {|
-        for (int sym1__ = 1; sym1__ <= N; ++sym1__) {
+      for (int idx1__ = 1; idx1__ <= N; ++idx1__) {
+        param_names__.emplace_back(std::string() + "arr_tuple" + '.' +
+          std::to_string(idx1__) + ':' + std::to_string(1));
+        for (int idx2__ = 1; idx2__ <= nested; ++idx2__) {
           param_names__.emplace_back(std::string() + "arr_tuple" + '.' +
-            std::to_string(sym1__) + ':' + std::to_string(1));
-          for (int sym2__ = 1; sym2__ <= nested; ++sym2__) {
-            param_names__.emplace_back(std::string() + "arr_tuple" + '.' +
-              std::to_string(sym1__) + ':' + std::to_string(2) + '.' +
-              std::to_string(sym2__));
-          }
-        } |}]
+            std::to_string(idx1__) + ':' + std::to_string(2) + '.' +
+            std::to_string(idx2__));
+        }
+      }
+      |}]
 end

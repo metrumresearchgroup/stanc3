@@ -1,7 +1,11 @@
-open Core
+open Std
 open Middle
 open Dataflow_types
 
+val expr_any : (ExprSet.elt -> bool) -> ExprSet.elt -> bool
+val idx_any : (ExprSet.elt -> bool) -> ExprSet.elt Index.t -> bool
+val cannot_duplicate_expr : ?preserve_stability:bool -> ExprSet.elt -> bool
+val cannot_remove_expr : ExprSet.elt -> bool
 val var_declarations : ('a, 'b) Stmt.t -> string Set.Poly.t
 val num_expr_value : Expr.Typed.t -> (float * string) option
 
@@ -70,7 +74,7 @@ val map_rec_state_stmt_loc :
   -> Stmt.Located.t * 's
 
 val map_rec_stmt_loc_num :
-     (int, Stmt.Located.Non_recursive.t) Map.Poly.t
+     Stmt.Located.Non_recursive.t LabelMap.t
   -> (   int
       -> (Expr.Typed.t, Stmt.Located.t) Stmt.Pattern.t
       -> (Expr.Typed.t, Stmt.Located.t) Stmt.Pattern.t)
@@ -78,17 +82,17 @@ val map_rec_stmt_loc_num :
   -> Stmt.Located.t
 
 val stmt_loc_of_stmt_loc_num :
-     (int, Stmt.Located.Non_recursive.t) Map.Poly.t
+     Stmt.Located.Non_recursive.t LabelMap.t
   -> Stmt.Located.Non_recursive.t
   -> Stmt.Located.t
 
 val statement_stmt_loc_of_statement_stmt_loc_num :
-     (int, Stmt.Located.Non_recursive.t) Map.Poly.t
+     Stmt.Located.Non_recursive.t LabelMap.t
   -> (Expr.Typed.t, int) Stmt.Pattern.t
   -> (Expr.Typed.t, Stmt.Located.t) Stmt.Pattern.t
 
 val unnumbered_prog_of_numbered_prog :
-     (int, Stmt.Located.Non_recursive.t) Map.Poly.t
+     Stmt.Located.Non_recursive.t LabelMap.t
   -> ('a -> 'b)
   -> (Stmt.Located.Non_recursive.t, 'a, 'c) Program.t
   -> (Stmt.Located.t, 'b, 'c) Program.t
@@ -116,7 +120,7 @@ val index_var_set :
 (** The set of variables in an index. For use in RHS sets, not LHS assignment
     sets, except in a target term *)
 
-val expr_var_names_set : Expr.Typed.t -> string Core.Set.Poly.t
+val expr_var_names_set : Expr.Typed.t -> string Set.Poly.t
 (** Return the names of the variables in an expression. *)
 
 val stmt_rhs : (Expr.Typed.t, 's) Stmt.Pattern.t -> Expr.Typed.t Set.Poly.t
@@ -124,13 +128,19 @@ val stmt_rhs : (Expr.Typed.t, 's) Stmt.Pattern.t -> Expr.Typed.t Set.Poly.t
     expression, i.e. rhs. Using Set.Poly instead of ExprSet so that 'e can be
     polymorphic, it usually doesn't matter if there's duplication. *)
 
-val union_map : 'a Set.Poly.t -> f:('a -> 'b Set.Poly.t) -> 'b Set.Poly.t
-(** This is a helper function equivalent to List.concat_map but for Sets *)
-
 val stmt_rhs_var_set :
   (Expr.Typed.t, 's) Stmt.Pattern.t -> (vexpr * Expr.Typed.Meta.t) Set.Poly.t
 (** The set of variables in an expression, including inside an index. For use in
     RHS sets, not LHS assignment sets, except in a target term. *)
+
+val stmt_rhs_names_set : ('a Expr.t, 'b) Stmt.Pattern.t -> vexpr Set.Poly.t
+(** The set of variable names in an expression, including inside an index. For
+    use in RHS sets, not LHS assignment sets, except in a target term. *)
+
+val stmt_referenced_names_set : ('a, 'b) Stmt.t -> string Set.Poly.t
+(** The set of variable names referenced in the statement. This includes things
+    the left hand side of an assignment, but excludes newly declared decls
+    unless they are separately used later. *)
 
 val expr_assigned_var : Expr.Typed.t -> vexpr
 (** The variable being assigned to when the expression is the LHS *)
@@ -138,34 +148,30 @@ val expr_assigned_var : Expr.Typed.t -> vexpr
 val summation_terms : Expr.Typed.t -> Expr.Typed.t list
 (** The list of terms in expression separated by a + *)
 
-val subst_expr :
-  (string, Expr.Typed.t) Map.Poly.t -> Expr.Typed.t -> Expr.Typed.t
+val subst_expr : Expr.Typed.t String.Map.t -> Expr.Typed.t -> Expr.Typed.t
 (** Substitute variables in an expression according to the provided Map. *)
 
 val subst_stmt_base :
-     (string, Expr.Typed.t) Map.Poly.t
+     Expr.Typed.t String.Map.t
   -> (Expr.Typed.t, 'a) Stmt.Pattern.t
   -> (Expr.Typed.t, 'a) Stmt.Pattern.t
 (** Substitute variables occurring at the top level in statements according to
     the provided Map. *)
 
-val subst_stmt :
-  (string, Expr.Typed.t) Map.Poly.t -> Stmt.Located.t -> Stmt.Located.t
+val subst_stmt : Expr.Typed.t String.Map.t -> Stmt.Located.t -> Stmt.Located.t
 (** Substitute variables occurring anywhere in a statement according to the
     provided Map. *)
 
-val name_subst_stmt :
-  (string, string) Map.Poly.t -> Stmt.Located.t -> Stmt.Located.t
+val name_subst_stmt : string String.Map.t -> Stmt.Located.t -> Stmt.Located.t
 (** Substitute subexpressions occurring anywhere in a statement according to the
     provided Map. *)
 
-val expr_subst_expr :
-  Expr.Typed.t Expr.Typed.Map.t -> Expr.Typed.t -> Expr.Typed.t
+val expr_subst_expr : Expr.Typed.t ExprMap.t -> Expr.Typed.t -> Expr.Typed.t
 (** Substitute subexpressions in an expression according to the provided Map,
     trying to match on larger subexpressions before smaller ones. *)
 
 val expr_subst_stmt_base :
-     Expr.Typed.t Expr.Typed.Map.t
+     Expr.Typed.t ExprMap.t
   -> (Expr.Typed.t, 'a) Stmt.Pattern.t
   -> (Expr.Typed.t, 'a) Stmt.Pattern.t
 (** Substitute subexpressions occurring at the top level in statements according
@@ -174,9 +180,12 @@ val expr_subst_stmt_base :
 val expr_depth : Expr.Typed.t -> int
 (** Calculate how deeply nested an expression is. *)
 
-val update_expr_ad_levels : string Set.Poly.t -> Expr.Typed.t -> Expr.Typed.t
+val update_expr_ad_levels :
+  ?keep_promotions:bool -> string Set.Poly.t -> Expr.Typed.t -> Expr.Typed.t
 (** Recompute all AD-levels in the metadata of an expression from the bottom up,
     making the variables in the first argument autodiffable *)
 
 val cleanup_empty_stmts : ('e, 's) Stmt.t list -> ('e, 's) Stmt.t list
-val unsafe_unsized_to_sized_type : Expr.Typed.t Type.t -> Expr.Typed.t Type.t
+
+val unsafe_unsized_to_sized_type :
+  Expr.Typed.t Type.t -> Expr.Typed.t SizedType.t

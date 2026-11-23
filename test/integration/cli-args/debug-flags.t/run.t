@@ -14,19 +14,39 @@ Flags not used elsewhere in the tests
   Lexer: =
   Lexer: int_constant 0
   Lexer: >
+  Lexer: start locating:
+  {fname=basic.stan; line=2}
+  Lexer: end locating:
+  {fname=basic.stan; line=2}
   Lexer: space
   Lexer: identifier N
   {fname=basic.stan; line=2}
   Lexer: ;
+  Lexer: start locating:
+  {fname=basic.stan; line=2}
+  Lexer: end locating:
+  {fname=basic.stan; line=2}
   Lexer: newline
   {fname=basic.stan; line=2}
   Lexer: space
   Lexer: space
   Lexer: array
+  Lexer: start locating:
+  {fname=basic.stan; line=2}
+  Lexer: end locating:
+  {fname=basic.stan; line=2}
   Lexer: [
   Lexer: identifier N
   {fname=basic.stan; line=3}
   Lexer: ]
+  Lexer: start locating:
+  {fname=basic.stan; line=3}
+  Lexer: end locating:
+  {fname=basic.stan; line=3}
+  Lexer: start locating:
+  {fname=basic.stan; line=3}
+  Lexer: end locating:
+  {fname=basic.stan; line=3}
   Lexer: space
   Lexer: int
   Lexer: <
@@ -34,21 +54,41 @@ Flags not used elsewhere in the tests
   Lexer: =
   Lexer: int_constant 0
   Lexer: ,
+  Lexer: start locating:
+  {fname=basic.stan; line=3}
+  Lexer: end locating:
+  {fname=basic.stan; line=3}
   Lexer: space
   Lexer: upper
   Lexer: =
   Lexer: int_constant 1
   Lexer: >
+  Lexer: start locating:
+  {fname=basic.stan; line=3}
+  Lexer: end locating:
+  {fname=basic.stan; line=3}
   Lexer: space
   Lexer: identifier y
   {fname=basic.stan; line=3}
   Lexer: ;
+  Lexer: start locating:
+  {fname=basic.stan; line=3}
+  Lexer: end locating:
+  {fname=basic.stan; line=3}
   Lexer: newline
   {fname=basic.stan; line=3}
   Lexer: }
+  Lexer: start locating:
+  {fname=basic.stan; line=3}
+  Lexer: end locating:
+  {fname=basic.stan; line=3}
   Lexer: newline
   {fname=basic.stan; line=4}
   Lexer: parameters
+  Lexer: start locating:
+  {fname=basic.stan; line=1}
+  Lexer: end locating:
+  {fname=basic.stan; line=4}
   Lexer: space
   Lexer: {
   Lexer: newline
@@ -61,21 +101,41 @@ Flags not used elsewhere in the tests
   Lexer: =
   Lexer: int_constant 0
   Lexer: ,
+  Lexer: start locating:
+  {fname=basic.stan; line=6}
+  Lexer: end locating:
+  {fname=basic.stan; line=6}
   Lexer: space
   Lexer: upper
   Lexer: =
   Lexer: int_constant 1
   Lexer: >
+  Lexer: start locating:
+  {fname=basic.stan; line=6}
+  Lexer: end locating:
+  {fname=basic.stan; line=6}
   Lexer: space
   Lexer: identifier theta
   {fname=basic.stan; line=6}
   Lexer: ;
+  Lexer: start locating:
+  {fname=basic.stan; line=6}
+  Lexer: end locating:
+  {fname=basic.stan; line=6}
   Lexer: newline
   {fname=basic.stan; line=6}
   Lexer: }
+  Lexer: start locating:
+  {fname=basic.stan; line=6}
+  Lexer: end locating:
+  {fname=basic.stan; line=6}
   Lexer: newline
   {fname=basic.stan; line=7}
   Lexer: model
+  Lexer: start locating:
+  {fname=basic.stan; line=5}
+  Lexer: end locating:
+  {fname=basic.stan; line=7}
   Lexer: space
   Lexer: {
   Lexer: newline
@@ -86,39 +146,95 @@ Flags not used elsewhere in the tests
   {fname=basic.stan; line=9}
   Lexer: space
   Lexer: ~
+  Lexer: start locating:
+  {fname=basic.stan; line=9}
+  Lexer: end locating:
+  {fname=basic.stan; line=9}
+  Lexer: start locating:
+  {fname=basic.stan; line=9}
+  Lexer: end locating:
+  {fname=basic.stan; line=9}
   Lexer: space
   Lexer: identifier beta
   {fname=basic.stan; line=9}
   Lexer: (
+  Lexer: start locating:
+  {fname=basic.stan; line=9}
+  Lexer: end locating:
+  {fname=basic.stan; line=9}
   Lexer: int_constant 1
   Lexer: ,
+  Lexer: start locating:
+  {fname=basic.stan; line=9}
+  Lexer: end locating:
+  {fname=basic.stan; line=9}
   Lexer: space
   Lexer: int_constant 1
   Lexer: )
+  Lexer: start locating:
+  {fname=basic.stan; line=9}
+  Lexer: end locating:
+  {fname=basic.stan; line=9}
   Lexer: ;
   Lexer: space
   Lexer: single comment
+  Lexer: start locating:
+  {fname=basic.stan; line=9}
+  Lexer: end locating:
+  {fname=basic.stan; line=9}
   {fname=basic.stan; line=9}
   Lexer: space
   Lexer: space
   Lexer: identifier y
   {fname=basic.stan; line=10}
+  Lexer: start locating:
+  {fname=basic.stan; line=9}
+  Lexer: end locating:
+  {fname=basic.stan; line=9}
   Lexer: space
   Lexer: ~
+  Lexer: start locating:
+  {fname=basic.stan; line=10}
+  Lexer: end locating:
+  {fname=basic.stan; line=10}
+  Lexer: start locating:
+  {fname=basic.stan; line=10}
+  Lexer: end locating:
+  {fname=basic.stan; line=10}
   Lexer: space
   Lexer: identifier bernoulli
   {fname=basic.stan; line=10}
   Lexer: (
+  Lexer: start locating:
+  {fname=basic.stan; line=10}
+  Lexer: end locating:
+  {fname=basic.stan; line=10}
   Lexer: identifier theta
   {fname=basic.stan; line=10}
   Lexer: )
+  Lexer: start locating:
+  {fname=basic.stan; line=10}
+  Lexer: end locating:
+  {fname=basic.stan; line=10}
+  Lexer: start locating:
+  {fname=basic.stan; line=10}
+  Lexer: end locating:
+  {fname=basic.stan; line=10}
   Lexer: ;
   Lexer: newline
   {fname=basic.stan; line=10}
   Lexer: }
+  Lexer: start locating:
+  {fname=basic.stan; line=10}
+  Lexer: end locating:
+  {fname=basic.stan; line=10}
   Lexer: newline
   {fname=basic.stan; line=11}
   Lexer: eof
+  Lexer: start locating:
+  {fname=basic.stan; line=8}
+  Lexer: end locating:
+  {fname=basic.stan; line=11}
 
   $ stanc basic.stan --debug-parse
   Parser: intnumeral 0
@@ -188,7 +304,7 @@ Flags not used elsewhere in the tests
        (((stmt
           (VarDecl (decl_type SInt)
            (transformation (Lower ((expr (IntNumeral 0)) (emeta ((loc <opaque>))))))
-           (is_global true)
+           (is_global true) (annotations ())
            (variables (((identifier ((name N) (id_loc <opaque>))) (initial_value ()))))))
          (smeta ((loc <opaque>))))
         ((stmt
@@ -199,7 +315,7 @@ Flags not used elsewhere in the tests
            (transformation
             (LowerUpper ((expr (IntNumeral 0)) (emeta ((loc <opaque>))))
              ((expr (IntNumeral 1)) (emeta ((loc <opaque>))))))
-           (is_global true)
+           (is_global true) (annotations ())
            (variables (((identifier ((name y) (id_loc <opaque>))) (initial_value ()))))))
          (smeta ((loc <opaque>))))))
       (xloc <opaque>))))
@@ -211,7 +327,7 @@ Flags not used elsewhere in the tests
            (transformation
             (LowerUpper ((expr (IntNumeral 0)) (emeta ((loc <opaque>))))
              ((expr (IntNumeral 1)) (emeta ((loc <opaque>))))))
-           (is_global true)
+           (is_global true) (annotations ())
            (variables (((identifier ((name theta) (id_loc <opaque>))) (initial_value ()))))))
          (smeta ((loc <opaque>))))))
       (xloc <opaque>))))
@@ -248,9 +364,11 @@ Flags not used elsewhere in the tests
             (Lower
              ((expr (IntNumeral 0))
               (emeta ((loc <opaque>) (ad_level DataOnly) (type_ UInt))))))
-           (is_global true)
+           (is_global true) (annotations ())
            (variables (((identifier ((name N) (id_loc <opaque>))) (initial_value ()))))))
-         (smeta ((loc <opaque>) (return_type Incomplete))))
+         (smeta
+          ((loc <opaque>)
+           (flow_type ((controlflow (Incomplete Next)) (breaks ()) (continues false))))))
         ((stmt
           (VarDecl
            (decl_type
@@ -263,9 +381,11 @@ Flags not used elsewhere in the tests
               (emeta ((loc <opaque>) (ad_level DataOnly) (type_ UInt))))
              ((expr (IntNumeral 1))
               (emeta ((loc <opaque>) (ad_level DataOnly) (type_ UInt))))))
-           (is_global true)
+           (is_global true) (annotations ())
            (variables (((identifier ((name y) (id_loc <opaque>))) (initial_value ()))))))
-         (smeta ((loc <opaque>) (return_type Incomplete))))))
+         (smeta
+          ((loc <opaque>)
+           (flow_type ((controlflow (Incomplete Next)) (breaks ()) (continues false))))))))
       (xloc <opaque>))))
    (transformeddatablock ())
    (parametersblock
@@ -278,9 +398,11 @@ Flags not used elsewhere in the tests
               (emeta ((loc <opaque>) (ad_level DataOnly) (type_ UInt))))
              ((expr (IntNumeral 1))
               (emeta ((loc <opaque>) (ad_level DataOnly) (type_ UInt))))))
-           (is_global true)
+           (is_global true) (annotations ())
            (variables (((identifier ((name theta) (id_loc <opaque>))) (initial_value ()))))))
-         (smeta ((loc <opaque>) (return_type Incomplete))))))
+         (smeta
+          ((loc <opaque>)
+           (flow_type ((controlflow (Incomplete Next)) (breaks ()) (continues false))))))))
       (xloc <opaque>))))
    (transformedparametersblock ())
    (modelblock
@@ -290,7 +412,8 @@ Flags not used elsewhere in the tests
            (arg
             ((expr (Variable ((name theta) (id_loc <opaque>))))
              (emeta ((loc <opaque>) (ad_level AutoDiffable) (type_ UReal)))))
-           (distribution ((name beta) (id_loc <opaque>))) (kind (StanLib (FnLpdf true)))
+           (distribution ((name beta) (id_loc <opaque>)))
+           (kind (StanLib (FnDist Density Unnormalized)))
            (args
             (((expr
                (Promotion
@@ -305,19 +428,23 @@ Flags not used elsewhere in the tests
                 (UReal DataOnly)))
               (emeta ((loc <opaque>) (ad_level DataOnly) (type_ UReal))))))
            (truncation NoTruncate)))
-         (smeta ((loc <opaque>) (return_type Incomplete))))
+         (smeta
+          ((loc <opaque>)
+           (flow_type ((controlflow (Incomplete Next)) (breaks ()) (continues false))))))
         ((stmt
           (Tilde
            (arg
             ((expr (Variable ((name y) (id_loc <opaque>))))
              (emeta ((loc <opaque>) (ad_level DataOnly) (type_ (UArray UInt))))))
            (distribution ((name bernoulli) (id_loc <opaque>)))
-           (kind (StanLib (FnLpmf true)))
+           (kind (StanLib (FnDist Mass Unnormalized)))
            (args
             (((expr (Variable ((name theta) (id_loc <opaque>))))
               (emeta ((loc <opaque>) (ad_level AutoDiffable) (type_ UReal))))))
            (truncation NoTruncate)))
-         (smeta ((loc <opaque>) (return_type Incomplete))))))
+         (smeta
+          ((loc <opaque>)
+           (flow_type ((controlflow (Incomplete Next)) (breaks ()) (continues false))))))))
       (xloc <opaque>))))
    (generatedquantitiesblock ()) (comments <opaque>))
 
@@ -345,8 +472,8 @@ Flags not used elsewhere in the tests
   
   generate_quantities {
     data real theta;
-    if(PNot__(emit_transformed_parameters__ || emit_generated_quantities__)) return;
-    if(PNot__(emit_generated_quantities__)) return; }
+    if(!(emit_transformed_parameters__ || emit_generated_quantities__)) return;
+    if(!(emit_generated_quantities__)) return; }
   output_vars {
     parameters real theta; //real
   }
@@ -358,11 +485,11 @@ Flags not used elsewhere in the tests
   
   prepare_data {
     data int N;
-    N = FnReadData__("N")[1];
+    FnReadData__(N, context__, "N");
     (FnCheck(trans(Lower 0))(var_name N)(var N))__(0);
     FnValidateSize__("y", "N", N);
     data array[int, N] y;
-    y = FnReadData__("y");
+    FnReadData__(y, context__, "y");
     (FnCheck(trans(Lower 0))(var_name y)(var y))__(0);
     (FnCheck(trans(Upper 1))(var_name y)(var y))__(1); }
   
@@ -391,16 +518,16 @@ Flags not used elsewhere in the tests
       theta = (FnReadParam(constrain(LowerUpper 0 1))(dims())(mem_pattern AoS))__(
       );
     (FnWriteParam(unconstrain_opt())(var theta))__();
-    if(PNot__(emit_transformed_parameters__ || emit_generated_quantities__)) {
+    if(!(emit_transformed_parameters__ || emit_generated_quantities__)) {
       return;
     }
-    if(PNot__(emit_generated_quantities__)) {
+    if(!(emit_generated_quantities__)) {
       return;
     } }
   
   transform_inits {
     real theta;
-    theta = FnReadData__("theta")[1];
+    FnReadData__(theta, context__, "theta");
     (FnWriteParam(unconstrain_opt((LowerUpper 0 1)))(var theta))__(); }
   output_vars {
     parameters real theta; //real
@@ -413,11 +540,11 @@ Flags not used elsewhere in the tests
   
   prepare_data {
     data int N;
-    N = FnReadData__("N")[1];
+    FnReadData__(N, context__, "N");
     (FnCheck(trans(Lower 0))(var_name N)(var N))__(0);
     FnValidateSize__("y", "N", N);
     data array[int, N] y;
-    y = FnReadData__("y");
+    FnReadData__(y, context__, "y");
     (FnCheck(trans(Lower 0))(var_name y)(var y))__(0);
     (FnCheck(trans(Upper 1))(var_name y)(var y))__(1); }
   
@@ -446,29 +573,43 @@ Flags not used elsewhere in the tests
       theta = (FnReadParam(constrain(LowerUpper 0 1))(dims())(mem_pattern AoS))__(
       );
     (FnWriteParam(unconstrain_opt())(var theta))__();
-    if(PNot__(emit_transformed_parameters__ || emit_generated_quantities__)) {
+    if(!(emit_transformed_parameters__ || emit_generated_quantities__)) {
       return;
     }
-    if(PNot__(emit_generated_quantities__)) {
+    if(!(emit_generated_quantities__)) {
       return;
     } }
   
   transform_inits {
     real theta;
-    theta = FnReadData__("theta")[1];
+    FnReadData__(theta, context__, "theta");
     (FnWriteParam(unconstrain_opt((LowerUpper 0 1)))(var theta))__(); }
   output_vars {
     parameters real theta; //real
   }
 
+  $ stanc basic.stan --debug-print-factor-graph
+  graph {
+  "bernoulli_lupmf(y, theta)" [shape=box]
+  "beta_lupdf(theta, promote(1, real, data), promote(1, real, data))" [shape=box]
+  theta
+  y
+  "bernoulli_lupmf(y, theta)" -- theta
+  "bernoulli_lupmf(y, theta)" -- y
+  "beta_lupdf(theta, promote(1, real, data), promote(1, real, data))" -- theta
+  }
+
   $ stanc parse_error.stan --debug-parse
-  Syntax error in 'parse_error.stan', line 1, column 0 to column 5, parsing error:
-     -------------------------------------------------
-       1:  datta {}
-           ^
-     -------------------------------------------------
-  
-  Ill-formed program. Expected "functions {", "data {", "transformed data {", "parameters {",
-  "transformed parameters {", "model {", or "generated quantities {".
-  (Parse error state 439)
+  error: Syntax error: Ill-formed program.
+      ┌─ parse_error.stan:1:1
+    1 │  datta {}
+      │  ^^^^^ here.
+    2 │  
+      = Expected "functions {", "data {", "transformed data {", "parameters {",
+        "transformed parameters {", "model {", or "generated quantities {".
+        (Parse error state 464)
   [1]
+<<<<<<< HEAD
+||||||| parent of 994559f8c (dune promote)
+=======
+>>>>>>> 994559f8c (dune promote)

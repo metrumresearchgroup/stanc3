@@ -1,4 +1,4 @@
-open Core
+open Std
 open Frontend
 open Cmdliner
 
@@ -55,21 +55,21 @@ module Options = struct
   let case_insensitive_enum_list ?(sep = ',') sl =
     let open Arg in
     let base = list ~sep @@ enum sl in
-    let parser = Fn.compose (Conv.parser base) String.lowercase in
+    let parser = Fun.compose (Conv.parser base) String.lowercase_ascii in
     let completion =
       let func _ctx ~token =
-        let token = String.lowercase token in
+        let token = String.lowercase_ascii token in
         let prefix_complete name =
           (* complete prefixes of valid names after the final separator *)
-          match String.rsplit2 ~on:sep token with
-          | None when String.is_prefix ~prefix:token name ->
+          match String.split_last ~sep:(String.of_char sep) token with
+          | None when String.starts_with ~prefix:token name ->
               Some (Completion.string name)
           | Some (prev, last)
-            when String.is_prefix ~prefix:last name
-                 && not (String.is_substring ~substring:name prev) ->
+            when String.starts_with ~prefix:last name
+                 && not (String.includes ~affix:name prev) ->
               Some (Completion.string (prev ^ String.of_char sep ^ name))
           | _ -> None in
-        Ok (List.filter_map ~f:(Fn.compose prefix_complete fst) sl) in
+        Ok (List.filter_map ~f:(Fun.compose prefix_complete fst) sl) in
       Completion.make func in
     Conv.of_conv ~completion ~parser base
 
@@ -102,7 +102,7 @@ module Options = struct
       | `Includes -> {settings with inline_includes= true}
       | `Strip_comments -> {settings with strip_comments= true} in
     Term.map
-      (List.fold ~f:fold_canonicalize_options ~init:Canonicalize.none)
+      (List.fold_left ~f:fold_canonicalize_options ~init:Canonicalize.none)
       Arg.(
         multi_opt_all (case_insensitive_enum_list flags)
         & info ["canonicalize"] ~doc ~docv:"OPTIONS")
@@ -243,7 +243,11 @@ module Debug_Options = struct
       (function
         | None -> `Ok None
         | Some file -> (
-            try `Ok (Some ("'" ^ file ^ "'", In_channel.read_all file))
+            try
+              `Ok
+                (Some
+                   ( "'" ^ file ^ "'"
+                   , In_channel.with_open_bin file In_channel.input_all ))
             with _ ->
               `Error (true, "File '" ^ file ^ "' not found or cannot be opened.")
             ))
@@ -290,8 +294,7 @@ module Debug_Options = struct
 
   (** helper for paired args like --debug-mir and --debug-mir-pretty *)
   let debug_basic_or_pretty ~doc flag_name : Driver.Flags.debug_options Term.t =
-    let doc_pretty =
-      String.substr_replace_all ~pattern:"print" ~with_:"pretty-print" doc in
+    let doc_pretty = String.replace_all ~sub:"print" ~by:"pretty-print" doc in
     Arg.(
       value
       & vflag Driver.Flags.Off
@@ -318,13 +321,25 @@ module Debug_Options = struct
        it." in
     debug_basic_or_pretty ~doc "debug-transformed-mir"
 
-  let force_soa =
+  let debug_print_factor_graph =
     let doc =
-      "Debugging features. Valid values: $(b,-fsoa) to force on the Struct of \
-       Arrays optimization. $(b,-fno-soa) to force it off." in
+      "For debugging purposes: print a conservative over-approximation of the \
+       factor graph for the model(s) implemented in the Stan program." in
+    Arg.(value & flag & info ["debug-print-factor-graph"] ~doc ~docs)
+
+  let optimization_overrides =
+    let open Analysis_and_optimization.Optimize in
+    let doc =
+      Fmt.str
+        "Debugging features. Turn a single optimization on or off. On with \
+         $(b,-f)NAME or off with $(b,-fno-)NAME. Option may be given more than \
+         once. When a pass is named twice the last setting wins. NAME is %s."
+        (Arg.doc_alts_enum optimization_pass_names) in
+    (* errors list only the [no-] names for a [no-] setting, else only the
+       enabling names *)
     Arg.(
       value
-      & opt (some @@ enum [("soa", true); ("no-soa", false)]) None
+      & opt_all (enum optimization_flags) []
       & info ["f"] ~doc ~docv:"SETTING" ~docs)
 end
 
@@ -363,11 +378,12 @@ module Conversion = struct
     and+ print_transformed_mir = debug_transformed_mir
     and+ print_optimized_mir = debug_optimized_mir
     and+ print_mem_patterns = debug_mem_patterns
-    and+ force_soa
+    and+ optimization_overrides
     and+ print_lir = debug_lir
     and+ debug_generate_data
     and+ debug_generate_inits
-    and+ debug_data_json = Term.ret debug_data_json in
+    and+ debug_data_json = Term.ret debug_data_json
+    and+ debug_print_factor_graph in
     Driver.Flags.
       { print_ast
       ; print_typed_ast
@@ -375,11 +391,12 @@ module Conversion = struct
       ; print_transformed_mir
       ; print_optimized_mir
       ; print_mem_patterns
-      ; force_soa
+      ; optimization_overrides
       ; print_lir
       ; debug_generate_data
       ; debug_generate_inits
-      ; debug_data_json }
+      ; debug_data_json
+      ; debug_print_factor_graph }
 
   let flags : Driver.Flags.t Term.t =
     let open Options in
@@ -489,5 +506,5 @@ let info =
       ; info ~doc:"on internal compiler errors. Please file a bug!" exit_ice ]
   in
   Cmd.info "%%NAME%%"
-    ~version:("%%NAME%%3 %%VERSION%%" ^ " (" ^ Sys.os_type ^ ")")
+    ~version:(Driver.Entry.version ^ " (" ^ Sys.os_type ^ ")")
     ~sdocs:Manpage.s_options ~doc ~man ~exits

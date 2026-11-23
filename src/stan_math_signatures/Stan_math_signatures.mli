@@ -11,8 +11,7 @@ val lookup_stan_math_function : string -> UnsizedType.signature list
 (** Look up the signature of a Stan Math library function. If it is not found,
     this returns [[]] *)
 
-val get_stan_math_signatures_alist :
-  unit -> (string * UnsizedType.signature list) list
+val signatures_alist : (string * UnsizedType.signature list) list Lazy.t
 (** Get all the signatures in the Stan Math library *)
 
 val is_stan_math_variadic_function_name : string -> bool
@@ -36,11 +35,7 @@ val distributions : (string * string list) list
 (** Helpers for dealing with operators as signatures *)
 
 val operator_to_stan_math_fns : Operator.t -> string list
-val string_operator_to_stan_math_fns : string -> string
-val pretty_print_math_lib_operator_sigs : Operator.t -> string list
-
-val make_assignmentoperator_stan_math_signatures :
-  Operator.t -> UnsizedType.signature list
+val operator_to_stan_math_signatures : Operator.t -> UnsizedType.signature list
 
 (** Special functions for the variadic signatures exposed *)
 

@@ -1,7 +1,5 @@
 (** Utilities for Stan's built in operators *)
 
-open Core
-
 type t =
   | Plus
   | PPlus
@@ -26,11 +24,14 @@ type t =
   | Geq
   | PNot
   | Transpose
-[@@deriving sexp, hash, compare]
+[@@deriving sexp, compare]
 
 let is_cmp = function
   | Equals | NEquals | Less | Leq | Greater | Geq -> true
-  | _ -> false
+  | Plus | PPlus | Minus | PMinus | Times | Divide | IntDivide | Modulo
+   |LDivide | EltTimes | EltDivide | Pow | EltPow | Or | And | PNot | Transpose
+    ->
+      false
 
 let pp ppf = function
   | Plus | PPlus -> Fmt.pf ppf "+"
@@ -54,12 +55,3 @@ let pp ppf = function
   | Geq -> Fmt.pf ppf ">="
   | PNot -> Fmt.pf ppf "!"
   | Transpose -> Fmt.pf ppf "'"
-
-let to_string x = Sexp.to_string (sexp_of_t x) ^ "__"
-
-let of_string_opt x =
-  try
-    String.chop_suffix_exn ~suffix:"__" x |> Sexp.of_string |> t_of_sexp |> Some
-  with
-  | Sexplib.Conv.Of_sexp_error _ -> None
-  | Invalid_argument _ -> None

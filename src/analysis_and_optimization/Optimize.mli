@@ -14,6 +14,11 @@ val one_step_loop_unrolling : Program.Typed.t -> Program.Typed.t
 (** Unroll all loops for one iteration, as long as they do not contain break or
     continue statements in their body at the top level *)
 
+val vectorize_loops : Program.Typed.t -> Program.Typed.t
+(** Rewrite a loop whose body is scalar density statements and elementwise
+    assignments into the vectorized statements, when the Stan Math signatures
+    have them. Loops that do not match are left unchanged *)
+
 val list_collapsing : Program.Typed.t -> Program.Typed.t
 (** Remove redundant SList constructors from the Mir that might have been
     introduced by other optimizations *)
@@ -68,6 +73,7 @@ type optimization_settings =
   { function_inlining: bool
   ; static_loop_unrolling: bool
   ; one_step_loop_unrolling: bool
+  ; vectorize_loops: bool
   ; list_collapsing: bool
   ; block_fixing: bool
   ; allow_uninitialized_decls: bool
@@ -83,6 +89,22 @@ type optimization_settings =
 
 val all_optimizations : optimization_settings
 val no_optimizations : optimization_settings
+
+(** One constructor per field of [optimization_settings], used to turn a single
+    optimization on or off from the command line. *)
+type optimization_pass
+
+val set_optimization :
+  optimization_pass -> bool -> optimization_settings -> optimization_settings
+(** Turn one optimization on or off, leaving the other settings unchanged. *)
+
+val optimization_pass_names : (string * optimization_pass) list
+(** The command-line name of each optimization, e.g. [inlining] for
+    [-finlining]. *)
+
+val optimization_flags : (string * (optimization_pass * bool)) list
+(** Flag names for [-f<name>] and [-fno-<name>], shared by stanc and stanc.js,
+    mapped to the optimization and whether the flag enables it. *)
 
 type optimization_level = O0 | O1 | Oexperimental
 

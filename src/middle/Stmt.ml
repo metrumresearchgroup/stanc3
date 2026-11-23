@@ -1,4 +1,5 @@
-open Core
+open Std
+open Std.Sexp_conv
 open Common
 
 module Pattern = struct
@@ -21,17 +22,45 @@ module Pattern = struct
         { decl_adtype: UnsizedType.autodifftype
         ; decl_id: string
         ; decl_type: 'a Type.t
-        ; initialize: 'a decl_init }
-  [@@deriving sexp, hash, map, fold, compare]
+        ; initialize: 'a decl_init
+        ; decl_annotations: Annotation.t list }
+  [@@deriving sexp_of, map, fold]
 
-  and 'e lvalue = 'e lbase * 'e Index.t list
-  [@@deriving sexp, hash, map, compare, fold]
+  and 'e lvalue = 'e lbase * 'e Index.t list [@@deriving sexp_of, map, fold]
 
   and 'e lbase = LVariable of string | LTupleProjection of 'e lvalue * int
-  [@@deriving sexp, hash, map, compare, fold]
+  [@@deriving sexp_of, map, fold]
 
   and 'a decl_init = Uninit | Default | Assign of 'a
-  [@@deriving sexp, hash, map, fold, compare]
+  [@@deriving sexp_of, map, fold]
+
+  let fold_map f_expr f_stmt acc = function
+    | ( Assignment _ | TargetPE _ | JacobianPE _ | NRFunApp _ | Break | Continue
+      | Return _ | Skip | Decl _ ) as s ->
+        (fold f_expr Fun.const acc s, s)
+    | IfElse (cond, thn, None) ->
+        let acc, thn = f_stmt (f_expr acc cond) thn in
+        (acc, IfElse (cond, thn, None))
+    | IfElse (cond, thn, Some els) ->
+        let acc, thn = f_stmt (f_expr acc cond) thn in
+        let acc, els = f_stmt acc els in
+        (acc, IfElse (cond, thn, Some els))
+    | While (cond, body) ->
+        let acc, body = f_stmt (f_expr acc cond) body in
+        (acc, While (cond, body))
+    | For {loopvar; lower; upper; body} ->
+        let acc = f_expr (f_expr acc lower) upper in
+        let acc, body = f_stmt acc body in
+        (acc, For {loopvar; lower; upper; body})
+    | Profile (name, stmts) ->
+        let acc, stmts = List.fold_left_map ~f:f_stmt ~init:acc stmts in
+        (acc, Profile (name, stmts))
+    | Block stmts ->
+        let acc, stmts = List.fold_left_map ~f:f_stmt ~init:acc stmts in
+        (acc, Block stmts)
+    | SList stmts ->
+        let acc, stmts = List.fold_left_map ~f:f_stmt ~init:acc stmts in
+        (acc, SList stmts)
 
   let rec pp_lvalue pp_e ppf (lbase, idcs) =
     match lbase with
@@ -66,7 +95,7 @@ module Pattern = struct
     | Block stmts ->
         Fmt.pf ppf "{@;<1 2>@[<v>%a@]@;}" Fmt.(list pp_s ~sep:cut) stmts
     | SList stmts -> Fmt.(list pp_s ~sep:cut |> vbox) ppf stmts
-    | Decl {decl_adtype; decl_id; decl_type; initialize} -> (
+    | Decl {decl_adtype; decl_id; decl_type; initialize; _} -> (
         match initialize with
         | Assign e ->
             Fmt.pf ppf "@[<hov 2>%a%a@ %s = %a;@]" UnsizedType.pp_autodifftype
@@ -82,7 +111,7 @@ end
 module Fixed = struct
   (** Fixed-point of statements *)
   type ('a, 'b) t = {pattern: ('a Expr.t, ('a, 'b) t) Pattern.t; meta: 'b}
-  [@@deriving compare, hash, sexp]
+  [@@deriving sexp_of]
 end
 
 include Fixed
@@ -100,14 +129,13 @@ let rec rewrite_bottom_up ~f ~g t =
 (** Statements with location information and types for contained expressions *)
 module Located = struct
   module Meta = struct
-    type t = (Location_span.t[@sexp.opaque] [@compare.ignore])
-    [@@deriving compare, sexp, hash]
+    type t = Location_span.t
 
     let empty = Location_span.empty
   end
 
-  type t = (Expr.Typed.Meta.t, (Meta.t[@sexp.opaque] [@compare.ignore])) Fixed.t
-  [@@deriving compare, sexp, hash]
+  type t = (Expr.Typed.Meta.t, (Meta.t[@sexp.opaque])) Fixed.t
+  [@@deriving sexp_of]
 
   let pp = pp
 
@@ -118,31 +146,26 @@ module Located = struct
       subterms. My feeling is that ultimately we want to use the recursive type
       directly and rely on OCaml for sharing *)
   module Non_recursive = struct
-    type t =
-      { pattern: (Expr.Typed.t, int) Pattern.t
-      ; meta: (Meta.t[@sexp.opaque] [@compare.ignore]) }
-    [@@deriving compare, sexp, hash]
+    type t = {pattern: (Expr.Typed.t, int) Pattern.t; meta: Meta.t}
   end
 end
 
 module Numbered = struct
   module Meta = struct
-    type t = (int[@sexp.opaque] [@compare.ignore])
-    [@@deriving compare, sexp, hash]
+    type t = int
 
     let empty = 0
     let from_int (i : int) : t = i
   end
 
-  type t = (Expr.Typed.Meta.t, (Meta.t[@sexp.opaque] [@compare.ignore])) Fixed.t
-  [@@deriving compare, sexp, hash]
+  type t = (Expr.Typed.Meta.t, Meta.t) Fixed.t
 
   let pp = pp
 end
 
 module Helpers = struct
   let temp_vars exprs : Located.t list * Expr.Typed.t list * (unit -> unit) =
-    let sym, reset = Gensym.enter () in
+    let sym, reset = Gensym.enter ~prefix:"tmp" in
     let rec loop es sym inits vars =
       match es with
       | [] -> (inits, vars)
@@ -154,13 +177,16 @@ module Helpers = struct
                   { decl_adtype= Expr.Typed.adlevel_of e
                   ; decl_id= sym
                   ; decl_type= Unsized (Expr.Typed.type_of e)
-                  ; initialize= Default }
+                  ; initialize= Default
+                  ; decl_annotations= [] }
             ; meta= e.meta.loc } in
           let assign =
             { decl with
               pattern= Assignment ((LVariable sym, []), Expr.Typed.type_of e, e)
             } in
-          loop es (Gensym.generate ()) (decl :: assign :: inits)
+          loop es
+            (Gensym.next ~prefix:"tmp" ())
+            (decl :: assign :: inits)
             ({e with pattern= Var sym} :: vars) in
     let setups, exprs = loop (List.rev exprs) sym [] [] in
     (setups, exprs, reset)
@@ -180,7 +206,7 @@ module Helpers = struct
   (** [mk_for] returns a MIR For statement from 0 to [upper] that calls the
       [bodyfn] with the loop variable inside the loop. *)
   let mk_for upper bodyfn meta =
-    let loopvar, reset = Gensym.enter () in
+    let loopvar, reset = Gensym.enter ~prefix:"idx" in
     let loopvar_expr =
       Expr.
         { meta= Expr.Typed.Meta.create ~type_:UInt ~loc:meta ~adlevel:DataOnly ()
@@ -228,13 +254,12 @@ module Helpers = struct
         let rows =
           Expr.
             { meta= emeta'
-            ; pattern= FunApp (StanLib ("rows", FnPlain, AoS), [iteratee]) }
-        in
+            ; pattern= FunApp (StanLib ("rows", FnPlain), [iteratee]) } in
         mk_for_iteratee rows (fun e -> for_each bodyfn e smeta) iteratee smeta
     | UArray _ -> mk_for_iteratee (len iteratee) bodyfn iteratee smeta
     | UMathLibraryFunction | UFun _ | UTuple _ ->
-        ICE.internal_compiler_error
-          [%message "Can't iterate over " (iteratee : Expr.Typed.t)]
+        ICE.(internal_errorf "Can't iterate over %t" [Expr.Typed.pp $ iteratee])
+        [@coverage off]
 
   let contains_fn_kind is_fn_kind ?(init = false) stmt =
     let rec aux accu {pattern; _} =
@@ -247,73 +272,18 @@ module Helpers = struct
             aux accu stmt_pattern in
     aux init stmt
 
-  (** [for_scalar unsizedtype...] generates a For statement that loops over the
-      scalars in the underlying [unsizedtype].
-
-      We can call [bodyfn] directly on scalars, make a direct For loop around
-      Eigen types, or for Arrays we call mk_for_iteratee but inserting a
-      recursive call into the [bodyfn] that will operate on the nested type. In
-      this way we recursively create for loops that loop over the outermost
-      layers first. *)
-  let rec for_scalar st bodyfn var smeta =
-    match st with
-    | SizedType.SInt | SReal | SComplex -> bodyfn st var
-    | SVector (_, d)
-     |SRowVector (_, d)
-     |SComplexVector d
-     |SComplexRowVector d ->
-        mk_for_iteratee d (bodyfn st) var smeta
-    | SMatrix (mem_pattern, d1, d2) ->
-        mk_for_iteratee d1
-          (fun e -> for_scalar (SRowVector (mem_pattern, d2)) bodyfn e smeta)
-          var smeta
-    | SComplexMatrix (d1, d2) ->
-        mk_for_iteratee d1
-          (fun e -> for_scalar (SComplexRowVector d2) bodyfn e smeta)
-          var smeta
-    | SArray (t, d) ->
-        mk_for_iteratee d (fun e -> for_scalar t bodyfn e smeta) var smeta
-    | STuple _ -> bodyfn st var
-
-  (** Exactly like for_scalar, but iterating through array dimensions in the
-      inverted order.*)
-  let for_scalar_inv st bodyfn (var : Expr.Typed.t) smeta =
-    let var = {var with pattern= Indexed (var, [])} in
-    let invert_index_order (Expr.{pattern; _} as e) =
-      match pattern with
-      | Indexed (obj, []) -> obj
-      | Indexed (obj, idxs) -> {e with pattern= Indexed (obj, List.rev idxs)}
-      | _ -> e in
-    let rec go st bodyfn var smeta =
-      match st with
-      | SizedType.SArray (t, d) ->
-          let bodyfn' _ var = mk_for_iteratee d (bodyfn st) var smeta in
-          go t bodyfn' var smeta
-      | SMatrix (mem_pattern, d1, d2) ->
-          let bodyfn' _ var = mk_for_iteratee d1 (bodyfn st) var smeta in
-          go (SRowVector (mem_pattern, d2)) bodyfn' var smeta
-      | SComplexMatrix (d1, d2) ->
-          let bodyfn' _ var = mk_for_iteratee d1 (bodyfn st) var smeta in
-          go (SComplexRowVector d2) bodyfn' var smeta
-      | _ -> for_scalar st bodyfn var smeta in
-    go st (fun st var -> bodyfn st (invert_index_order var)) var smeta
-
-  let assign_indexed decl_type (lval, idxs) meta varfn var =
-    let indices = Expr.Helpers.collect_indices var in
-    {meta; pattern= Assignment ((lval, idxs @ indices), decl_type, varfn var)}
-
   let lvariable v = (Pattern.LVariable v, [])
 
   let rec get_lhs_name (lval : 'a Pattern.lvalue) =
     match lval with
     | LVariable name, _ -> name
     | LTupleProjection (sub_lval, num), _ ->
-        get_lhs_name sub_lval ^ "." ^ string_of_int num
+        get_lhs_name sub_lval ^ "." ^ Int.to_string num
 
   (* Copied from AST's version in AST.ml *)
   let rec lvalue_of_expr_opt (expr : 'e Expr.t) :
       'e Expr.t Pattern.lvalue option =
-    let open Common.Let_syntax.Option in
+    let open Option.Syntax in
     let lbase_of_expr_opt (expr : 'e Expr.t) =
       match expr.pattern with
       | Var s -> Some (Pattern.LVariable s)

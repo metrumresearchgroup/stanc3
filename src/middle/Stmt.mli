@@ -20,23 +20,30 @@ module Pattern : sig
         { decl_adtype: UnsizedType.autodifftype
         ; decl_id: string
         ; decl_type: 'a Type.t
-        ; initialize: 'a decl_init }
-  [@@deriving sexp, hash, compare, map, fold]
+        ; initialize: 'a decl_init
+        ; decl_annotations: Annotation.t list }
+  [@@deriving sexp_of, map, fold]
 
-  and 'e lvalue = 'e lbase * 'e Index.t list
-  [@@deriving sexp, hash, map, compare, fold]
+  and 'e lvalue = 'e lbase * 'e Index.t list [@@deriving sexp_of, map, fold]
 
   and 'e lbase = LVariable of string | LTupleProjection of 'e lvalue * int
-  [@@deriving sexp, hash, map, compare, fold]
+  [@@deriving sexp_of, map, fold]
 
   and 'a decl_init = Uninit | Default | Assign of 'a
-  [@@deriving sexp, hash, map, fold, compare]
+  [@@deriving sexp_of, map, fold]
+
+  val fold_map :
+       ('a -> 'b -> 'a)
+    -> ('a -> 'c -> 'a * 'd)
+    -> 'a
+    -> ('b, 'c) t
+    -> 'a * ('b, 'd) t
 end
 
 (** The "two-level" type for statements in the MIR. This corresponds to what the
     AST calls [Frontend.Ast.statement_with] *)
 type ('a, 'b) t = {pattern: ('a Expr.t, ('a, 'b) t) Pattern.t; meta: 'b}
-[@@deriving compare, hash, sexp]
+[@@deriving sexp_of]
 
 val pp : ('a, 'b) t Fmt.t
 
@@ -56,38 +63,30 @@ val rewrite_bottom_up :
 
 module Located : sig
   module Meta : sig
-    type t = (Location_span.t[@sexp.opaque] [@compare.ignore])
-    [@@deriving compare, sexp, hash]
+    type t = Location_span.t
 
     val empty : t
   end
 
-  type nonrec t =
-    (Expr.Typed.Meta.t, (Meta.t[@sexp.opaque] [@compare.ignore])) t
-  [@@deriving compare, sexp, hash]
+  type nonrec t = (Expr.Typed.Meta.t, (Meta.t[@sexp.opaque])) t
+  [@@deriving sexp_of]
 
   val pp : t Fmt.t
 
   module Non_recursive : sig
-    type t =
-      { pattern: (Expr.Typed.t, int) Pattern.t
-      ; meta: (Meta.t[@sexp.opaque] [@compare.ignore]) }
-    [@@deriving compare, sexp, hash]
+    type t = {pattern: (Expr.Typed.t, int) Pattern.t; meta: Meta.t}
   end
 end
 
 module Numbered : sig
   module Meta : sig
-    type t = (int[@sexp.opaque] [@compare.ignore])
-    [@@deriving compare, sexp, hash]
+    type t = int
 
     val empty : t
     val from_int : int -> t
   end
 
-  type nonrec t =
-    (Expr.Typed.Meta.t, (Meta.t[@sexp.opaque] [@compare.ignore])) t
-  [@@deriving compare, sexp, hash]
+  type nonrec t = (Expr.Typed.Meta.t, Meta.t) t
 
   val pp : t Fmt.t
 end
@@ -114,44 +113,18 @@ module Helpers : sig
     -> Location_span.t
     -> Located.t
 
-  val mk_for_iteratee :
-       Expr.Typed.t
-    -> (Expr.Typed.t -> Located.t)
-    -> Expr.Typed.t
-    -> Location_span.t
-    -> Located.t
-
   val for_each :
     (Expr.Typed.t -> Located.t) -> Expr.Typed.t -> Location_span.t -> Located.t
-
-  val for_scalar :
-       Expr.Typed.t SizedType.t
-    -> (Expr.Typed.t SizedType.t -> Expr.Typed.t -> Located.t)
-    -> Expr.Typed.t
-    -> Location_span.t
-    -> Located.t
-
-  val for_scalar_inv :
-       Expr.Typed.t SizedType.t
-    -> (Expr.Typed.t SizedType.t -> Expr.Typed.t -> Located.t)
-    -> Expr.Typed.t
-    -> Location_span.t
-    -> Located.t
-
-  val assign_indexed :
-       UnsizedType.t
-    -> 'b Expr.t Pattern.lvalue
-    -> 'a
-    -> ('b Expr.t -> 'b Expr.t)
-    -> 'b Expr.t
-    -> ('b, 'a) t
 
   val get_lhs_name : 'a Pattern.lvalue -> string
   (** The name of the lhs. This adds "." and an index to tuple projections *)
 
   val lvariable : string -> 'e Pattern.lvalue
   val lvalue_of_expr_opt : 'e Expr.t -> 'e Expr.t Pattern.lvalue option
+
   val expr_of_lvalue : 'e Expr.t Pattern.lvalue -> meta:'e -> 'e Expr.t
+  (** Warning: the type of the top-level expr is as provided in meta, but any
+      internal types will likely be incorrect in this function *)
 
   val map_lhs_variable :
     f:(string -> string) -> 'e Pattern.lvalue -> 'e Pattern.lvalue

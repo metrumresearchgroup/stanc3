@@ -1,21 +1,21 @@
-open Core
-open Core.Poly
+open Std
 open Middle
 
 let trans_fn_kind kind name =
   let fname = Utils.stdlib_distribution_name name in
   match kind with
-  | Ast.StanLib suffix -> Fun_kind.StanLib (fname, suffix, AoS)
+  | Ast.StanLib suffix -> Fun_kind.StanLib (fname, suffix)
   | UserDefined suffix -> UserDefined (fname, suffix)
 
-let without_underscores = String.filter ~f:(( <> ) '_')
+let without_underscores s =
+  String.split_on_char ~sep:'_' s |> String.concat ~sep:""
 
 let drop_leading_zeros s =
-  match String.lfindi ~f:(fun _ c -> c <> '0') s with
+  match String.find_first_index (fun c -> c <> '0') s with
   | Some p when p > 0 -> (
       match s.[p] with
-      | 'e' | 'E' | '.' -> String.drop_prefix s (p - 1)
-      | _ -> String.drop_prefix s p)
+      | 'e' | 'E' | '.' -> String.drop_first (p - 1) s
+      | _ -> String.drop_first p s)
   | Some _ -> s
   | None -> "0"
 
@@ -32,11 +32,10 @@ let%expect_test "format_number1" =
 let rec op_to_funapp op args type_ =
   let loc = Ast.expr_loc_lub args in
   let adlevel =
-    Ast.expr_ad_lub args |> Option.value_exn
+    Ast.expr_ad_lub args |> Option.get
     (* correctness inherited from typechecking *) in
   Expr.
-    { pattern=
-        FunApp (StanLib (Operator.to_string op, FnPlain, AoS), trans_exprs args)
+    { pattern= FunApp (Operator op, trans_exprs args)
     ; meta= Expr.Typed.Meta.create ~type_ ~adlevel ~loc () }
 
 and trans_expr {Ast.expr; Ast.emeta} =
@@ -63,7 +62,7 @@ and trans_expr {Ast.expr; Ast.emeta} =
   | FunApp (fn_kind, {name; _}, args) | CondDistApp (fn_kind, {name; _}, args)
     ->
       FunApp (trans_fn_kind fn_kind name, trans_exprs args) |> ewrap
-  | GetTarget -> FunApp (StanLib ("target", FnTarget, AoS), []) |> ewrap
+  | GetTarget -> FunApp (StanLib ("target", FnTarget), []) |> ewrap
   | ArrayExpr eles ->
       FunApp (CompilerInternal FnMakeArray, trans_exprs eles) |> ewrap
   | RowVectorExpr eles ->
@@ -85,8 +84,9 @@ and trans_idx = function
       | UInt -> Single (trans_expr e)
       | UArray _ -> MultiIndex (trans_expr e)
       | _ ->
-          Common.ICE.internal_compiler_error
-            [%message "Expecting int or array" (e.emeta.type_ : UnsizedType.t)])
+          Common.ICE.(
+            internal_errorf "Expecting int or array, got %t"
+              [UnsizedType.pp $ e.emeta.type_]) [@coverage off])
 
 and trans_exprs exprs = List.map ~f:trans_expr exprs
 
@@ -107,7 +107,7 @@ let truncate_dist ud_dists (id : Ast.identifier)
   let ccdf_suffix = "_lccdf" in
   let find_function_info sfx =
     let name = id.name ^ sfx in
-    match List.find ~f:(fun (n, _) -> String.equal name n) ud_dists with
+    match List.find_opt ~f:(fun (n, _) -> String.equal name n) ud_dists with
     | Some (name, tp) -> (Ast.UserDefined FnPlain, name, tp)
     | None ->
         ( Ast.StanLib FnPlain
@@ -190,21 +190,21 @@ let truncate_dist ud_dists (id : Ast.identifier)
           ; funapp ub.meta fk fn (inclusive_bound tp lb :: args) ] in
       let statement =
         match
-          List.findi
-            ~f:(fun (_ : int) (e : Ast.typed_expression) ->
+          List.find_index
+            ~f:(fun (e : Ast.typed_expression) ->
               UnsizedType.is_container e.emeta.type_)
             ast_args
         with
         (* If any of the arguments (besides the data) are vectors, need to
            generate a loop This can go away if
            https://github.com/stan-dev/stan/issues/1154 is implemented *)
-        | Some (i, _) ->
+        | Some i ->
             let ast_args = trans_exprs ast_args in
             (* avoid recomputing in each iteration of the loop *)
             let temp_decls, ast_args, symbol_reset =
               Stmt.Helpers.temp_vars ast_args in
             let bound =
-              let e = List.nth_exn ast_args i in
+              let e = List.nth ast_args i in
               Expr.Helpers.internal_funapp FnLength [e]
                 {e.meta with type_= UnsizedType.UInt} in
             let bodyfn (idx : Expr.Typed.t) =
@@ -226,7 +226,7 @@ let truncate_dist ud_dists (id : Ast.identifier)
 
 let unquote s =
   if s.[0] = '"' && s.[String.length s - 1] = '"' then
-    String.drop_suffix (String.drop_prefix s 1) 1
+    String.drop_last 1 (String.drop_first 1 s)
   else s
 
 let trans_printables mloc (ps : Ast.typed_expression Ast.printable list) =
@@ -242,7 +242,7 @@ let trans_printables mloc (ps : Ast.typed_expression Ast.printable list) =
 
 (** These types signal the context for a declaration during statement
     translation. They are only interpreted by trans_decl.*)
-type transform_action = Check | Constrain | IgnoreTransform [@@deriving sexp]
+type transform_action = Check | Constrain | IgnoreTransform
 
 type decl_context =
   {transform_action: transform_action; dadlevel: UnsizedType.autodifftype}
@@ -253,7 +253,7 @@ let same_shape decl_id decl_var id var meta =
     [ Stmt.
         { pattern=
             NRFunApp
-              ( StanLib ("check_matching_dims", FnPlain, AoS)
+              ( StanLib ("check_matching_dims", FnPlain)
               , Expr.Helpers.
                   [str "constraint"; str decl_id; decl_var; str id; var] )
         ; meta } ]
@@ -316,11 +316,11 @@ let rec shrink_helper (f : size_change) f_d2 st =
     match f with
     | Univariate f -> f d
     | Multivariate _ ->
-        Common.ICE.internal_compiler_error
-          [%message
+        Common.ICE.(
+          internal_errorf
             "To shrink a vector, the first argument must be a univariate \
-             function "
-              (st : Expr.Typed.t SizedType.t)] in
+             function, got: %t"
+            [SizedType.pp Expr.Typed.pp $ st]) [@coverage off] in
   match st with
   | SizedType.SArray (t, d) -> SizedType.SArray (shrink_helper f f_d2 t, d)
   | SVector (mem_pattern, d) -> SVector (mem_pattern, f_assert_univariate d)
@@ -332,15 +332,15 @@ let rec shrink_helper (f : size_change) f_d2 st =
       | Multivariate f -> SVector (mem_pattern, f d1 d2))
   | SInt | SReal | SComplex | STuple _ | SComplexRowVector _
    |SComplexVector _ | SComplexMatrix _ ->
-      Common.ICE.internal_compiler_error
-        [%message
-          "Expecting SVector or SMatrix, got " (st : Expr.Typed.t SizedType.t)]
+      Common.ICE.(
+        internal_errorf "Expecting SVector or SMatrix, got %t"
+          [SizedType.pp Expr.Typed.pp $ st]) [@coverage off]
 
 let rec transform_sizedtype transformation sizedtype =
   (* Functions for computing the new sizetype after some transformation *)
   let shrink_eigen_mat f st =
     (* Matrices become vectors, with size computed by [f] *)
-    shrink_helper (Multivariate f) Fn.id st in
+    shrink_helper (Multivariate f) Fun.id st in
   let shrink_eigen_vec f st =
     (* Matrices are mapped to vectors, only depending on their first dimension
        for sizing *)
@@ -369,8 +369,8 @@ let rec transform_sizedtype transformation sizedtype =
            (List.map subtypes_transforms ~f:(fun (st, trans) ->
                 transform_sizedtype trans st)))
   | SumToZero -> shrink_eigen minus_one minus_one sizedtype
-  | Simplex | StochasticColumn -> shrink_eigen minus_one Fn.id sizedtype
-  | StochasticRow -> shrink_eigen Fn.id minus_one sizedtype
+  | Simplex | StochasticColumn -> shrink_eigen minus_one Fun.id sizedtype
+  | StochasticRow -> shrink_eigen Fun.id minus_one sizedtype
   | CholeskyCorr | Correlation -> shrink_eigen_vec k_choose_2 sizedtype
   | Covariance ->
       shrink_eigen_vec
@@ -407,7 +407,7 @@ let rec check_decl var decl_type' decl_trans smeta adlevel =
         [ Stmt.Helpers.mk_nested_for (List.rev dims)
             (fun loopvars ->
               let var =
-                List.fold ~f:Expr.Helpers.add_int_index ~init:var
+                List.fold_left ~f:Expr.Helpers.add_int_index ~init:var
                   (List.map ~f:(fun e -> Index.Single e) (List.rev loopvars))
               in
               Stmt.
@@ -424,46 +424,123 @@ let rec check_decl var decl_type' decl_trans smeta adlevel =
       [check_id var]
   | _ -> []
 
-let check_sizedtype name st =
-  let check x = function
-    | {Expr.pattern= Lit (Int, i); _} when float_of_string i >= 0. -> []
-    | n ->
-        [ Stmt.Helpers.internal_nrfunapp FnValidateSize
-            Expr.Helpers.
-              [ str name
-              ; str (Fmt.str "%a" Pretty_printing.pp_typed_expression x); n ]
-            n.meta.loc ] in
-  let rec sizedtype = function
+let rec check_transformed_sizedtype transform_action tr name st =
+  let validate_dim_expr fn n e =
+    let check te =
+      [ Stmt.Helpers.internal_nrfunapp fn
+          Expr.Helpers.
+            [ str name; str (Fmt.str "%a" Pretty_printing.pp_typed_expression e)
+            ; te ]
+          te.meta.loc ] in
+    match (fn, e) with
+    | Internal_fun.FnValidateSize, Ast.{expr= IntNumeral i; _}
+      when Float.of_string i >= 0. ->
+        ([], trans_expr e)
+    | FnValidateSizePositive, {expr= IntNumeral i; _}
+      when Float.of_string i >= 1. ->
+        ([], trans_expr e)
+    | FnValidateSizeUnitVector, {expr= IntNumeral i; _}
+      when Float.of_string i >= 2. ->
+        ([], trans_expr e)
+    | _, ({expr= IntNumeral _; _} | {expr= Variable _; _}) ->
+        let e = trans_expr e in
+        (check e, e)
+    | _ ->
+        let te = trans_expr e in
+        let decl_name =
+          name
+          |> String.replace_all ~sub:"[]" ~by:"_brack"
+          |> String.replace_all ~sub:"." ~by:"_dot" in
+        let decl_id = Fmt.str "%s_%ddim__" decl_name n in
+        let decl =
+          { Stmt.pattern=
+              Decl
+                { decl_type= Sized SInt
+                ; decl_id
+                ; decl_annotations= []
+                ; decl_adtype= DataOnly
+                ; initialize= Assign te }
+          ; meta= te.meta.loc } in
+        let var =
+          Expr.
+            { pattern= Var decl_id
+            ; meta=
+                Typed.Meta.
+                  { type_= e.Ast.emeta.type_
+                  ; adlevel= e.emeta.ad_level
+                  ; loc= e.emeta.loc } } in
+        (decl :: check var, var) in
+  let rec go n = function
     | SizedType.(SInt | SReal | SComplex) as t -> ([], t)
     | SVector (mem_pattern, s) ->
-        let e = trans_expr s in
-        (check s e, SizedType.SVector (mem_pattern, e))
+        let fn =
+          match (transform_action, tr) with
+          | Constrain, (Transformation.Simplex | SumToZero) ->
+              Internal_fun.FnValidateSizePositive
+          | Constrain, UnitVector -> FnValidateSizeUnitVector
+          | _ -> FnValidateSize in
+        let l, s = validate_dim_expr fn n s in
+        (l, SizedType.SVector (mem_pattern, s))
     | SRowVector (mem_pattern, s) ->
-        let e = trans_expr s in
-        (check s e, SizedType.SRowVector (mem_pattern, e))
-    | SMatrix (mem_pattern, r, c) ->
-        let er = trans_expr r in
-        let ec = trans_expr c in
-        (check r er @ check c ec, SizedType.SMatrix (mem_pattern, er, ec))
-    | SComplexVector s ->
-        let e = trans_expr s in
-        (check s e, SizedType.SComplexVector e)
+        let l, s = validate_dim_expr FnValidateSize n s in
+        (l, SizedType.SRowVector (mem_pattern, s))
     | SComplexRowVector s ->
-        let e = trans_expr s in
-        (check s e, SizedType.SComplexRowVector e)
+        let l, s = validate_dim_expr FnValidateSize n s in
+        (l, SizedType.SComplexRowVector s)
+    | SComplexVector s ->
+        let l, s = validate_dim_expr FnValidateSize n s in
+        (l, SizedType.SComplexVector s)
+    | SMatrix (mem_pattern, r, c) ->
+        let fn1, fn2 =
+          match (transform_action, tr) with
+          | Constrain, Transformation.SumToZero ->
+              ( Internal_fun.FnValidateSizePositive
+              , Internal_fun.FnValidateSizePositive )
+          | Constrain, StochasticColumn ->
+              (FnValidateSizePositive, FnValidateSize)
+          | Constrain, StochasticRow -> (FnValidateSize, FnValidateSizePositive)
+          | _ -> (FnValidateSize, FnValidateSize) in
+        let l1, r = validate_dim_expr fn1 n r in
+        let l2, c = validate_dim_expr fn2 (n + 1) c in
+        let cf_cov =
+          match (transform_action, tr) with
+          | Constrain, CholeskyCov ->
+              [ { Stmt.pattern=
+                    NRFunApp
+                      ( StanLib ("check_greater_or_equal", FnPlain)
+                      , Expr.Helpers.
+                          [ str ("cholesky_factor_cov " ^ name)
+                          ; str
+                              "num rows (must be greater or equal to num cols)"
+                          ; r; c ] )
+                ; meta= r.Expr.meta.Expr.Typed.Meta.loc } ]
+          | _ -> [] in
+        (l1 @ l2 @ cf_cov, SizedType.SMatrix (mem_pattern, r, c))
     | SComplexMatrix (r, c) ->
-        let er = trans_expr r in
-        let ec = trans_expr c in
-        (check r er @ check c ec, SizedType.SComplexMatrix (er, ec))
+        let l1, r = validate_dim_expr FnValidateSize n r in
+        let l2, c = validate_dim_expr FnValidateSize (n + 1) c in
+        (l1 @ l2, SizedType.SComplexMatrix (r, c))
     | SArray (t, s) ->
-        let e = trans_expr s in
-        let ll, t = sizedtype t in
-        (check s e @ ll, SizedType.SArray (t, e))
+        let l, s = validate_dim_expr FnValidateSize n s in
+        let ll, t = go (n + 1) t in
+        (l @ ll, SizedType.SArray (t, s))
     | STuple subtypes ->
-        let checks, subtypes = List.unzip (List.map ~f:sizedtype subtypes) in
-        (List.concat checks, STuple subtypes) in
-  let ll, st = sizedtype st in
-  (ll, Type.Sized st)
+        let former_array_indices =
+          String.concat ~sep:"" (List.init ~len:(n - 1) ~f:(fun _ -> "[]"))
+        in
+        let stmts, subtypes' =
+          List.split
+            (List.mapi
+               Utils.(zip_subtypes_tuple_trans_exn subtypes tr)
+               ~f:(fun ix (st, trans) ->
+                 check_transformed_sizedtype transform_action trans
+                   (name ^ former_array_indices ^ "." ^ Int.to_string (ix + 1))
+                   st)) in
+        (List.concat stmts, SizedType.STuple subtypes') in
+  go 1 st
+
+let check_sizedtype name st =
+  check_transformed_sizedtype IgnoreTransform Transformation.Identity name st
 
 (* The statements that constrain and check a variable, given its context *)
 let var_constrain_check_stmts dconstrain loc adlevel decl_id decl_var trans
@@ -476,8 +553,8 @@ let var_constrain_check_stmts dconstrain loc adlevel decl_id decl_var trans
       @ check_decl decl_var st trans loc adlevel
   | _ -> []
 
-let create_decl_with_assign decl_id declc decl_type initial_value transform
-    smeta =
+let create_decl_with_assign decl_id declc decl_type initial_value
+    decl_annotations transform smeta =
   let rhs = Option.map ~f:trans_expr initial_value in
   let decl_adtype =
     UnsizedType.fill_adtype_for_type declc.dadlevel (Type.to_unsized decl_type)
@@ -491,7 +568,13 @@ let create_decl_with_assign decl_id declc decl_type initial_value transform
             () } in
   let decl =
     Stmt.
-      { pattern= Decl {decl_adtype; decl_id; decl_type; initialize= Default}
+      { pattern=
+          Decl
+            { decl_adtype
+            ; decl_id
+            ; decl_type
+            ; initialize= Default
+            ; decl_annotations }
       ; meta= smeta } in
   let rhs_assignment =
     Option.map
@@ -511,22 +594,20 @@ let unwrap_block_or_skip = function
   | [({Stmt.pattern= Block _; _} as b)] -> Some b
   | [{pattern= Skip; _}] -> None
   | x ->
-      Common.ICE.internal_compiler_error
-        [%message "Expecting a block or skip, not" (x : Stmt.Located.t list)]
+      Common.ICE.(
+        internal_errorf "Expecting a block or skip, not %t"
+          [Fmt.list Stmt.Located.pp $ x]) [@coverage off]
 
 let index_tuple (e : Ast.typed_expression) i =
   let emeta =
     match (e.emeta.type_, e.emeta.ad_level) with
     | UnsizedType.UTuple ts, UnsizedType.TupleAD ads ->
-        Ast.
-          { type_= List.nth_exn ts i
-          ; ad_level= List.nth_exn ads i
-          ; loc= e.emeta.loc }
+        Ast.{type_= List.nth ts i; ad_level= List.nth ads i; loc= e.emeta.loc}
     | _ ->
-        Common.ICE.internal_compiler_error
-          [%message
-            "Attempted to index into a non-tuple during lowering"
-              (e : Ast.typed_expression)] in
+        Common.ICE.(
+          internal_errorf
+            "Attempted to index into a non-tuple %t during lowering"
+            [Pretty_printing.pp_typed_expression $ e]) [@coverage off] in
   Ast.{expr= TupleProjection (e, i + 1); emeta}
 
 let rec trans_stmt ud_dists (declc : decl_context) (ts : Ast.typed_statement) =
@@ -551,20 +632,24 @@ let rec trans_stmt ud_dists (declc : decl_context) (ts : Ast.typed_statement) =
   | Ast.Tilde {arg; distribution; args; truncation; kind} ->
       let sfx =
         match kind with
-        | UserDefined (FnLpdf _) | StanLib (FnLpdf _) -> "_lpdf"
-        | UserDefined (FnLpmf _) | StanLib (FnLpmf _) -> "_lpmf"
+        | UserDefined (FnDist (Density, _)) | StanLib (FnDist (Density, _)) ->
+            "_lpdf"
+        | UserDefined (FnDist (Mass, _)) | StanLib (FnDist (Mass, _)) -> "_lpmf"
         | _ ->
-            Common.ICE.internal_compiler_error
-              [%message
-                "Impossible: tilde with non-distribution after typechecking"
-                  (distribution : Ast.identifier)
-                  (kind : Ast.fun_kind)] in
+            Common.ICE.internal_errorf
+              "Impossible: tilde with non-distribution after typechecking, \
+               dist %s kind %s"
+              [ distribution.name
+              ; Ast.sexp_of_fun_kind kind |> Sexplib0.Sexp.to_string_hum ]
+            [@coverage off] in
       let name = distribution.name ^ sfx in
       let add_dist =
         let adlevel =
           if
             UnsizedType.any_autodiff
-              (List.map ~f:(fun x -> x.emeta.ad_level) (arg :: args))
+              (List.map
+                 ~f:(fun (x : Ast.typed_expression) -> x.emeta.ad_level)
+                 (arg :: args))
           then UnsizedType.AutoDiffable
           else DataOnly in
         Stmt.Pattern.TargetPE
@@ -618,7 +703,8 @@ let rec trans_stmt ud_dists (declc : decl_context) (ts : Ast.typed_statement) =
                 { decl_adtype= Expr.Typed.adlevel_of iteratee'
                 ; decl_id= loopvar.name
                 ; decl_type= Unsized decl_type
-                ; initialize= Default } } in
+                ; initialize= Default
+                ; decl_annotations= [] } } in
       let assignment var =
         Stmt.
           { pattern=
@@ -630,18 +716,19 @@ let rec trans_stmt ud_dists (declc : decl_context) (ts : Ast.typed_statement) =
           ; meta= smeta } in
       Stmt.Helpers.[ensure_var (for_each bodyfn) iteratee' smeta]
   | Ast.FunDef _ ->
-      Common.ICE.internal_compiler_error
-        [%message
-          "Found function definition statement outside of function block"]
-  | Ast.VarDecl {decl_type; transformation; variables; is_global= _} ->
+      Common.ICE.internal_error
+        "Found function definition statement outside of function block"
+      [@coverage off]
+  | Ast.VarDecl {decl_type; transformation; variables; annotations; is_global= _}
+    ->
       List.concat_map
-        ~f:(fun {identifier; initial_value} ->
+        ~f:(fun Ast.{identifier; initial_value} ->
           let transform = Transformation.map trans_expr transformation in
           let decl_id = identifier.Ast.name in
           let size_checks, dt = check_sizedtype decl_id decl_type in
           size_checks
-          @ create_decl_with_assign decl_id declc dt initial_value transform
-              smeta)
+          @ create_decl_with_assign decl_id declc (Type.Sized dt) initial_value
+              annotations transform smeta)
         variables
   | Ast.Block stmts -> Block (List.concat_map ~f:trans_stmt stmts) |> swrap
   | Ast.Profile (name, stmts) ->
@@ -655,8 +742,12 @@ let rec trans_stmt ud_dists (declc : decl_context) (ts : Ast.typed_statement) =
 and trans_packed_assign loc trans_stmt lvals rhs assign_op =
   (* TODO tuple-unpacking: could be more efficient in case where rhs is a tuple
      expr and names don't overlap *)
-  let smeta = Ast.{loc; return_type= Incomplete} in
-  let sym, reset = Common.Gensym.enter () in
+  let smeta =
+    Ast.
+      { loc
+      ; flow_type= {controlflow= Incomplete Next; breaks= []; continues= false}
+      } in
+  let sym, reset = Common.Gensym.enter ~prefix:"unpack" in
   let rhs_type = rhs.emeta.type_ in
   let temp =
     { Stmt.pattern=
@@ -664,7 +755,8 @@ and trans_packed_assign loc trans_stmt lvals rhs assign_op =
           { decl_adtype= rhs.emeta.ad_level
           ; decl_id= sym
           ; decl_type= Unsized rhs_type
-          ; initialize= Uninit }
+          ; initialize= Uninit
+          ; decl_annotations= [] }
     ; meta= rhs.emeta.loc } in
   let assign =
     { temp with
@@ -728,12 +820,13 @@ and trans_single_assignment smeta assign_lhs assign_rhs assign_op =
 
 let trans_fun_def ud_dists (ts : Ast.typed_statement) =
   match ts.stmt with
-  | Ast.FunDef {returntype; funname; arguments; body} ->
+  | Ast.FunDef {returntype; funname; arguments; annotations; body} ->
       [ Program.
           { fdrt= returntype
           ; fdname= funname.name
-          ; fdsuffix= Fun_kind.(suffix_from_name funname.name |> without_propto)
+          ; fdsuffix= Fun_kind.(suffix_from_name funname.name)
           ; fdargs= List.map ~f:trans_arg arguments
+          ; fdannotations= annotations
           ; fdbody=
               trans_stmt ud_dists
                 {transform_action= IgnoreTransform; dadlevel= AutoDiffable}
@@ -741,8 +834,9 @@ let trans_fun_def ud_dists (ts : Ast.typed_statement) =
               |> unwrap_block_or_skip
           ; fdloc= ts.smeta.loc } ]
   | _ ->
-      Common.ICE.internal_compiler_error
-        [%message "Found non-function definition statement in function block"]
+      Common.ICE.internal_error
+        "Found non-function definition statement in function block"
+      [@coverage off]
 
 let get_block block prog =
   match block with
@@ -750,128 +844,26 @@ let get_block block prog =
   | TransformedParameters -> prog.transformedparametersblock
   | GeneratedQuantities -> prog.generatedquantitiesblock
 
-let rec trans_sizedtype_decl declc tr name st =
-  let check fn x n =
-    Stmt.Helpers.internal_nrfunapp fn
-      Expr.Helpers.
-        [str name; str (Fmt.str "%a" Pretty_printing.pp_typed_expression x); n]
-      n.meta.loc in
-  let grab_size fn n = function
-    | Ast.{expr= IntNumeral i; _} as s when float_of_string i >= 2. ->
-        ([], trans_expr s)
-    | Ast.({expr= IntNumeral _; _} | {expr= Variable _; _}) as s ->
-        let e = trans_expr s in
-        ([check fn s e], e)
-    | s ->
-        let e = trans_expr s in
-        let decl_name =
-          name
-          |> String.substr_replace_all ~pattern:"[]" ~with_:"_brack"
-          |> String.substr_replace_all ~pattern:"." ~with_:"_dot" in
-        let decl_id = Fmt.str "%s_%ddim__" decl_name n in
-        let decl =
-          { Stmt.pattern=
-              Decl
-                { decl_type= Sized SInt
-                ; decl_id
-                ; decl_adtype= DataOnly
-                ; initialize= Default }
-          ; meta= e.meta.loc } in
-        let assign =
-          { Stmt.pattern= Assignment (Stmt.Helpers.lvariable decl_id, UInt, e)
-          ; meta= e.meta.loc } in
-        let var =
-          Expr.
-            { pattern= Var decl_id
-            ; meta=
-                Typed.Meta.
-                  { type_= s.Ast.emeta.Ast.type_
-                  ; adlevel= s.emeta.ad_level
-                  ; loc= s.emeta.loc } } in
-        ([decl; assign; check fn s var], var) in
-  let rec go n = function
-    | SizedType.(SInt | SReal | SComplex) as t -> ([], t)
-    | SVector (mem_pattern, s) ->
-        let fn =
-          match (declc.transform_action, tr) with
-          | Constrain, (Transformation.Simplex | SumToZero) ->
-              Internal_fun.FnValidateSizePositive
-          | Constrain, UnitVector -> FnValidateSizeUnitVector
-          | _ -> FnValidateSize in
-        let l, s = grab_size fn n s in
-        (l, SizedType.SVector (mem_pattern, s))
-    | SRowVector (mem_pattern, s) ->
-        let l, s = grab_size FnValidateSize n s in
-        (l, SizedType.SRowVector (mem_pattern, s))
-    | SComplexRowVector s ->
-        let l, s = grab_size FnValidateSize n s in
-        (l, SizedType.SComplexRowVector s)
-    | SComplexVector s ->
-        let l, s = grab_size FnValidateSize n s in
-        (l, SizedType.SComplexVector s)
-    | SMatrix (mem_pattern, r, c) ->
-        let fn1, fn2 =
-          match (declc.transform_action, tr) with
-          | Constrain, Transformation.SumToZero ->
-              ( Internal_fun.FnValidateSizePositive
-              , Internal_fun.FnValidateSizePositive )
-          | Constrain, StochasticColumn ->
-              (FnValidateSizePositive, FnValidateSize)
-          | Constrain, StochasticRow -> (FnValidateSize, FnValidateSizePositive)
-          | _ -> (FnValidateSize, FnValidateSize) in
-        let l1, r = grab_size fn1 n r in
-        let l2, c = grab_size fn2 (n + 1) c in
-        let cf_cov =
-          match (declc.transform_action, tr) with
-          | Constrain, CholeskyCov ->
-              [ { Stmt.pattern=
-                    NRFunApp
-                      ( StanLib ("check_greater_or_equal", FnPlain, AoS)
-                      , Expr.Helpers.
-                          [ str ("cholesky_factor_cov " ^ name)
-                          ; str
-                              "num rows (must be greater or equal to num cols)"
-                          ; r; c ] )
-                ; meta= r.Expr.meta.Expr.Typed.Meta.loc } ]
-          | _ -> [] in
-        (l1 @ l2 @ cf_cov, SizedType.SMatrix (mem_pattern, r, c))
-    | SComplexMatrix (r, c) ->
-        let l1, r = grab_size FnValidateSize n r in
-        let l2, c = grab_size FnValidateSize (n + 1) c in
-        (l1 @ l2, SizedType.SComplexMatrix (r, c))
-    | SArray (t, s) ->
-        let l, s = grab_size FnValidateSize n s in
-        let ll, t = go (n + 1) t in
-        (l @ ll, SizedType.SArray (t, s))
-    | STuple subtypes ->
-        let former_array_indices =
-          String.concat (List.init (n - 1) ~f:(fun _ -> "[]")) in
-        let stmts, subtypes' =
-          List.unzip
-            (List.mapi
-               (List.zip_exn subtypes Utils.(tuple_trans_exn tr))
-               ~f:(fun ix (st, trans) ->
-                 trans_sizedtype_decl declc trans
-                   (name ^ former_array_indices ^ "." ^ string_of_int (ix + 1))
-                   st)) in
-        (List.concat stmts, SizedType.STuple subtypes') in
-  go 1 st
-
 let trans_block ud_dists declc block prog =
   let f stmt (accum1, accum2, accum3) =
     match stmt with
     | { Ast.stmt=
-          VarDecl {decl_type= type_; variables; transformation; is_global= true}
+          VarDecl
+            { decl_type= type_
+            ; variables
+            ; transformation
+            ; annotations
+            ; is_global= true }
       ; smeta } ->
         let outvars, sizes, stmts =
-          List.unzip3
+          List.split3
           @@ List.map
-               ~f:(fun {identifier; initial_value} ->
+               ~f:(fun Ast.{identifier; initial_value} ->
                  let decl_id = identifier.Ast.name in
                  let transform = Transformation.map trans_expr transformation in
                  let size, type_ =
-                   trans_sizedtype_decl declc transform identifier.name type_
-                 in
+                   check_transformed_sizedtype declc.transform_action transform
+                     identifier.name type_ in
                  let outvar =
                    ( decl_id
                    , smeta.Ast.loc
@@ -880,10 +872,11 @@ let trans_block ud_dists declc block prog =
                        ; out_unconstrained_st=
                            transform_sizedtype transform type_
                        ; out_block= block
+                       ; out_annotations= annotations
                        ; out_trans= transform } ) in
                  let stmts =
                    create_decl_with_assign decl_id declc (Sized type_)
-                     initial_value transform smeta.loc in
+                     initial_value annotations transform smeta.loc in
                  (outvar, size, stmts))
                variables in
         ( outvars @ accum1
@@ -899,15 +892,16 @@ let stmt_contains_check stmt =
   Stmt.Helpers.contains_fn_kind is_check stmt
 
 let migrate_checks_to_end_of_block stmts =
-  let checks, not_checks = List.partition_tf ~f:stmt_contains_check stmts in
+  let checks, not_checks = List.partition ~f:stmt_contains_check stmts in
   not_checks @ checks
 
 let gather_declarations (b : Ast.typed_statement Ast.block option) =
   let data = Ast.get_stmts b in
   List.concat_map data ~f:(function
-    | {stmt= VarDecl {decl_type= sizedtype; transformation; variables; _}; _} ->
+    | Ast.{stmt= VarDecl {decl_type= sizedtype; transformation; variables; _}; _}
+      ->
         List.map
-          ~f:(fun {identifier; _} ->
+          ~f:(fun Ast.{identifier; _} ->
             ( SizedType.map trans_expr sizedtype
             , Transformation.map trans_expr transformation
             , identifier.name ))
@@ -931,7 +925,7 @@ let trans_prog filename (p : Ast.typed_program) : Program.Typed.t =
     match s.Ast.stmt with
     | Ast.VarDecl {decl_type= st; variables; transformation; _} ->
         List.map
-          ~f:(fun {identifier; _} ->
+          ~f:(fun Ast.{identifier; _} ->
             ( identifier.name
             , trans_sizedtype st
             , transformation
@@ -984,7 +978,7 @@ let trans_prog filename (p : Ast.typed_program) : Program.Typed.t =
   let txparam_decls, txparam_checks, txparam_stmts =
     txparam_gq
     |> List.partition3_map ~f:(function
-      | {pattern= Decl _; _} as d -> `Fst d
+      | Stmt.{pattern= Decl _; _} as d -> `Fst d
       | s when stmt_contains_check s -> `Snd s
       | s -> `Trd s) in
   let compiler_if_return cond =
@@ -993,8 +987,7 @@ let trans_prog filename (p : Ast.typed_program) : Program.Typed.t =
           IfElse (cond, {pattern= Return None; meta= Location_span.empty}, None)
       ; meta= Location_span.empty } in
   let iexpr pattern = Expr.{pattern; meta= Typed.Meta.empty} in
-  let fnot e =
-    FunApp (StanLib (Operator.to_string PNot, FnPlain, AoS), [e]) |> iexpr in
+  let fnot e = FunApp (Operator PNot, [e]) |> iexpr in
   let tparam_early_return =
     let to_var fv = iexpr (Var (Flag_vars.to_string fv)) in
     let v1 = to_var EmitTransformedParameters in
@@ -1008,10 +1001,6 @@ let trans_prog filename (p : Ast.typed_program) : Program.Typed.t =
     param_gq @ txparam_decls @ tparam_early_return @ txparam_stmts
     @ txparam_checks @ gq_early_return
     @ migrate_checks_to_end_of_block gq_stmts in
-  let normalize_prog_name prog_name =
-    if String.length prog_name > 0 && not (Char.is_alpha prog_name.[0]) then
-      "_" ^ prog_name
-    else prog_name in
   { functions_block= map (trans_fun_def ud_dists) functionblock
   ; input_vars
   ; prepare_data
@@ -1021,5 +1010,5 @@ let trans_prog filename (p : Ast.typed_program) : Program.Typed.t =
   ; transform_inits
   ; unconstrain_array
   ; output_vars
-  ; prog_name= normalize_prog_name !Typechecker.model_name
+  ; prog_name= !Typechecker.model_name
   ; prog_path= filename }

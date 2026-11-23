@@ -1,8 +1,13 @@
 (** Storing locations in the original source *)
 
 (** Source code locations *)
-type t = {filename: string; line_num: int; col_num: int; included_from: t option}
-[@@deriving sexp, hash]
+type t =
+  { filename: string
+  ; line_num: int
+  ; col_num: int
+  ; byte_num: int
+  ; included_from: t option }
+[@@deriving sexp_of]
 
 val compare : t -> t -> int
 val empty : t
@@ -13,5 +18,6 @@ val pp :
   -> (* printed_filename *) string option
   -> t Fmt.t
 
-val pp_context_for : (t * string Array.t) Fmt.t
-(* Prints the text surrounding the provided location [t] from the given array *)
+val initial_file_loc : t -> t
+(** Returns the position this location lives at in the first (i.e.,
+    non-included) file *)
