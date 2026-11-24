@@ -3,6 +3,10 @@ name: Build binaries
 on:
   workflow_dispatch: {}
 
+  push:
+    branches:
+      - torsten-develop
+
 env:
   OCAML_VERSION: 5.5.2
 
@@ -51,7 +55,7 @@ jobs:
       - name: install dune
         run: |
           opam update
-          opam install -y dune
+          opam install -y dune.3.24.0
         env:
            SDKROOT: ""
            MACOSX_DEPLOYMENT_TARGET: ""
@@ -109,9 +113,18 @@ jobs:
           cache-prefix: v1-windows
           dune-cache: true
           ocaml-compiler: ocaml-windows64.${{ env.OCAML_VERSION }}
+          # Keep the default repository on the HTTP index (setup-ocaml's own
+          # default): it ships "archive-mirrors: cache", so source downloads
+          # fall back to opam's archive cache. The git URL of opam-repository
+          # carries no mirror and fetches straight from upstream hosts.
           opam-repositories: |
-            windows: http://github.com/ocaml-cross/opam-cross-windows.git
-            default: https://github.com/ocaml/opam-repository.git
+            windows: https://github.com/ocaml-cross/opam-cross-windows.git
+            default: https://opam.ocaml.org
+
+      # The opam-cross-windows overlay declares no archive-mirrors of its own,
+      # so the *-windows packages need the mirror configured globally.
+      - name: Enable opam archive mirror
+        run: opam option --global 'archive-mirrors=["https://opam.ocaml.org/cache"]'
 
       - run: bash -x scripts/install_build_deps_windows.sh
 
