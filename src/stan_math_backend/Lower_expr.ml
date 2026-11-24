@@ -5,11 +5,11 @@ open Middle
 open Cpp
 
 let stan_namespace_qualify f =
-  if String.is_suffix ~suffix:"functor__" f || String.contains f ':' then f
+  if String.ends_with f ~suffix:"functor__" || String.contains f ':' then f
   else if
-    String.is_prefix ~prefix:"pmx_solve_" f
-    || String.is_prefix ~prefix:"pmx_ln_" f
-    || String.is_prefix ~prefix:"pmx_ode_" f
+    String.starts_with ~prefix:"pmx_solve_" f
+    || String.starts_with ~prefix:"pmx_ln_" f
+    || String.starts_with ~prefix:"pmx_ode_" f
   then "torsten::" ^ f
   else "stan::math::" ^ f
 

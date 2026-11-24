@@ -2662,7 +2662,7 @@ let () =
   let add_ode name =
     add_variadic_fn name ~return_type:variadic_ode_return_type
       ~control_args:
-        (if String.is_suffix name ~suffix:pmx_ode_control_suffix then
+        (if String.ends_with name ~suffix:pmx_ode_control_suffix then
            variadic_ode_mandatory_arg_types @ variadic_ode_tol_arg_types
          else variadic_ode_mandatory_arg_types)
       ~required_fn_rt:variadic_ode_fun_return_type
