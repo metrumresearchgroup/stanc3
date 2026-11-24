@@ -6,6 +6,11 @@ open Cpp
 
 let stan_namespace_qualify f =
   if String.ends_with ~suffix:"functor__" f || String.contains f ':' then f
+  else if
+    String.starts_with ~prefix:"pmx_solve_" f
+    || String.starts_with ~prefix:"pmx_ln_" f
+    || String.starts_with ~prefix:"pmx_ode_" f
+  then "torsten::" ^ f
   else "stan::math::" ^ f
 
 let fn_renames =
